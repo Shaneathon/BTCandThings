@@ -402,9 +402,71 @@ try:
 except (sqlite3.Error, OSError) as exc:
     st.warning(f'Historical database is temporarily unavailable ({type(exc).__name__}). Baseline forecast will continue without calibration.')
 
+# PIXEL V12 — Supabase persistence (server-side only).
+# Uses Streamlit secrets; never place credentials in GitHub or in browser HTML.
+def cloud_settings():
+    try:
+        url=str(st.secrets.get("SUPABASE_URL","")).strip().rstrip("/")
+        key=str(st.secrets.get("SUPABASE_KEY","")).strip()
+        if url.startswith("https://") and key:
+            return url,key
+    except Exception:
+        pass
+    return None,None
+
+CLOUD_URL,CLOUD_KEY=cloud_settings()
+CLOUD_READY=bool(CLOUD_URL and CLOUD_KEY)
+CLOUD_ERROR=None
+
+def cloud_request(method,table,params=None,payload=None,prefer=None):
+    if not CLOUD_READY:
+        raise RuntimeError("Supabase secrets are missing")
+    headers={"apikey":CLOUD_KEY,"Authorization":"Bearer "+CLOUD_KEY,
+             "Content-Type":"application/json","Accept":"application/json"}
+    if prefer: headers["Prefer"]=prefer
+    response=requests.request(method,CLOUD_URL+"/rest/v1/"+table,
+        headers=headers,params=params,json=payload,timeout=12)
+    if not response.ok:
+        raise RuntimeError("Supabase HTTP "+str(response.status_code)+
+                           ": "+response.text[:180])
+    if not response.content: return []
+    return response.json()
+
+def utc_iso(epoch):
+    return datetime.fromtimestamp(int(epoch),timezone.utc).isoformat()
+
+@st.cache_data(ttl=90,show_spinner=False)
+def cloud_calibration_history():
+    """Only one early observation per VERIFIED market is used for calibration."""
+    if not CLOUD_READY: return pd.DataFrame()
+    results=cloud_request("GET","btc_markets",params={
+        "select":"market_slug,official_winner",
+        "settlement_status":"eq.VERIFIED",
+        "official_winner":"in.(UP,DOWN)","limit":"1000"})
+    if not results: return pd.DataFrame()
+    winners={r["market_slug"]:r["official_winner"] for r in results}
+    # Paginate samples, instead of silently assuming a single default 1,000-row page.
+    samples=[]
+    for offset in range(0,20000,1000):
+        batch=cloud_request("GET","btc_predictions",params={
+            "select":"market_slug,recorded_at,seconds_remaining,predicted_up_probability",
+            "market_slug":"in.("+",".join('"'+k.replace('"','')+'"' for k in winners)+")",
+            "predicted_up_probability":"not.is.null",
+            "order":"recorded_at.asc","offset":str(offset),"limit":"1000"})
+        samples.extend(batch)
+        if len(batch)<1000:break
+    if not samples:return pd.DataFrame()
+    frame=pd.DataFrame(samples)
+    frame["event_slug"]=frame["market_slug"]
+    frame["model_up"]=pd.to_numeric(frame["predicted_up_probability"],errors="coerce")
+    frame["seconds_left"]=pd.to_numeric(frame["seconds_remaining"],errors="coerce")
+    frame["official_winner"]=frame["market_slug"].map(winners)
+    frame["captured"]=pd.to_datetime(frame["recorded_at"],utc=True,errors="coerce")
+    return frame[["event_slug","model_up","seconds_left","official_winner","captured"]]
+
 # Pixel V10 — final ABOVE/BELOW target forecast with conservative historical calibration.
 # Historical calibration uses ONLY explicitly verified US winners, never Kraken proxies.
-st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V11.1 · TOP OF DASHBOARD</div>', unsafe_allow_html=True)
+st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V12 · TOP OF DASHBOARD</div>', unsafe_allow_html=True)
 if not verified_reference or reference is None or reference<=0:
     st.warning('Official US Price to Beat pending. Final-target forecast is paused rather than using an unverified proxy.')
 else:
@@ -419,21 +481,22 @@ else:
     hist_count=0
     brier=None
     try:
-        if not history_ready:
-            raise sqlite3.OperationalError('History database not initialized')
-        with sqlite3.connect(ARCHIVE,timeout=10) as pred_db:
-            # One historical observation per completed market within the same
-            # 3-minute elapsed stage. Exclude the current market entirely.
-            # Evaluate calibration by probability bins, with a prior centered
-            # on the baseline estimate. No training on unverified outcomes.
-            historical=pd.read_sql_query("""
-                SELECT s.event_slug,s.model_up,r.official_winner,
-                       s.seconds_left,s.captured
-                FROM us_market_samples s
-                JOIN us_market_results r ON r.event_slug=s.event_slug
-                WHERE r.status='VERIFIED' AND r.official_winner IN ('UP','DOWN')
-                  AND s.model_up IS NOT NULL AND s.event_slug != ?
-                ORDER BY s.event_slug,s.captured""",pred_db,params=(slug,))
+        if CLOUD_READY:
+            historical=cloud_calibration_history()
+            if not historical.empty:
+                historical=historical[historical.event_slug!=slug]
+        else:
+            if not history_ready:
+                raise sqlite3.OperationalError('History database not initialized')
+            with sqlite3.connect(ARCHIVE,timeout=10) as pred_db:
+                historical=pd.read_sql_query("""
+                    SELECT s.event_slug,s.model_up,r.official_winner,
+                           s.seconds_left,s.captured
+                    FROM us_market_samples s
+                    JOIN us_market_results r ON r.event_slug=s.event_slug
+                    WHERE r.status='VERIFIED' AND r.official_winner IN ('UP','DOWN')
+                      AND s.model_up IS NOT NULL AND s.event_slug != ?
+                    ORDER BY s.event_slug,s.captured""",pred_db,params=(slug,))
         if not historical.empty:
             historical['stage']=( (900-historical.seconds_left).clip(lower=0,upper=899)//180 ).astype(int)
             historical=historical[historical.stage==stage_bucket]
@@ -447,7 +510,7 @@ else:
                 # uncalibrated model until sufficient independent data accrue.
                 calibrated_p=(50*final_p+float(observed.sum()))/(50+hist_count)
                 brier=float(((nearby.model_up-observed)**2).mean())
-    except (sqlite3.Error, pd.errors.DatabaseError, ValueError, KeyError, TypeError) as err:
+    except (sqlite3.Error, pd.errors.DatabaseError, ValueError, KeyError, TypeError, RuntimeError, requests.RequestException) as err:
         st.caption(f'Historical calibration temporarily unavailable: {err}. Baseline forecast remains available.')
     final_display=calibrated_p if calibrated_p is not None else final_p
     p1,p2,p3=st.columns(3)
@@ -462,7 +525,7 @@ else:
         st.success(f'**Historically adjusted research estimate.** Based on {hist_count} comparable, verified US markets in this elapsed-time stage. Baseline {final_p:.1%}; adjusted {calibrated_p:.1%}.')
         st.caption(f'Historical baseline Brier score in comparable markets: {brier:.3f} (lower is better). This is in-sample, not a prospective validation.')
     st.caption('These percentages model Kraken spot relative to the official US BRTI reference. Because the feeds differ and the model is unvalidated, they are NOT verified probabilities of Polymarket settlement and do not establish a betting edge. Exactly equal settlement is grouped with ABOVE (LONG) under the US contract rule.')
-    st.caption('Predictions and quotes are automatically stored in the Pixel V9 archive on each refresh; results are used for learning only after the US API explicitly confirms a winner. Keep Streamlit running to collect samples.')
+    st.caption('Predictions are archived on each active dashboard refresh. Cloud calibration uses verified US results only; the app must receive refreshes to record observations.')
 
 
 # Retro quick-look strip: price is a Kraken spot proxy, NOT US BRTI.
@@ -906,3 +969,90 @@ except (sqlite3.Error,OSError) as exc:
     st.error(f'Automated archive unavailable: {exc}')
 
 
+
+st.markdown('<div class="retro-section">▣ 06 · PERMANENT CLOUD HISTORY // PIXEL V12</div>',unsafe_allow_html=True)
+if not CLOUD_READY:
+    st.warning("Supabase not configured here. Set SUPABASE_URL and SUPABASE_KEY in Streamlit secrets.")
+else:
+    try:
+        cloud_request("POST","btc_markets",
+            params={"on_conflict":"market_slug"},
+            payload={"market_slug":slug,"window_start":utc_iso(start),
+                     "window_end":utc_iso(start+900),
+                     "price_to_beat":reference if verified_reference else None},
+            prefer="resolution=merge-duplicates,return=minimal")
+        if verified_reference and reference and 'final_display' in globals():
+            archive_quote=locals().get("quote")
+            quote_md=archive_quote.get("marketData",{}) if isinstance(archive_quote,dict) else {}
+            if not isinstance(quote_md,dict):quote_md={}
+            quote_market=quote_md.get("marketSlug")
+            confirmed_contract=(full_market or {}).get("slug")
+            terms=(full_market or {}).get("assetPriceTerms") or {}
+            asset=terms.get("asset") or {}
+            mapped=(str(asset.get("symbol","")).lower() in ("btc","xbt") and
+                    any(t in str(terms.get("marketType","")).upper() for t in ("UPDOWN","UP_DOWN")))
+            def cloud_quote(field):
+                if not (mapped and quote_market and quote_market==confirmed_contract):
+                    return None
+                raw=quote_md.get(field)
+                try:
+                    number=float(raw.get("value") if isinstance(raw,dict) else raw)
+                    return number if math.isfinite(number) and 0<=number<=1 else None
+                except (TypeError,ValueError,AttributeError):
+                    return None
+            cloud_request("POST","btc_predictions",
+                payload={"market_slug":slug,"recorded_at":utc_iso(now),
+                         "seconds_remaining":remaining,"kraken_spot":price,
+                         "price_to_beat":reference,
+                         "predicted_up_probability":float(final_display),
+                         "predicted_down_probability":float(1-final_display),
+                         "market_up_quote":cloud_quote("longQuote"),
+                         "market_down_quote":cloud_quote("shortQuote"),
+                         "model_version":"Pixel V12"},
+                prefer="return=minimal")
+        @st.cache_data(ttl=300,show_spinner=False)
+        def cloud_pending_markets():
+            return cloud_request("GET","btc_markets",params={
+                "select":"market_slug,window_end","settlement_status":"eq.PENDING",
+                "window_end":"lt."+utc_iso(int(time.time())-60),
+                "order":"window_end.desc","limit":"5"})
+        for item in cloud_pending_markets():
+            old_slug=item["market_slug"]
+            try:
+                _,old_contract,_=us_discover(old_slug)
+                contract=(old_contract or {}).get("slug")
+                if not contract:continue
+                completed=us_full_market(contract)
+                explicit=completed.get("winningOutcome") or completed.get("winningSide")
+                state=str(completed.get("state") or completed.get("status") or "").upper()
+                if (state in ("SETTLED","RESOLVED","MARKET_STATE_SETTLED","MARKET_STATE_RESOLVED")
+                    and isinstance(explicit,str) and explicit.upper() in ("UP","DOWN")):
+                    cloud_request("PATCH","btc_markets",
+                        params={"market_slug":"eq."+old_slug,"settlement_status":"eq.PENDING"},
+                        payload={"official_winner":explicit.upper(),
+                                 "settlement_status":"VERIFIED","settled_at":utc_iso(now),
+                                 "updated_at":utc_iso(now)},prefer="return=minimal")
+            except Exception:
+                pass
+        @st.cache_data(ttl=60,show_spinner=False)
+        def cloud_counts():
+            markets=cloud_request("GET","btc_markets",params={
+                "select":"market_slug,settlement_status","limit":"1000"})
+            preds=cloud_request("GET","btc_predictions",params={
+                "select":"market_slug,recorded_at,predicted_up_probability,seconds_remaining",
+                "order":"recorded_at.desc","limit":"30"})
+            return markets,preds
+        cloud_markets,cloud_preds=cloud_counts()
+        x,y,z=st.columns(3)
+        x.metric("Cloud markets tracked",len(cloud_markets))
+        y.metric("Verified US settlements",sum(m.get("settlement_status")=="VERIFIED" for m in cloud_markets))
+        z.metric("Recent saved predictions",len(cloud_preds))
+        st.success("Supabase connected. Predictions save on dashboard refreshes when the official target is available.")
+        with st.expander("Recent cloud predictions"):
+            if cloud_preds:
+                st.dataframe(pd.DataFrame(cloud_preds),hide_index=True,use_container_width=True)
+            else: st.caption("No cloud predictions saved yet.")
+        st.caption("Cloud history survives redeploys. The website records only while actively running; this is not a background collector. Outcomes remain PENDING until the US API explicitly confirms a winner.")
+    except (RuntimeError,requests.RequestException,ValueError,TypeError) as cloud_exc:
+        st.error("Cloud archive error: "+str(cloud_exc)[:240])
+        st.caption("Check Streamlit Secrets and the Supabase tables. The local tracker remains available.")
