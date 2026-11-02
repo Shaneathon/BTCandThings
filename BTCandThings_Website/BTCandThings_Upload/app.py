@@ -497,7 +497,7 @@ early_score=sum(early_votes)
 early_lean='UP' if early_score>=2 else 'DOWN' if early_score<=-2 else 'NEUTRAL'
 early_swing=(ema9!=ema21 and early_ret3*(ema9-ema21)<0 and (rs-early_rsi_prev)*(ema9-ema21)<0)
 with lean_top_slot.container():
-    st.markdown('<div class="retro-section">▣ CURRENT BTC LEAN // PIXEL V13.4</div>', unsafe_allow_html=True)
+    st.markdown('<div class="retro-section">▣ CURRENT BTC LEAN // PIXEL V13.5</div>', unsafe_allow_html=True)
     top_a,top_b,top_c=st.columns(3)
     top_a.metric('CURRENT BTC LEAN',early_lean)
     top_b.metric('DIRECTIONAL AGREEMENT',f'{abs(early_score)}/5')
@@ -509,7 +509,97 @@ with lean_top_slot.container():
 next_start=start+900
 seconds_to_next=max(0,next_start-now)
 preflight=seconds_to_next<=180
+# V13.5 — capture one actual observed lean per completed Kraken minute.
+# No backfill or fabricated observations; Streamlit must remain actively running.
 research_db=os.path.join(os.path.dirname(os.path.abspath(__file__)),'btc_signal_history.sqlite3')
+with sqlite3.connect(research_db, timeout=15) as minute_db:
+    minute_db.execute("""CREATE TABLE IF NOT EXISTS minute_lean_snapshots (
+        candle_start INTEGER PRIMARY KEY,
+        recorded_at INTEGER NOT NULL,
+        window_start INTEGER NOT NULL,
+        seconds_to_next INTEGER NOT NULL,
+        next_window_start INTEGER NOT NULL,
+        spot_close REAL NOT NULL,
+        price_to_beat REAL,
+        reference_verified INTEGER NOT NULL,
+        distance_to_target REAL,
+        lean TEXT NOT NULL,
+        agreement INTEGER NOT NULL,
+        signed_score INTEGER NOT NULL,
+        swing_watch INTEGER NOT NULL,
+        rsi REAL,
+        ema9 REAL,
+        ema21 REAL,
+        ema9_slope REAL,
+        return_3m REAL,
+        next_open_spot REAL,
+        next_close_3m REAL,
+        actual_next_direction TEXT,
+        result_status TEXT DEFAULT 'PENDING'
+    )""")
+    last_candle=int(df.time.iloc[-1].timestamp())
+    # Only save if the latest completed candle is recent; avoids pretending a stale
+    # API result is a current-minute observation.
+    if 0 <= now-(last_candle+60) < 120:
+        minute_db.execute("""INSERT OR IGNORE INTO minute_lean_snapshots
+        (candle_start,recorded_at,window_start,seconds_to_next,next_window_start,
+         spot_close,price_to_beat,reference_verified,distance_to_target,lean,
+         agreement,signed_score,swing_watch,rsi,ema9,ema21,ema9_slope,return_3m)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (last_candle,now,start,max(0,start+900-now),start+900,
+         float(df.close.iloc[-1]),float(reference) if reference is not None else None,
+         int(bool(verified_reference)),
+         float(df.close.iloc[-1]-reference) if verified_reference and reference is not None else None,
+         early_lean,abs(early_score),early_score,int(early_swing),float(rs),
+         float(ema9),float(ema21),early_ema_slope,early_ret3))
+    # Compare each saved minute's lean with the NEXT window's first 3m spot move.
+    # A candle timestamp is its opening; the close at a boundary comes from
+    # the candle starting 60 seconds before that boundary.
+    candle_close_map={int(t.timestamp()):float(c) for t,c in zip(df.time,df.close)}
+    pending_minute=minute_db.execute("""SELECT candle_start,next_window_start FROM
+      minute_lean_snapshots WHERE result_status='PENDING'""").fetchall()
+    for candle_start,boundary in pending_minute:
+        if now < boundary+180:
+            continue
+        opening=candle_close_map.get(boundary-60)
+        ending=candle_close_map.get(boundary+120)
+        if opening is None or ending is None:
+            continue  # Leave pending if exact historical candles are unavailable.
+        actual='UP' if ending>opening else 'DOWN' if ending<opening else 'FLAT'
+        minute_db.execute("""UPDATE minute_lean_snapshots SET next_open_spot=?,
+            next_close_3m=?,actual_next_direction=?,result_status='VERIFIED_KRAKEN_PROXY'
+            WHERE candle_start=?""",(opening,ending,actual,candle_start))
+    minute_db.commit()
+    minute_history=pd.read_sql_query("""SELECT * FROM minute_lean_snapshots
+        ORDER BY candle_start DESC LIMIT 1500""",minute_db)
+with st.expander('Minute-by-minute lean research · V13.5', expanded=False):
+    if minute_history.empty:
+        st.info('Waiting for the first completed-minute observation.')
+    else:
+        minute_verified=minute_history[
+            minute_history.result_status.eq('VERIFIED_KRAKEN_PROXY') &
+            minute_history.actual_next_direction.isin(['UP','DOWN']) &
+            minute_history.lean.isin(['UP','DOWN'])]
+        a,b,c=st.columns(3)
+        a.metric('Saved minute snapshots',len(minute_history))
+        b.metric('Evaluated snapshots',len(minute_verified))
+        c.metric('Momentum lean accuracy',
+            f"{(minute_verified.lean==minute_verified.actual_next_direction).mean():.1%}"
+            if len(minute_verified) else 'PENDING')
+        if len(minute_verified):
+            st.caption(f"Opposite/reversal accuracy: {(minute_verified.lean!=minute_verified.actual_next_direction).mean():.1%}. "
+                'Snapshots from one 15-minute window share an outcome and are NOT independent tests.')
+        st.caption('Records one snapshot per completed Kraken minute when this dashboard runs. '
+            'Outcomes compare the NEXT window opening to 3 minutes later on Kraken, not Polymarket settlement. '
+            'No missed minutes are backfilled.')
+        view=minute_history.copy()
+        view['candle_utc']=pd.to_datetime(view.candle_start,unit='s',utc=True)
+        st.dataframe(view[['candle_utc','lean','agreement','signed_score','spot_close',
+            'seconds_to_next','actual_next_direction','result_status']].head(100),
+            hide_index=True,use_container_width=True)
+        st.download_button('Export minute lean history CSV',minute_history.to_csv(index=False),
+            'minute_lean_history.csv','text/csv')
+
 with sqlite3.connect(research_db,timeout=10) as next_db:
     next_db.execute("""CREATE TABLE IF NOT EXISTS next_window_preflight (
       next_start INTEGER PRIMARY KEY, predicted_at INTEGER, spot_at_prediction REAL,
@@ -603,7 +693,7 @@ with preflight_top_slot.container():
 # Pixel V10 — final ABOVE/BELOW target forecast with conservative historical calibration.
 # Historical calibration uses ONLY explicitly verified US winners, never Kraken proxies.
 with ending_top_slot.container():
-    st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V13.4</div>', unsafe_allow_html=True)
+    st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V13.5</div>', unsafe_allow_html=True)
     if not verified_reference or reference is None or reference<=0:
         st.warning('Official US Price to Beat pending. Final-target forecast is paused rather than using an unverified proxy.')
     else:
