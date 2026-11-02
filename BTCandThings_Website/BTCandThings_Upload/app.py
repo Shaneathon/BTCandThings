@@ -465,7 +465,7 @@ def cloud_calibration_history():
     return frame[["event_slug","model_up","seconds_left","official_winner","captured"]]
 
 # Pixel V13.3: early lean and pre-window directional research, above the main predictor.
-st.markdown('<div class="retro-section">▣ EARLY LEAN + NEXT 15-MINUTE OPEN // PIXEL V13.3</div>', unsafe_allow_html=True)
+st.markdown('<div class="retro-section">▣ EARLY LEAN + NEXT 15-MINUTE OPEN // PIXEL V13.4</div>', unsafe_allow_html=True)
 early_ema_slope=float(df.ema9.iloc[-1]-df.ema9.iloc[-4])
 early_rsi_prev=float(df.rsi14.iloc[-4])
 early_ret3=float(df.close.iloc[-1]/df.close.iloc[-4]-1)
@@ -496,19 +496,56 @@ with sqlite3.connect(research_db,timeout=10) as next_db:
       next_start INTEGER PRIMARY KEY, predicted_at INTEGER, spot_at_prediction REAL,
       predicted_direction TEXT, agreement INTEGER, evaluation_end INTEGER,
       opening_spot REAL, spot_after_3m REAL, actual_direction TEXT)""")
-    # Kraken candles are completed minutes: time marks candle opening.
-    close_by_end={int(t.timestamp())+60:float(c) for t,c in zip(df.time,df.close)}
+    # Non-destructive schema migration. Older records retain their original outcome.
+    columns={row[1] for row in next_db.execute('PRAGMA table_info(next_window_preflight)')}
+    audit_columns={
+        'opening_candle_start':'INTEGER', 'ending_candle_start':'INTEGER',
+        'audit_opening_close':'REAL', 'audit_ending_close':'REAL',
+        'audit_direction':'TEXT', 'audit_status':'TEXT', 'audit_checked_at':'INTEGER',
+        'audit_note':'TEXT', 'signal_version':'TEXT'
+    }
+    for col,kind in audit_columns.items():
+        if col not in columns:
+            next_db.execute(f'ALTER TABLE next_window_preflight ADD COLUMN {col} {kind}')
+    # A candle timestamp denotes its START. At the window boundary, use the
+    # previous completed minute's close; at +3m, use the minute ending there.
+    completed_candles={int(t.timestamp()):float(c) for t,c in zip(df.time,df.close)}
     pending=next_db.execute("SELECT next_start,evaluation_end FROM next_window_preflight WHERE actual_direction IS NULL").fetchall()
     for boundary,finish in pending:
-        opening=close_by_end.get(boundary)
-        ending=close_by_end.get(finish)
+        opening=completed_candles.get(boundary-60)
+        ending=completed_candles.get(finish-60)
         if now>=finish and opening is not None and ending is not None:
             actual='UP' if ending>opening else 'DOWN' if ending<opening else 'FLAT'
             next_db.execute("UPDATE next_window_preflight SET opening_spot=?,spot_after_3m=?,actual_direction=? WHERE next_start=?",(opening,ending,actual,boundary))
     if preflight and early_lean!='NEUTRAL':
         next_db.execute("""INSERT OR IGNORE INTO next_window_preflight
-          (next_start,predicted_at,spot_at_prediction,predicted_direction,agreement,evaluation_end)
-          VALUES (?,?,?,?,?,?)""",(next_start,now,price,early_lean,abs(early_score),next_start+180))
+          (next_start,predicted_at,spot_at_prediction,predicted_direction,agreement,evaluation_end,signal_version)
+          VALUES (?,?,?,?,?,?,?)""",(next_start,now,price,early_lean,abs(early_score),next_start+180,'V13.4'))
+    # Audit every available record, including older V13.3 rows, without
+    # overwriting their originally recorded evaluation. This catches discrepancies.
+    records=next_db.execute('SELECT next_start,evaluation_end,predicted_at,opening_spot,spot_after_3m,actual_direction FROM next_window_preflight').fetchall()
+    for boundary,finish,predicted_at,old_open,old_end,old_actual in records:
+        candle_open=boundary-60
+        candle_end=finish-60
+        open_close=completed_candles.get(candle_open)
+        end_close=completed_candles.get(candle_end)
+        if predicted_at is not None and predicted_at>=boundary:
+            status,note='INVALID_LATE','Forecast recorded at or after the next window began.'
+        elif predicted_at is not None and predicted_at<boundary-180:
+            status,note='INVALID_EARLY','Forecast recorded before the defined 3-minute preflight period.'
+        elif now<finish:
+            status,note='AWAITING_END','Three-minute evaluation period not finished.'
+        elif open_close is None or end_close is None:
+            status,note='MISSING_CANDLES','Exact completed 1-minute Kraken candles not in current OHLC response.'
+        else:
+            audited='UP' if end_close>open_close else 'DOWN' if end_close<open_close else 'FLAT'
+            mismatch=(old_actual is not None and (old_actual!=audited or (old_open is not None and abs(old_open-open_close)>0.00001) or (old_end is not None and abs(old_end-end_close)>0.00001)))
+            status='MISMATCH' if mismatch else 'VERIFIED_PROXY'
+            note='Historical recorded evaluation differs from independently recomputed candle values.' if mismatch else 'Exact completed Kraken candle closes matched.'
+            next_db.execute("""UPDATE next_window_preflight SET opening_candle_start=?,ending_candle_start=?,
+              audit_opening_close=?,audit_ending_close=?,audit_direction=? WHERE next_start=?""",
+              (candle_open,candle_end,open_close,end_close,audited,boundary))
+        next_db.execute('UPDATE next_window_preflight SET audit_status=?,audit_checked_at=?,audit_note=? WHERE next_start=?',(status,now,note,boundary))
     next_db.commit()
     past=pd.read_sql_query('SELECT * FROM next_window_preflight ORDER BY next_start DESC LIMIT 100',next_db)
 st.markdown('**NEXT 15-MINUTE WINDOW — FIRST 3-MINUTE DIRECTION**')
@@ -519,21 +556,33 @@ if preflight:
         st.info(f'Pre-window check active · next window starts in {seconds_to_next}s · experimental opening lean: **{early_lean}** ({abs(early_score)}/5 agreement).')
 else:
     st.caption(f'Pre-window monitoring begins in {seconds_to_next-180}s (3 minutes before the next 15-minute boundary). Current early lean: {early_lean}.')
-st.caption('This is a forecast of Kraken spot direction from the NEXT window opening to 3 minutes later. It is NOT a forecast of the next Polymarket US contract winner or its unknown opening reference. One pre-window snapshot is saved per window when the dashboard is running.')
-with st.expander('Next-window preflight history and research accuracy'):
-    evaluated=past[past.actual_direction.isin(['UP','DOWN']) & past.predicted_direction.isin(['UP','DOWN'])] if not past.empty else past
-    if len(evaluated):
-        st.metric('Observed opening-direction hit rate (Kraken proxy)',f"{(evaluated.predicted_direction==evaluated.actual_direction).mean():.1%}")
-        st.caption(f'{len(evaluated)} completed observations; small or selected samples do not establish predictive ability.')
-    else:
-        st.caption('No completed and evaluable next-window observations yet.')
-    st.dataframe(past,hide_index=True,use_container_width=True)
+st.caption('Experimental Kraken spot direction, NOT the next Polymarket US contract winner. Preflight requires the dashboard to be running; no prediction is backfilled.')
+with st.expander('Next-window preflight history, candle audit and research accuracy'):
+    st.markdown('**Candle boundary audit (UTC)**')
+    st.caption('Opening reference = close of the 1-minute candle starting 60 seconds BEFORE the new 15-minute boundary. Evaluation = close of the candle starting 2 minutes AFTER the boundary. Both must be completed candles. Original outcomes are retained for comparison.')
     if not past.empty:
-        st.download_button('Export next-window research CSV',past.to_csv(index=False),'next_window_preflight.csv','text/csv')
+        verified=past[(past.audit_status=='VERIFIED_PROXY') & past.audit_direction.isin(['UP','DOWN']) & past.predicted_direction.isin(['UP','DOWN'])]
+        mismatch_count=int((past.audit_status=='MISMATCH').sum())
+        m1,m2,m3=st.columns(3)
+        m1.metric('Audited comparable windows',len(verified))
+        m2.metric('Audited opening-direction hit rate',f"{(verified.predicted_direction==verified.audit_direction).mean():.1%}" if len(verified) else 'PENDING')
+        m3.metric('Historical evaluation mismatches',mismatch_count)
+        if mismatch_count:
+            st.warning('Some previously saved evaluations disagree with the candle audit. Those records are excluded from the audited hit rate until investigated.')
+        view=past.copy()
+        for field in ['next_start','predicted_at','evaluation_end','opening_candle_start','ending_candle_start']:
+            view[field+'_utc']=pd.to_datetime(view[field],unit='s',utc=True,errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+        fields=['next_start_utc','predicted_at_utc','predicted_direction','agreement',
+                'opening_candle_start_utc','ending_candle_start_utc','audit_opening_close',
+                'audit_ending_close','audit_direction','actual_direction','audit_status','audit_note']
+        st.dataframe(view[fields],hide_index=True,use_container_width=True)
+        st.download_button('Export full timestamp and candle audit CSV',view.to_csv(index=False),'next_window_preflight_audit.csv','text/csv')
+    else:
+        st.caption('No pre-window predictions have been saved yet.')
 
 # Pixel V10 — final ABOVE/BELOW target forecast with conservative historical calibration.
 # Historical calibration uses ONLY explicitly verified US winners, never Kraken proxies.
-st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V13.3</div>', unsafe_allow_html=True)
+st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V13.4</div>', unsafe_allow_html=True)
 if not verified_reference or reference is None or reference<=0:
     st.warning('Official US Price to Beat pending. Final-target forecast is paused rather than using an unverified proxy.')
 else:
