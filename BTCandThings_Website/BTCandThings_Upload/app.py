@@ -970,7 +970,7 @@ except (sqlite3.Error,OSError) as exc:
 
 
 
-st.markdown('<div class="retro-section">▣ 06 · PERMANENT CLOUD HISTORY // PIXEL V12</div>',unsafe_allow_html=True)
+st.markdown('<div class="retro-section">▣ 06 · PERMANENT CLOUD HISTORY // PIXEL V12.1</div>',unsafe_allow_html=True)
 if not CLOUD_READY:
     st.warning("Supabase not configured here. Set SUPABASE_URL and SUPABASE_KEY in Streamlit secrets.")
 else:
@@ -1001,6 +1001,7 @@ else:
                 except (TypeError,ValueError,AttributeError):
                     return None
             cloud_request("POST","btc_predictions",
+                params={"on_conflict":"market_slug,recorded_at"},
                 payload={"market_slug":slug,"recorded_at":utc_iso(now),
                          "seconds_remaining":remaining,"kraken_spot":price,
                          "price_to_beat":reference,
@@ -1008,8 +1009,8 @@ else:
                          "predicted_down_probability":float(1-final_display),
                          "market_up_quote":cloud_quote("longQuote"),
                          "market_down_quote":cloud_quote("shortQuote"),
-                         "model_version":"Pixel V12"},
-                prefer="return=minimal")
+                         "model_version":"Pixel V12.1"},
+                prefer="resolution=ignore-duplicates,return=minimal")
         @st.cache_data(ttl=300,show_spinner=False)
         def cloud_pending_markets():
             return cloud_request("GET","btc_markets",params={
