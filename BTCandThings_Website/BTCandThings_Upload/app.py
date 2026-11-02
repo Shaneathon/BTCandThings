@@ -360,9 +360,51 @@ verified_reference=reference is not None  # Typed US Retail API field; official 
 # Shared persistent history database for the top-of-page predictor.
 ARCHIVE=os.path.join(os.path.dirname(os.path.abspath(__file__)),'btc_signal_history.sqlite3')
 
+# Pixel V11.1: initialize archive BEFORE the predictor reads from it.
+# CREATE TABLE IF NOT EXISTS never deletes existing history. The archive section
+# below can continue writing to these same tables.
+def initialize_us_history(db_path):
+    with sqlite3.connect(db_path, timeout=10) as db:
+        db.execute("PRAGMA busy_timeout=10000")
+        db.execute("""CREATE TABLE IF NOT EXISTS us_market_samples (
+            event_slug TEXT NOT NULL, captured INTEGER NOT NULL, market_slug TEXT,
+            window_start INTEGER, window_end INTEGER, seconds_left INTEGER,
+            us_price_to_beat REAL, kraken_spot REAL, model_up REAL,
+            up_long_quote REAL, down_short_quote REAL, best_bid REAL, best_ask REAL,
+            quote_status TEXT, PRIMARY KEY(event_slug,captured))""")
+        db.execute("""CREATE TABLE IF NOT EXISTS us_market_results (
+            event_slug TEXT PRIMARY KEY, market_slug TEXT, window_end INTEGER,
+            official_winner TEXT, verified_at INTEGER, source TEXT,
+            status TEXT NOT NULL DEFAULT 'PENDING')""")
+        # Add missing columns on older installations without dropping records.
+        required = {
+            'us_market_samples': {
+                'market_slug':'TEXT', 'window_start':'INTEGER', 'window_end':'INTEGER',
+                'seconds_left':'INTEGER', 'us_price_to_beat':'REAL', 'kraken_spot':'REAL',
+                'model_up':'REAL', 'up_long_quote':'REAL', 'down_short_quote':'REAL',
+                'best_bid':'REAL', 'best_ask':'REAL', 'quote_status':'TEXT'},
+            'us_market_results': {
+                'market_slug':'TEXT', 'window_end':'INTEGER', 'official_winner':'TEXT',
+                'verified_at':'INTEGER', 'source':'TEXT',
+                'status':"TEXT NOT NULL DEFAULT 'PENDING'"}}
+        for table, columns in required.items():
+            existing = {row[1] for row in db.execute(f'PRAGMA table_info({table})')}
+            for name, sql_type in columns.items():
+                if name not in existing:
+                    db.execute(f'ALTER TABLE {table} ADD COLUMN {name} {sql_type}')
+        db.execute('CREATE INDEX IF NOT EXISTS us_samples_by_time ON us_market_samples(captured)')
+        db.commit()
+
+history_ready = False
+try:
+    initialize_us_history(ARCHIVE)
+    history_ready = True
+except (sqlite3.Error, OSError) as exc:
+    st.warning(f'Historical database is temporarily unavailable ({type(exc).__name__}). Baseline forecast will continue without calibration.')
+
 # Pixel V10 — final ABOVE/BELOW target forecast with conservative historical calibration.
 # Historical calibration uses ONLY explicitly verified US winners, never Kraken proxies.
-st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V11 · TOP OF DASHBOARD</div>', unsafe_allow_html=True)
+st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V11.1 · TOP OF DASHBOARD</div>', unsafe_allow_html=True)
 if not verified_reference or reference is None or reference<=0:
     st.warning('Official US Price to Beat pending. Final-target forecast is paused rather than using an unverified proxy.')
 else:
@@ -377,6 +419,8 @@ else:
     hist_count=0
     brier=None
     try:
+        if not history_ready:
+            raise sqlite3.OperationalError('History database not initialized')
         with sqlite3.connect(ARCHIVE,timeout=10) as pred_db:
             # One historical observation per completed market within the same
             # 3-minute elapsed stage. Exclude the current market entirely.
@@ -403,8 +447,8 @@ else:
                 # uncalibrated model until sufficient independent data accrue.
                 calibrated_p=(50*final_p+float(observed.sum()))/(50+hist_count)
                 brier=float(((nearby.model_up-observed)**2).mean())
-    except (sqlite3.Error,ValueError,KeyError) as err:
-        st.caption(f'Historical calibration temporarily unavailable: {err}')
+    except (sqlite3.Error, pd.errors.DatabaseError, ValueError, KeyError, TypeError) as err:
+        st.caption(f'Historical calibration temporarily unavailable: {err}. Baseline forecast remains available.')
     final_display=calibrated_p if calibrated_p is not None else final_p
     p1,p2,p3=st.columns(3)
     p1.metric('Forecast: finish ABOVE target',f'{final_display:.1%}')
