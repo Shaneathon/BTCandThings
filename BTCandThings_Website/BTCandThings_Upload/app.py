@@ -464,9 +464,76 @@ def cloud_calibration_history():
     frame["captured"]=pd.to_datetime(frame["recorded_at"],utc=True,errors="coerce")
     return frame[["event_slug","model_up","seconds_left","official_winner","captured"]]
 
+# Pixel V13.2: early lean and pre-window directional research, above the main predictor.
+st.markdown('<div class="retro-section">▣ EARLY LEAN + NEXT 15-MINUTE OPEN // PIXEL V13.2</div>', unsafe_allow_html=True)
+early_ema_slope=float(df.ema9.iloc[-1]-df.ema9.iloc[-4])
+early_rsi_prev=float(df.rsi14.iloc[-4])
+early_ret3=float(df.close.iloc[-1]/df.close.iloc[-4]-1)
+early_votes=[
+    1 if ema9>ema21 else -1 if ema9<ema21 else 0,
+    1 if early_ema_slope>0 else -1 if early_ema_slope<0 else 0,
+    1 if early_ret3>0 else -1 if early_ret3<0 else 0,
+    1 if rs>50 else -1 if rs<50 else 0,
+    1 if rs>early_rsi_prev else -1 if rs<early_rsi_prev else 0,
+]
+early_score=sum(early_votes)
+early_lean='UP' if early_score>=2 else 'DOWN' if early_score<=-2 else 'NEUTRAL'
+early_swing=(ema9!=ema21 and early_ret3*(ema9-ema21)<0 and (rs-early_rsi_prev)*(ema9-ema21)<0)
+top_a,top_b,top_c=st.columns(3)
+top_a.metric('CURRENT BTC LEAN',early_lean)
+top_b.metric('DIRECTIONAL AGREEMENT',f'{abs(early_score)}/5')
+top_c.metric('SWING WATCH','WATCH' if early_swing else 'CLEAR')
+st.caption('Early lean uses completed Kraken 1-minute candles; it describes spot momentum, not verified Polymarket probabilities.')
+
+# The next market has a different, as-yet-unknown US price-to-beat.
+# Therefore only predict the first three minutes of Kraken spot direction, not next contract payout.
+next_start=start+900
+seconds_to_next=max(0,next_start-now)
+preflight=seconds_to_next<=180
+research_db=os.path.join(os.path.dirname(os.path.abspath(__file__)),'btc_signal_history.sqlite3')
+with sqlite3.connect(research_db,timeout=10) as next_db:
+    next_db.execute("""CREATE TABLE IF NOT EXISTS next_window_preflight (
+      next_start INTEGER PRIMARY KEY, predicted_at INTEGER, spot_at_prediction REAL,
+      predicted_direction TEXT, agreement INTEGER, evaluation_end INTEGER,
+      opening_spot REAL, spot_after_3m REAL, actual_direction TEXT)""")
+    # Kraken candles are completed minutes: time marks candle opening.
+    close_by_end={int(t.timestamp())+60:float(c) for t,c in zip(df.time,df.close)}
+    pending=next_db.execute("SELECT next_start,evaluation_end FROM next_window_preflight WHERE actual_direction IS NULL").fetchall()
+    for boundary,finish in pending:
+        opening=close_by_end.get(boundary)
+        ending=close_by_end.get(finish)
+        if now>=finish and opening is not None and ending is not None:
+            actual='UP' if ending>opening else 'DOWN' if ending<opening else 'FLAT'
+            next_db.execute("UPDATE next_window_preflight SET opening_spot=?,spot_after_3m=?,actual_direction=? WHERE next_start=?",(opening,ending,actual,boundary))
+    if preflight and early_lean!='NEUTRAL':
+        next_db.execute("""INSERT OR IGNORE INTO next_window_preflight
+          (next_start,predicted_at,spot_at_prediction,predicted_direction,agreement,evaluation_end)
+          VALUES (?,?,?,?,?,?)""",(next_start,now,price,early_lean,abs(early_score),next_start+180))
+    next_db.commit()
+    past=pd.read_sql_query('SELECT * FROM next_window_preflight ORDER BY next_start DESC LIMIT 100',next_db)
+st.markdown('**NEXT 15-MINUTE WINDOW — FIRST 3-MINUTE DIRECTION**')
+if preflight:
+    if early_lean=='NEUTRAL':
+        st.info(f'Pre-window check active · next window starts in {seconds_to_next}s · no directional lean.')
+    else:
+        st.info(f'Pre-window check active · next window starts in {seconds_to_next}s · experimental opening lean: **{early_lean}** ({abs(early_score)}/5 agreement).')
+else:
+    st.caption(f'Pre-window monitoring begins in {seconds_to_next-180}s (3 minutes before the next 15-minute boundary). Current early lean: {early_lean}.')
+st.caption('This is a forecast of Kraken spot direction from the NEXT window opening to 3 minutes later. It is NOT a forecast of the next Polymarket US contract winner or its unknown opening reference. One pre-window snapshot is saved per window when the dashboard is running.')
+with st.expander('Next-window preflight history and research accuracy'):
+    evaluated=past[past.actual_direction.isin(['UP','DOWN']) & past.predicted_direction.isin(['UP','DOWN'])] if not past.empty else past
+    if len(evaluated):
+        st.metric('Observed opening-direction hit rate (Kraken proxy)',f"{(evaluated.predicted_direction==evaluated.actual_direction).mean():.1%}")
+        st.caption(f'{len(evaluated)} completed observations; small or selected samples do not establish predictive ability.')
+    else:
+        st.caption('No completed and evaluable next-window observations yet.')
+    st.dataframe(past,hide_index=True,use_container_width=True)
+    if not past.empty:
+        st.download_button('Export next-window research CSV',past.to_csv(index=False),'next_window_preflight.csv','text/csv')
+
 # Pixel V10 — final ABOVE/BELOW target forecast with conservative historical calibration.
 # Historical calibration uses ONLY explicitly verified US winners, never Kraken proxies.
-st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V12 · TOP OF DASHBOARD</div>', unsafe_allow_html=True)
+st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V13.2</div>', unsafe_allow_html=True)
 if not verified_reference or reference is None or reference<=0:
     st.warning('Official US Price to Beat pending. Final-target forecast is paused rather than using an unverified proxy.')
 else:
@@ -970,7 +1037,7 @@ except (sqlite3.Error,OSError) as exc:
 
 
 
-st.markdown('<div class="retro-section">▣ 06 · PERMANENT CLOUD HISTORY // PIXEL V13</div>',unsafe_allow_html=True)
+st.markdown('<div class="retro-section">▣ 06 · PERMANENT CLOUD HISTORY // PIXEL V13.1</div>',unsafe_allow_html=True)
 if not CLOUD_READY:
     st.warning("Supabase not configured here. Set SUPABASE_URL and SUPABASE_KEY in Streamlit secrets.")
 else:
@@ -1009,7 +1076,7 @@ else:
                          "predicted_down_probability":float(1-final_display),
                          "market_up_quote":cloud_quote("longQuote"),
                          "market_down_quote":cloud_quote("shortQuote"),
-                         "model_version":"Pixel V13"},
+                         "model_version":"Pixel V13.1"},
                 prefer="resolution=ignore-duplicates,return=minimal")
         @st.cache_data(ttl=300,show_spinner=False)
         def cloud_pending_markets():
@@ -1024,12 +1091,21 @@ else:
         def official_settlement_diagnostic(contract_slug):
             return us_get('/v1/markets/'+contract_slug+'/settlement')
 
+        def safe_market_diagnostics(record):
+            # Only market metadata, never credentials, account data, or request headers.
+            if not isinstance(record,dict):
+                return {"response_type":type(record).__name__}
+            interesting=("state","status","result","outcome","winner","settle","resolution","side","contract","assetPriceTerms")
+            return {str(k):str(v)[:600] for k,v in record.items()
+                    if any(token in str(k).lower() for token in interesting)}
+
         settlement_diagnostics=[]
         for item in cloud_pending_markets():
             old_slug=item["market_slug"]
             entry={"Event":old_slug,"Contract":"unresolved",
                    "API state":"unknown","Settlement price":"unavailable",
-                   "Winner":"PENDING"}
+                   "Winner":"PENDING","Market fields":"not retrieved",
+                   "Settlement response":"not retrieved","Check note":""}
             try:
                 _,old_contract,_=us_discover(old_slug)
                 contract=(old_contract or {}).get("slug")
@@ -1040,12 +1116,14 @@ else:
                 completed=us_full_market(contract)
                 state=str(completed.get("state") or completed.get("status") or "unknown").upper()
                 entry["API state"]=state
+                entry["Market fields"]=str(safe_market_diagnostics(completed))[:1200]
                 try:
                     settlement=official_settlement_diagnostic(contract)
+                    entry["Settlement response"]=str(safe_market_diagnostics(settlement))[:1200]
                     if isinstance(settlement,dict):
                         entry["Settlement price"]=str(settlement.get("settlement","unavailable"))
-                except Exception:
-                    pass
+                except Exception as settle_exc:
+                    entry["Settlement response"]="Unavailable: "+type(settle_exc).__name__
                 # Conservative verification: the full official market must
                 # explicitly identify an UP or DOWN winner and be final.
                 explicit=completed.get("winningOutcome") or completed.get("winningSide")
@@ -1057,8 +1135,11 @@ else:
                                  "settlement_status":"VERIFIED","settled_at":utc_iso(now),
                                  "updated_at":utc_iso(now)},prefer="return=minimal")
                     entry["Winner"]=explicit.upper()+" (verified)"
+                if entry["Winner"]=="PENDING":
+                    entry["Check note"]="No documented explicit final UP/DOWN winner identified"
             except Exception as exc:
                 entry["API state"]="Lookup unavailable: "+type(exc).__name__
+                entry["Check note"]=str(exc)[:180]
             settlement_diagnostics.append(entry)
         @st.cache_data(ttl=60,show_spinner=False)
         def cloud_counts():
@@ -1079,7 +1160,7 @@ else:
                 st.dataframe(pd.DataFrame(cloud_preds),hide_index=True,use_container_width=True)
             else: st.caption("No cloud predictions saved yet.")
         with st.expander("Official settlement verification queue",expanded=True):
-            st.caption("Official settlement price is diagnostic only. No UP/DOWN winner is inferred from a number or Kraken candles. Rechecks up to five recent pending markets per refresh cycle.")
+            st.caption("Diagnostic V13.1: inspect official market state, selected market fields, and settlement response. Numeric settlement prices are NOT treated as payout odds or UP/DOWN winners. Rechecks up to five recent pending markets per refresh cycle.")
             if settlement_diagnostics:
                 st.dataframe(pd.DataFrame(settlement_diagnostics),hide_index=True,use_container_width=True)
             else:
