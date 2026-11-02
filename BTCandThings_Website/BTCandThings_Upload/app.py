@@ -117,30 +117,12 @@ now=int(time.time()); start=now//900*900; remaining=max(0,start+900-now)
 slug=f'btc-updown-15m-{datetime.fromtimestamp(start,timezone.utc):%Y-%m-%d-%H%M}z'
 # Browser-side UTC-aligned countdown. Runs continuously without refreshing Streamlit.
 # Polymarket BTC 15m market slugs follow UTC epoch 900-second boundaries.
-components.html("""
-<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1" />
-<style>
-*{box-sizing:border-box}body{margin:0;background:transparent;color:#edf4ff;font-family:system-ui,-apple-system,sans-serif}
-.panel{background:linear-gradient(110deg,#183249,#121e37);border:2px solid #65e5dd;border-radius:2px;padding:8px 12px;box-shadow:3px 3px 0 #050b15}
-.top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.label{font-size:11px;letter-spacing:1.7px;color:#9dafc8;font-weight:700}
-.time{color:#ffc36a;font-size:30px;font-variant-numeric:tabular-nums;font-weight:800;letter-spacing:1px}.stage{font-size:13px;color:#65e5dd;font-weight:700}
-.track{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:5px}.seg{height:5px;border-radius:6px;background:#2c3c52;overflow:hidden}.fill{height:100%;width:0;background:#ffc36a;transition:width .2s linear}
-.meta{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:4px;color:#9dafc8;font-size:12px}
-</style></head><body><div class="panel"><div class="top"><div><div class="label">POLYMARKET · BTC 15-MINUTE WINDOW</div><div id="timer" class="time">--:--</div></div><div><div id="stage" class="stage">Syncing…</div><div id="window" style="font-size:12px;color:#9dafc8;margin-top:6px"></div></div></div>
-<div class="track"><div class="seg"><div class="fill" id="f0"></div></div><div class="seg"><div class="fill" id="f1"></div></div><div class="seg"><div class="fill" id="f2"></div></div><div class="seg"><div class="fill" id="f3"></div></div><div class="seg"><div class="fill" id="f4"></div></div></div><div class="meta"><span id="elapsed"></span><span id="next"></span></div></div>
-<script>
-function tick(){const now=Date.now()/1000, start=Math.floor(now/900)*900, elapsed=now-start, remain=Math.max(0,Math.ceil(start+900-now)), stage=Math.min(4,Math.floor(elapsed/180));
-const pad=n=>String(n).padStart(2,'0');document.getElementById('timer').textContent=pad(Math.floor(remain/60))+':'+pad(remain%60);
-document.getElementById('stage').textContent=['STAGE 1 · 0–3 MIN','STAGE 2 · 3–6 MIN','STAGE 3 · 6–9 MIN','STAGE 4 · 9–12 MIN','STAGE 5 · 12–15 MIN'][stage];
-const utc=s=>new Date(s*1000).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'UTC'});
-document.getElementById('window').textContent=utc(start)+'–'+utc(start+900)+' UTC';
-for(let i=0;i<5;i++)document.getElementById('f'+i).style.width=(Math.max(0,Math.min(1,(elapsed-i*180)/180))*100)+'%';
-document.getElementById('elapsed').textContent='Elapsed: '+Math.floor(elapsed/60)+'m '+Math.floor(elapsed%60)+'s';
-const next=Math.min(900,(stage+1)*180);document.getElementById('next').textContent='Next 3m boundary in '+pad(Math.floor(Math.max(0,next-elapsed)/60))+':'+pad(Math.ceil(Math.max(0,next-elapsed))%60);
-}tick();setInterval(tick,250);
-</script></body></html>
-""",height=108,scrolling=False)
+timer_top_slot=st.empty()
 st.caption('Timer follows your computer clock and UTC 15-minute boundaries; verify the active market on Polymarket. Other data updates when you refresh.')
+# Reserve top-of-dashboard positions; fill after market and indicator data loads.
+lean_top_slot=st.empty()
+ending_top_slot=st.empty()
+preflight_top_slot=st.empty()
 US_GATEWAY='https://gateway.polymarket.us'
 @st.cache_data(ttl=15)
 def us_get(path):
@@ -464,8 +446,43 @@ def cloud_calibration_history():
     frame["captured"]=pd.to_datetime(frame["recorded_at"],utc=True,errors="coerce")
     return frame[["event_slug","model_up","seconds_left","official_winner","captured"]]
 
+# Put the official US price-to-beat in the middle of the timer panel.
+# Show an explicit non-official label for manually supplied or proxy values.
+if reference is not None:
+    beat_display=f'${reference:,.2f}'
+    beat_source='OFFICIAL US MARKET'
+elif strike>0:
+    beat_display=f'${strike:,.2f}'
+    beat_source='MANUAL / RESEARCH PROXY · NOT VERIFIED'
+else:
+    beat_display='PENDING'
+    beat_source='OFFICIAL REFERENCE NOT AVAILABLE'
+with timer_top_slot:
+    components.html("""
+    <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+    *{box-sizing:border-box}body{margin:0;background:transparent;color:#edf4ff;font-family:system-ui,-apple-system,sans-serif}
+    .panel{background:linear-gradient(110deg,#183249,#121e37);border:2px solid #65e5dd;border-radius:2px;padding:8px 12px;box-shadow:3px 3px 0 #050b15}
+    .top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.label{font-size:11px;letter-spacing:1.7px;color:#9dafc8;font-weight:700}
+    .time{color:#ffc36a;font-size:30px;font-variant-numeric:tabular-nums;font-weight:800;letter-spacing:1px}.beat{text-align:center;min-width:180px}.beat-value{font-size:25px;font-weight:800;color:#65e5dd;font-variant-numeric:tabular-nums}.beat-source{font-size:10px;color:#9dafc8;margin-top:3px}.stage{font-size:13px;color:#65e5dd;font-weight:700}
+    .track{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:5px}.seg{height:5px;border-radius:6px;background:#2c3c52;overflow:hidden}.fill{height:100%;width:0;background:#ffc36a;transition:width .2s linear}
+    .meta{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:4px;color:#9dafc8;font-size:12px}
+    </style></head><body><div class="panel"><div class="top"><div><div class="label">POLYMARKET · BTC 15-MINUTE WINDOW</div><div id="timer" class="time">--:--</div></div><div class="beat"><div class="label">US PRICE TO BEAT</div><div class="beat-value">___BEAT_DISPLAY___</div><div class="beat-source">___BEAT_SOURCE___</div></div><div><div id="stage" class="stage">Syncing…</div><div id="window" style="font-size:12px;color:#9dafc8;margin-top:6px"></div></div></div>
+    <div class="track"><div class="seg"><div class="fill" id="f0"></div></div><div class="seg"><div class="fill" id="f1"></div></div><div class="seg"><div class="fill" id="f2"></div></div><div class="seg"><div class="fill" id="f3"></div></div><div class="seg"><div class="fill" id="f4"></div></div></div><div class="meta"><span id="elapsed"></span><span id="next"></span></div></div>
+    <script>
+    function tick(){const now=Date.now()/1000, start=Math.floor(now/900)*900, elapsed=now-start, remain=Math.max(0,Math.ceil(start+900-now)), stage=Math.min(4,Math.floor(elapsed/180));
+    const pad=n=>String(n).padStart(2,'0');document.getElementById('timer').textContent=pad(Math.floor(remain/60))+':'+pad(remain%60);
+    document.getElementById('stage').textContent=['STAGE 1 · 0–3 MIN','STAGE 2 · 3–6 MIN','STAGE 3 · 6–9 MIN','STAGE 4 · 9–12 MIN','STAGE 5 · 12–15 MIN'][stage];
+    const utc=s=>new Date(s*1000).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'UTC'});
+    document.getElementById('window').textContent=utc(start)+'–'+utc(start+900)+' UTC';
+    for(let i=0;i<5;i++)document.getElementById('f'+i).style.width=(Math.max(0,Math.min(1,(elapsed-i*180)/180))*100)+'%';
+    document.getElementById('elapsed').textContent='Elapsed: '+Math.floor(elapsed/60)+'m '+Math.floor(elapsed%60)+'s';
+    const next=Math.min(900,(stage+1)*180);document.getElementById('next').textContent='Next 3m boundary in '+pad(Math.floor(Math.max(0,next-elapsed)/60))+':'+pad(Math.ceil(Math.max(0,next-elapsed))%60);
+    }tick();setInterval(tick,250);
+    </script></body></html>
+    """.replace("___BEAT_DISPLAY___",beat_display).replace("___BEAT_SOURCE___",beat_source),height=128,scrolling=False)
+
 # Pixel V13.3: early lean and pre-window directional research, above the main predictor.
-st.markdown('<div class="retro-section">▣ EARLY LEAN + NEXT 15-MINUTE OPEN // PIXEL V13.4</div>', unsafe_allow_html=True)
 early_ema_slope=float(df.ema9.iloc[-1]-df.ema9.iloc[-4])
 early_rsi_prev=float(df.rsi14.iloc[-4])
 early_ret3=float(df.close.iloc[-1]/df.close.iloc[-4]-1)
@@ -479,11 +496,13 @@ early_votes=[
 early_score=sum(early_votes)
 early_lean='UP' if early_score>=2 else 'DOWN' if early_score<=-2 else 'NEUTRAL'
 early_swing=(ema9!=ema21 and early_ret3*(ema9-ema21)<0 and (rs-early_rsi_prev)*(ema9-ema21)<0)
-top_a,top_b,top_c=st.columns(3)
-top_a.metric('CURRENT BTC LEAN',early_lean)
-top_b.metric('DIRECTIONAL AGREEMENT',f'{abs(early_score)}/5')
-top_c.metric('SWING WATCH','WATCH' if early_swing else 'CLEAR')
-st.caption('Early lean uses completed Kraken 1-minute candles; it describes spot momentum, not verified Polymarket probabilities.')
+with lean_top_slot.container():
+    st.markdown('<div class="retro-section">▣ CURRENT BTC LEAN // PIXEL V13.4</div>', unsafe_allow_html=True)
+    top_a,top_b,top_c=st.columns(3)
+    top_a.metric('CURRENT BTC LEAN',early_lean)
+    top_b.metric('DIRECTIONAL AGREEMENT',f'{abs(early_score)}/5')
+    top_c.metric('SWING WATCH','WATCH' if early_swing else 'CLEAR')
+    st.caption('Early lean uses completed Kraken 1-minute candles; it describes spot momentum, not verified Polymarket probabilities.')
 
 # The next market has a different, as-yet-unknown US price-to-beat.
 # Therefore only predict the first three minutes of Kraken spot direction, not next contract payout.
@@ -548,100 +567,102 @@ with sqlite3.connect(research_db,timeout=10) as next_db:
         next_db.execute('UPDATE next_window_preflight SET audit_status=?,audit_checked_at=?,audit_note=? WHERE next_start=?',(status,now,note,boundary))
     next_db.commit()
     past=pd.read_sql_query('SELECT * FROM next_window_preflight ORDER BY next_start DESC LIMIT 100',next_db)
-st.markdown('**NEXT 15-MINUTE WINDOW — FIRST 3-MINUTE DIRECTION**')
-if preflight:
-    if early_lean=='NEUTRAL':
-        st.info(f'Pre-window check active · next window starts in {seconds_to_next}s · no directional lean.')
+with preflight_top_slot.container():
+    st.markdown('**NEXT 15-MINUTE WINDOW — FIRST 3-MINUTE DIRECTION**')
+    if preflight:
+        if early_lean=='NEUTRAL':
+            st.info(f'Pre-window check active · next window starts in {seconds_to_next}s · no directional lean.')
+        else:
+            st.info(f'Pre-window check active · next window starts in {seconds_to_next}s · experimental opening lean: **{early_lean}** ({abs(early_score)}/5 agreement).')
     else:
-        st.info(f'Pre-window check active · next window starts in {seconds_to_next}s · experimental opening lean: **{early_lean}** ({abs(early_score)}/5 agreement).')
-else:
-    st.caption(f'Pre-window monitoring begins in {seconds_to_next-180}s (3 minutes before the next 15-minute boundary). Current early lean: {early_lean}.')
-st.caption('Experimental Kraken spot direction, NOT the next Polymarket US contract winner. Preflight requires the dashboard to be running; no prediction is backfilled.')
-with st.expander('Next-window preflight history, candle audit and research accuracy'):
-    st.markdown('**Candle boundary audit (UTC)**')
-    st.caption('Opening reference = close of the 1-minute candle starting 60 seconds BEFORE the new 15-minute boundary. Evaluation = close of the candle starting 2 minutes AFTER the boundary. Both must be completed candles. Original outcomes are retained for comparison.')
-    if not past.empty:
-        verified=past[(past.audit_status=='VERIFIED_PROXY') & past.audit_direction.isin(['UP','DOWN']) & past.predicted_direction.isin(['UP','DOWN'])]
-        mismatch_count=int((past.audit_status=='MISMATCH').sum())
-        m1,m2,m3=st.columns(3)
-        m1.metric('Audited comparable windows',len(verified))
-        m2.metric('Audited opening-direction hit rate',f"{(verified.predicted_direction==verified.audit_direction).mean():.1%}" if len(verified) else 'PENDING')
-        m3.metric('Historical evaluation mismatches',mismatch_count)
-        if mismatch_count:
-            st.warning('Some previously saved evaluations disagree with the candle audit. Those records are excluded from the audited hit rate until investigated.')
-        view=past.copy()
-        for field in ['next_start','predicted_at','evaluation_end','opening_candle_start','ending_candle_start']:
-            view[field+'_utc']=pd.to_datetime(view[field],unit='s',utc=True,errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S UTC')
-        fields=['next_start_utc','predicted_at_utc','predicted_direction','agreement',
-                'opening_candle_start_utc','ending_candle_start_utc','audit_opening_close',
-                'audit_ending_close','audit_direction','actual_direction','audit_status','audit_note']
-        st.dataframe(view[fields],hide_index=True,use_container_width=True)
-        st.download_button('Export full timestamp and candle audit CSV',view.to_csv(index=False),'next_window_preflight_audit.csv','text/csv')
-    else:
-        st.caption('No pre-window predictions have been saved yet.')
+        st.caption(f'Pre-window monitoring begins in {seconds_to_next-180}s (3 minutes before the next 15-minute boundary). Current early lean: {early_lean}.')
+    st.caption('Experimental Kraken spot direction, NOT the next Polymarket US contract winner. Preflight requires the dashboard to be running; no prediction is backfilled.')
+    with st.expander('Next-window preflight history, candle audit and research accuracy'):
+        st.markdown('**Candle boundary audit (UTC)**')
+        st.caption('Opening reference = close of the 1-minute candle starting 60 seconds BEFORE the new 15-minute boundary. Evaluation = close of the candle starting 2 minutes AFTER the boundary. Both must be completed candles. Original outcomes are retained for comparison.')
+        if not past.empty:
+            verified=past[(past.audit_status=='VERIFIED_PROXY') & past.audit_direction.isin(['UP','DOWN']) & past.predicted_direction.isin(['UP','DOWN'])]
+            mismatch_count=int((past.audit_status=='MISMATCH').sum())
+            m1,m2,m3=st.columns(3)
+            m1.metric('Audited comparable windows',len(verified))
+            m2.metric('Audited opening-direction hit rate',f"{(verified.predicted_direction==verified.audit_direction).mean():.1%}" if len(verified) else 'PENDING')
+            m3.metric('Historical evaluation mismatches',mismatch_count)
+            if mismatch_count:
+                st.warning('Some previously saved evaluations disagree with the candle audit. Those records are excluded from the audited hit rate until investigated.')
+            view=past.copy()
+            for field in ['next_start','predicted_at','evaluation_end','opening_candle_start','ending_candle_start']:
+                view[field+'_utc']=pd.to_datetime(view[field],unit='s',utc=True,errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+            fields=['next_start_utc','predicted_at_utc','predicted_direction','agreement',
+                    'opening_candle_start_utc','ending_candle_start_utc','audit_opening_close',
+                    'audit_ending_close','audit_direction','actual_direction','audit_status','audit_note']
+            st.dataframe(view[fields],hide_index=True,use_container_width=True)
+            st.download_button('Export full timestamp and candle audit CSV',view.to_csv(index=False),'next_window_preflight_audit.csv','text/csv')
+        else:
+            st.caption('No pre-window predictions have been saved yet.')
 
 # Pixel V10 — final ABOVE/BELOW target forecast with conservative historical calibration.
 # Historical calibration uses ONLY explicitly verified US winners, never Kraken proxies.
-st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V13.4</div>', unsafe_allow_html=True)
-if not verified_reference or reference is None or reference<=0:
-    st.warning('Official US Price to Beat pending. Final-target forecast is paused rather than using an unverified proxy.')
-else:
-    # Baseline: zero-drift lognormal model using observed Kraken 1m volatility.
-    # This forecasts Kraken spot versus the US reference; it is not a BRTI model.
-    final_sigma=max(minute_vol,0.00005)*math.sqrt(max(remaining/60,1))
-    final_p=min(.995,max(.005,normal_cdf(math.log(price/reference)/final_sigma)))
-    final_gap=price-reference
-    stage_bucket=min(4,max(0,(now-start)//180))
-    stage_name=f'{stage_bucket*3}–{(stage_bucket+1)*3} minutes elapsed'
-    calibrated_p=None
-    hist_count=0
-    brier=None
-    try:
-        if CLOUD_READY:
-            historical=cloud_calibration_history()
-            if not historical.empty:
-                historical=historical[historical.event_slug!=slug]
-        else:
-            if not history_ready:
-                raise sqlite3.OperationalError('History database not initialized')
-            with sqlite3.connect(ARCHIVE,timeout=10) as pred_db:
-                historical=pd.read_sql_query("""
-                    SELECT s.event_slug,s.model_up,r.official_winner,
-                           s.seconds_left,s.captured
-                    FROM us_market_samples s
-                    JOIN us_market_results r ON r.event_slug=s.event_slug
-                    WHERE r.status='VERIFIED' AND r.official_winner IN ('UP','DOWN')
-                      AND s.model_up IS NOT NULL AND s.event_slug != ?
-                    ORDER BY s.event_slug,s.captured""",pred_db,params=(slug,))
-        if not historical.empty:
-            historical['stage']=( (900-historical.seconds_left).clip(lower=0,upper=899)//180 ).astype(int)
-            historical=historical[historical.stage==stage_bucket]
-            historical=historical.drop_duplicates(subset=['event_slug'],keep='first')
-            # Nearby forecasts only: probability within 15 percentage points.
-            nearby=historical[(historical.model_up-final_p).abs()<=.15]
-            hist_count=len(nearby)
-            if hist_count>=30:
-                observed=(nearby.official_winner=='UP').astype(float)
-                # 50 pseudo-observations shrink empirical rates toward the
-                # uncalibrated model until sufficient independent data accrue.
-                calibrated_p=(50*final_p+float(observed.sum()))/(50+hist_count)
-                brier=float(((nearby.model_up-observed)**2).mean())
-    except (sqlite3.Error, pd.errors.DatabaseError, ValueError, KeyError, TypeError, RuntimeError, requests.RequestException) as err:
-        st.caption(f'Historical calibration temporarily unavailable: {err}. Baseline forecast remains available.')
-    final_display=calibrated_p if calibrated_p is not None else final_p
-    p1,p2,p3=st.columns(3)
-    p1.metric('Forecast: finish ABOVE target',f'{final_display:.1%}')
-    p2.metric('Forecast: finish BELOW target',f'{1-final_display:.1%}')
-    p3.metric('Kraken spot − official target',f'${final_gap:+,.2f}')
-    st.progress(float(final_display),text=f'ABOVE {final_display:.1%}  |  BELOW {1-final_display:.1%}')
-    st.caption(f'Current stage: {stage_name} · {remaining//60}m {remaining%60}s remaining · US reference ${reference:,.2f}.')
-    if calibrated_p is None:
-        st.info(f'**Baseline forecast only.** {hist_count} comparable verified historical markets; at least 30 are required to enable historical adjustment. The tracker is still collecting data.')
+with ending_top_slot.container():
+    st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V13.4</div>', unsafe_allow_html=True)
+    if not verified_reference or reference is None or reference<=0:
+        st.warning('Official US Price to Beat pending. Final-target forecast is paused rather than using an unverified proxy.')
     else:
-        st.success(f'**Historically adjusted research estimate.** Based on {hist_count} comparable, verified US markets in this elapsed-time stage. Baseline {final_p:.1%}; adjusted {calibrated_p:.1%}.')
-        st.caption(f'Historical baseline Brier score in comparable markets: {brier:.3f} (lower is better). This is in-sample, not a prospective validation.')
-    st.caption('These percentages model Kraken spot relative to the official US BRTI reference. Because the feeds differ and the model is unvalidated, they are NOT verified probabilities of Polymarket settlement and do not establish a betting edge. Exactly equal settlement is grouped with ABOVE (LONG) under the US contract rule.')
-    st.caption('Predictions are archived on each active dashboard refresh. Cloud calibration uses verified US results only; the app must receive refreshes to record observations.')
+        # Baseline: zero-drift lognormal model using observed Kraken 1m volatility.
+        # This forecasts Kraken spot versus the US reference; it is not a BRTI model.
+        final_sigma=max(minute_vol,0.00005)*math.sqrt(max(remaining/60,1))
+        final_p=min(.995,max(.005,normal_cdf(math.log(price/reference)/final_sigma)))
+        final_gap=price-reference
+        stage_bucket=min(4,max(0,(now-start)//180))
+        stage_name=f'{stage_bucket*3}–{(stage_bucket+1)*3} minutes elapsed'
+        calibrated_p=None
+        hist_count=0
+        brier=None
+        try:
+            if CLOUD_READY:
+                historical=cloud_calibration_history()
+                if not historical.empty:
+                    historical=historical[historical.event_slug!=slug]
+            else:
+                if not history_ready:
+                    raise sqlite3.OperationalError('History database not initialized')
+                with sqlite3.connect(ARCHIVE,timeout=10) as pred_db:
+                    historical=pd.read_sql_query("""
+                        SELECT s.event_slug,s.model_up,r.official_winner,
+                               s.seconds_left,s.captured
+                        FROM us_market_samples s
+                        JOIN us_market_results r ON r.event_slug=s.event_slug
+                        WHERE r.status='VERIFIED' AND r.official_winner IN ('UP','DOWN')
+                          AND s.model_up IS NOT NULL AND s.event_slug != ?
+                        ORDER BY s.event_slug,s.captured""",pred_db,params=(slug,))
+            if not historical.empty:
+                historical['stage']=( (900-historical.seconds_left).clip(lower=0,upper=899)//180 ).astype(int)
+                historical=historical[historical.stage==stage_bucket]
+                historical=historical.drop_duplicates(subset=['event_slug'],keep='first')
+                # Nearby forecasts only: probability within 15 percentage points.
+                nearby=historical[(historical.model_up-final_p).abs()<=.15]
+                hist_count=len(nearby)
+                if hist_count>=30:
+                    observed=(nearby.official_winner=='UP').astype(float)
+                    # 50 pseudo-observations shrink empirical rates toward the
+                    # uncalibrated model until sufficient independent data accrue.
+                    calibrated_p=(50*final_p+float(observed.sum()))/(50+hist_count)
+                    brier=float(((nearby.model_up-observed)**2).mean())
+        except (sqlite3.Error, pd.errors.DatabaseError, ValueError, KeyError, TypeError, RuntimeError, requests.RequestException) as err:
+            st.caption(f'Historical calibration temporarily unavailable: {err}. Baseline forecast remains available.')
+        final_display=calibrated_p if calibrated_p is not None else final_p
+        p1,p2,p3=st.columns(3)
+        p1.metric('Forecast: finish ABOVE target',f'{final_display:.1%}')
+        p2.metric('Forecast: finish BELOW target',f'{1-final_display:.1%}')
+        p3.metric('Kraken spot − official target',f'${final_gap:+,.2f}')
+        st.progress(float(final_display),text=f'ABOVE {final_display:.1%}  |  BELOW {1-final_display:.1%}')
+        st.caption(f'Current stage: {stage_name} · {remaining//60}m {remaining%60}s remaining · US reference ${reference:,.2f}.')
+        if calibrated_p is None:
+            st.info(f'**Baseline forecast only.** {hist_count} comparable verified historical markets; at least 30 are required to enable historical adjustment. The tracker is still collecting data.')
+        else:
+            st.success(f'**Historically adjusted research estimate.** Based on {hist_count} comparable, verified US markets in this elapsed-time stage. Baseline {final_p:.1%}; adjusted {calibrated_p:.1%}.')
+            st.caption(f'Historical baseline Brier score in comparable markets: {brier:.3f} (lower is better). This is in-sample, not a prospective validation.')
+        st.caption('These percentages model Kraken spot relative to the official US BRTI reference. Because the feeds differ and the model is unvalidated, they are NOT verified probabilities of Polymarket settlement and do not establish a betting edge. Exactly equal settlement is grouped with ABOVE (LONG) under the US contract rule.')
+        st.caption('Predictions are archived on each active dashboard refresh. Cloud calibration uses verified US results only; the app must receive refreshes to record observations.')
 
 
 # Retro quick-look strip: price is a Kraken spot proxy, NOT US BRTI.
