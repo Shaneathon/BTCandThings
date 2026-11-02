@@ -970,7 +970,7 @@ except (sqlite3.Error,OSError) as exc:
 
 
 
-st.markdown('<div class="retro-section">▣ 06 · PERMANENT CLOUD HISTORY // PIXEL V12.1</div>',unsafe_allow_html=True)
+st.markdown('<div class="retro-section">▣ 06 · PERMANENT CLOUD HISTORY // PIXEL V13</div>',unsafe_allow_html=True)
 if not CLOUD_READY:
     st.warning("Supabase not configured here. Set SUPABASE_URL and SUPABASE_KEY in Streamlit secrets.")
 else:
@@ -1009,7 +1009,7 @@ else:
                          "predicted_down_probability":float(1-final_display),
                          "market_up_quote":cloud_quote("longQuote"),
                          "market_down_quote":cloud_quote("shortQuote"),
-                         "model_version":"Pixel V12.1"},
+                         "model_version":"Pixel V13"},
                 prefer="resolution=ignore-duplicates,return=minimal")
         @st.cache_data(ttl=300,show_spinner=False)
         def cloud_pending_markets():
@@ -1017,15 +1017,38 @@ else:
                 "select":"market_slug,window_end","settlement_status":"eq.PENDING",
                 "window_end":"lt."+utc_iso(int(time.time())-60),
                 "order":"window_end.desc","limit":"5"})
+        # Polymarket US documents /v1/markets/{slug}/settlement as a numeric
+        # settlement price. It does not document that 0 or 1 maps to BTC UP/DOWN.
+        # Therefore a numeric response is diagnostic evidence only, not a winner.
+        @st.cache_data(ttl=300,show_spinner=False)
+        def official_settlement_diagnostic(contract_slug):
+            return us_get('/v1/markets/'+contract_slug+'/settlement')
+
+        settlement_diagnostics=[]
         for item in cloud_pending_markets():
             old_slug=item["market_slug"]
+            entry={"Event":old_slug,"Contract":"unresolved",
+                   "API state":"unknown","Settlement price":"unavailable",
+                   "Winner":"PENDING"}
             try:
                 _,old_contract,_=us_discover(old_slug)
                 contract=(old_contract or {}).get("slug")
-                if not contract:continue
+                if not contract:
+                    settlement_diagnostics.append(entry)
+                    continue
+                entry["Contract"]=contract
                 completed=us_full_market(contract)
+                state=str(completed.get("state") or completed.get("status") or "unknown").upper()
+                entry["API state"]=state
+                try:
+                    settlement=official_settlement_diagnostic(contract)
+                    if isinstance(settlement,dict):
+                        entry["Settlement price"]=str(settlement.get("settlement","unavailable"))
+                except Exception:
+                    pass
+                # Conservative verification: the full official market must
+                # explicitly identify an UP or DOWN winner and be final.
                 explicit=completed.get("winningOutcome") or completed.get("winningSide")
-                state=str(completed.get("state") or completed.get("status") or "").upper()
                 if (state in ("SETTLED","RESOLVED","MARKET_STATE_SETTLED","MARKET_STATE_RESOLVED")
                     and isinstance(explicit,str) and explicit.upper() in ("UP","DOWN")):
                     cloud_request("PATCH","btc_markets",
@@ -1033,8 +1056,10 @@ else:
                         payload={"official_winner":explicit.upper(),
                                  "settlement_status":"VERIFIED","settled_at":utc_iso(now),
                                  "updated_at":utc_iso(now)},prefer="return=minimal")
-            except Exception:
-                pass
+                    entry["Winner"]=explicit.upper()+" (verified)"
+            except Exception as exc:
+                entry["API state"]="Lookup unavailable: "+type(exc).__name__
+            settlement_diagnostics.append(entry)
         @st.cache_data(ttl=60,show_spinner=False)
         def cloud_counts():
             markets=cloud_request("GET","btc_markets",params={
@@ -1053,6 +1078,46 @@ else:
             if cloud_preds:
                 st.dataframe(pd.DataFrame(cloud_preds),hide_index=True,use_container_width=True)
             else: st.caption("No cloud predictions saved yet.")
+        with st.expander("Official settlement verification queue",expanded=True):
+            st.caption("Official settlement price is diagnostic only. No UP/DOWN winner is inferred from a number or Kraken candles. Rechecks up to five recent pending markets per refresh cycle.")
+            if settlement_diagnostics:
+                st.dataframe(pd.DataFrame(settlement_diagnostics),hide_index=True,use_container_width=True)
+            else:
+                st.info("No completed markets waiting for verification yet.")
+        with st.expander("Verified forecast accuracy by 3-minute stage",expanded=True):
+            verified_rows=cloud_request("GET","btc_markets",params={
+                "select":"market_slug,official_winner",
+                "settlement_status":"eq.VERIFIED","official_winner":"in.(UP,DOWN)",
+                "limit":"1000"})
+            if not verified_rows:
+                st.info("No officially verified UP/DOWN outcomes yet. Accuracy is pending, not zero percent.")
+            else:
+                winner_map={r["market_slug"]:r["official_winner"] for r in verified_rows}
+                pred_rows=[]
+                for event_id in winner_map:
+                    pred_rows.extend(cloud_request("GET","btc_predictions",params={
+                        "select":"market_slug,recorded_at,seconds_remaining,predicted_up_probability",
+                        "market_slug":"eq."+event_id,
+                        "predicted_up_probability":"not.is.null",
+                        "order":"recorded_at.asc","limit":"1000"}))
+                stage_results=[]
+                if pred_rows:
+                    hist=pd.DataFrame(pred_rows)
+                    hist["stage"]=( (900-pd.to_numeric(hist.seconds_remaining,errors="coerce")).clip(0,899)//180 ).astype(int)
+                    hist=hist.sort_values("recorded_at").drop_duplicates(["market_slug","stage"],keep="first")
+                    hist["actual_up"]=hist.market_slug.map(winner_map).eq("UP").astype(int)
+                    hist["p"]=pd.to_numeric(hist.predicted_up_probability,errors="coerce")
+                    hist=hist.dropna(subset=["p"])
+                    for stage_idx, group in hist.groupby("stage"):
+                        stage_results.append({"Elapsed stage":f"{stage_idx*3}–{(stage_idx+1)*3} min",
+                            "Independent markets":len(group),
+                            "Direction accuracy":f"{((group.p>=.5)==(group.actual_up==1)).mean():.1%}",
+                            "Brier score":round(float(((group.p-group.actual_up)**2).mean()),4)})
+                if stage_results:
+                    st.dataframe(pd.DataFrame(stage_results),hide_index=True,use_container_width=True)
+                    st.caption("One earliest recorded prediction per verified market per stage; no unverified or current market results included. Research estimates are not validated trading probabilities.")
+                else:
+                    st.info("Verified outcomes exist, but no eligible predictions have been matched yet.")
         st.caption("Cloud history survives redeploys. The website records only while actively running; this is not a background collector. Outcomes remain PENDING until the US API explicitly confirms a winner.")
     except (RuntimeError,requests.RequestException,ValueError,TypeError) as cloud_exc:
         st.error("Cloud archive error: "+str(cloud_exc)[:240])
