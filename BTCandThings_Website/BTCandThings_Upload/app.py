@@ -464,8 +464,8 @@ def cloud_calibration_history():
     frame["captured"]=pd.to_datetime(frame["recorded_at"],utc=True,errors="coerce")
     return frame[["event_slug","model_up","seconds_left","official_winner","captured"]]
 
-# Pixel V13.2: early lean and pre-window directional research, above the main predictor.
-st.markdown('<div class="retro-section">▣ EARLY LEAN + NEXT 15-MINUTE OPEN // PIXEL V13.2</div>', unsafe_allow_html=True)
+# Pixel V13.3: early lean and pre-window directional research, above the main predictor.
+st.markdown('<div class="retro-section">▣ EARLY LEAN + NEXT 15-MINUTE OPEN // PIXEL V13.3</div>', unsafe_allow_html=True)
 early_ema_slope=float(df.ema9.iloc[-1]-df.ema9.iloc[-4])
 early_rsi_prev=float(df.rsi14.iloc[-4])
 early_ret3=float(df.close.iloc[-1]/df.close.iloc[-4]-1)
@@ -533,7 +533,7 @@ with st.expander('Next-window preflight history and research accuracy'):
 
 # Pixel V10 — final ABOVE/BELOW target forecast with conservative historical calibration.
 # Historical calibration uses ONLY explicitly verified US winners, never Kraken proxies.
-st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V13.2</div>', unsafe_allow_html=True)
+st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V13.3</div>', unsafe_allow_html=True)
 if not verified_reference or reference is None or reference<=0:
     st.warning('Official US Price to Beat pending. Final-target forecast is paused rather than using an unverified proxy.')
 else:
@@ -1076,7 +1076,7 @@ else:
                          "predicted_down_probability":float(1-final_display),
                          "market_up_quote":cloud_quote("longQuote"),
                          "market_down_quote":cloud_quote("shortQuote"),
-                         "model_version":"Pixel V13.1"},
+                         "model_version":"Pixel V13.3"},
                 prefer="resolution=ignore-duplicates,return=minimal")
         @st.cache_data(ttl=300,show_spinner=False)
         def cloud_pending_markets():
@@ -1099,13 +1099,24 @@ else:
             return {str(k):str(v)[:600] for k,v in record.items()
                     if any(token in str(k).lower() for token in interesting)}
 
+        def side_mapping_evidence(market, settlement):
+            """Diagnostic only: a 0/1 settlement is not an UP/DOWN winner without a documented mapping."""
+            if not isinstance(market,dict):
+                return 'Market details unavailable'
+            fields=('marketSides','sides','outcomes','contracts','instrument','assetPriceTerms',
+                    'longSide','shortSide','yesSide','noSide','description','rules','title')
+            available={k:market[k] for k in fields if k in market}
+            if not available:
+                return 'No explicit side definitions in market response'
+            return str(available)[:1800]
+
         settlement_diagnostics=[]
         for item in cloud_pending_markets():
             old_slug=item["market_slug"]
             entry={"Event":old_slug,"Contract":"unresolved",
                    "API state":"unknown","Settlement price":"unavailable",
                    "Winner":"PENDING","Market fields":"not retrieved",
-                   "Settlement response":"not retrieved","Check note":""}
+                   "Settlement response":"not retrieved","Side mapping evidence":"not retrieved","Check note":""}
             try:
                 _,old_contract,_=us_discover(old_slug)
                 contract=(old_contract or {}).get("slug")
@@ -1117,6 +1128,7 @@ else:
                 state=str(completed.get("state") or completed.get("status") or "unknown").upper()
                 entry["API state"]=state
                 entry["Market fields"]=str(safe_market_diagnostics(completed))[:1200]
+                entry["Side mapping evidence"]=side_mapping_evidence(completed,None)
                 try:
                     settlement=official_settlement_diagnostic(contract)
                     entry["Settlement response"]=str(safe_market_diagnostics(settlement))[:1200]
@@ -1199,6 +1211,7 @@ else:
                     st.caption("One earliest recorded prediction per verified market per stage; no unverified or current market results included. Research estimates are not validated trading probabilities.")
                 else:
                     st.info("Verified outcomes exist, but no eligible predictions have been matched yet.")
+        st.caption('Pixel V13.3 includes the early-lean panel and next-window spot-direction preflight. The settlement queue also exposes available side mapping evidence. Numeric 0/1 settlement values remain diagnostic until a documented mapping confirms what they mean.')
         st.caption("Cloud history survives redeploys. The website records only while actively running; this is not a background collector. Outcomes remain PENDING until the US API explicitly confirms a winner.")
     except (RuntimeError,requests.RequestException,ValueError,TypeError) as cloud_exc:
         st.error("Cloud archive error: "+str(cloud_exc)[:240])
