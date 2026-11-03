@@ -8,7 +8,7 @@ import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="BTC and Things · Trading", page_icon="₿", layout='wide')
-st.markdown("""<style>
+st.html("""<style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 :root { color-scheme: dark; }
 .stApp {background: #0b1120 !important; color: #e2e8f0 !important;}
@@ -45,9 +45,21 @@ h1 {font-size:1.55rem !important;} h2 {font-size:1.2rem !important;} h3 {font-si
 .modern-title {font-size:clamp(22px,2.5vw,32px);font-weight:800;letter-spacing:-.04em;color:#f8fafc;margin-top:3px;}
 .modern-sub {color:#94a3b8;font-size:12px;margin-top:4px;}
 @media(max-width:700px){.block-container{padding:.65rem .65rem 2rem !important;}.modern-masthead{padding:13px 14px;}}
-</style>""", unsafe_allow_html=True)
-st.markdown("""<div class="modern-masthead"><div class="modern-kicker">BTC AND THINGS · TRADING INTELLIGENCE · POLYMARKET US</div><div class="modern-title">Bitcoin Trade Tracker</div><div class="modern-sub">15-minute markets · 20-second data refresh · Research and paper-trading preparation</div></div>""",unsafe_allow_html=True)
-st_autorefresh(interval=20_000, key='auto_refresh')
+</style>""")
+st.html("""<div class="modern-masthead"><div class="modern-kicker">BTC AND THINGS · TRADING INTELLIGENCE · POLYMARKET US</div><div class="modern-title">Bitcoin Trade Tracker</div><div class="modern-sub">15-minute markets · live countdown · manual or optional 60-second market refresh</div></div>""")
+# The live countdown uses its own JavaScript clock and does not need a rerun.
+# Auto-refresh is opt-in to avoid a third-party component loading failure and
+# repeated full-page redraws. Historical recording still occurs on app reruns.
+with st.sidebar:
+    st.caption("Dashboard updates")
+    auto_refresh_enabled = st.toggle("Automatic market refresh", value=False,
+        help="Enable to refresh market data every 60 seconds. The countdown stays live even when disabled.")
+    if st.button("Refresh market data now", key="manual_market_refresh"):
+        st.rerun()
+    if not auto_refresh_enabled:
+        st.caption("Live countdown continues; price, chart and signals update on manual refresh.")
+if auto_refresh_enabled:
+    st_autorefresh(interval=60_000, key='auto_refresh')
 
 @st.cache_data(ttl=15)
 def get_json(url, params=None):
@@ -504,12 +516,12 @@ def signal_tone(direction):
 
 with lean_top_slot.container():
     lean_border, lean_text, lean_arrow = signal_tone(early_lean)
-    st.markdown(f'''<div class="signal-card {lean_border}">
+    st.html(f'''<div class="signal-card {lean_border}">
       <div class="card-heading">↗ &nbsp; CURRENT BTC LEAN</div>
       <div class="card-value {lean_text}">{early_lean} {lean_arrow}</div>
       <div class="card-meta">Directional agreement: <b>{abs(early_score)}/5</b><br>
       Swing watch: <b>{'WATCH · potential reversal' if early_swing else 'CLEAR'}</b></div>
-    </div>''',unsafe_allow_html=True)
+    </div>''')
     st.caption('Completed Kraken 1-minute candles · spot momentum, not verified contract odds.')
 
 # The next market has a different, as-yet-unknown US price-to-beat.
@@ -673,12 +685,12 @@ with preflight_top_slot.container():
     pre_border = pre_border if preflight else 'neutral'
     pre_text = pre_text if preflight else 'signal-neutral'
     pre_arrow = pre_arrow if preflight else '◷'
-    st.markdown(f'''<div class="signal-card {pre_border}">
+    st.html(f'''<div class="signal-card {pre_border}">
       <div class="card-heading">◎ &nbsp; NEXT WINDOW PREFLIGHT</div>
       <div class="card-value {pre_text}">{pre_direction} {pre_arrow}</div>
       <div class="card-meta">Next 15-minute window in: <b>{seconds_to_next//60:02d}:{seconds_to_next%60:02d}</b><br>
       {'Experimental opening lean · ' + str(abs(early_score)) + '/5 agreement' if preflight else 'Preflight begins with 3 minutes remaining'}</div>
-    </div>''',unsafe_allow_html=True)
+    </div>''')
     st.caption('Next-window first 3 minutes of Kraken spot; not a contract winner forecast.')
     if not preflight:
         suggestion='Preflight has not started. Continue observing the current BTC lean.'
@@ -713,10 +725,10 @@ with preflight_top_slot.container():
         else:
             st.caption('No pre-window predictions have been saved yet.')
 
-st.markdown('<div class="preflight-advice"><strong>◉ PREFLIGHT SUGGESTION</strong> &nbsp; '+
+st.html('<div class="preflight-advice"><strong>◉ PREFLIGHT SUGGESTION</strong> &nbsp; '+
             html.escape(st.session_state.get('preflight_suggestion_text','Observing market momentum.'))+
             '<div style="font-size:11px;color:#94a3b8;margin-top:5px">Research-only Kraken spot guidance; not a verified Polymarket trading edge.</div></div>',
-            unsafe_allow_html=True)
+            )
 
 # Pixel V10 — final ABOVE/BELOW target forecast with conservative historical calibration.
 # Historical calibration uses ONLY explicitly verified US winners, never Kraken proxies.
@@ -892,7 +904,7 @@ with advanced_tab:
 
         st.subheader('02 · SIGNAL CENTER · MODEL & MARKET')
         st.caption('A normal-return volatility model, NOT a trained or validated predictor. This is a hypothesis to backtest, not a proven advantage.')
-        st.markdown('''<div class="signal-hero"><div class="signal-label">PRIMARY SIGNAL · RESEARCH MODE</div><div class="signal-title">WAIT / OBSERVE</div><div class="signal-sub">No validated trading edge. The indicators and simulations below are exploratory, not an actionable BUY/SELL recommendation.</div></div>''', unsafe_allow_html=True)
+        st.html('''<div class="signal-hero"><div class="signal-label">PRIMARY SIGNAL · RESEARCH MODE</div><div class="signal-title">WAIT / OBSERVE</div><div class="signal-sub">No validated trading edge. The indicators and simulations below are exploratory, not an actionable BUY/SELL recommendation.</div></div>''')
         if strike<=0:st.warning('Waiting for the official price to beat before enabling the model.')
         else:
             # Current spot-to-strike, zero drift; proxy volatility. Floors guard against implausible certainty.
@@ -1137,7 +1149,7 @@ with advanced_tab:
     # PIXEL V9 — AUTOMATED RESEARCH ARCHIVE
     # Saves a timestamped sample every dashboard refresh, without treating Kraken
     # prices or a market quote as verified US settlement data.
-    st.markdown('<div class="retro-section">▣ 05 · AUTOMATED US MARKET ARCHIVE // PIXEL V9</div>', unsafe_allow_html=True)
+    st.html('<div class="retro-section">▣ 05 · AUTOMATED US MARKET ARCHIVE // PIXEL V9</div>')
     ARCHIVE=os.path.join(os.path.dirname(os.path.abspath(__file__)),'btc_signal_history.sqlite3')
     try:
         archive=sqlite3.connect(ARCHIVE,timeout=10)
@@ -1253,7 +1265,7 @@ with advanced_tab:
 
 
 
-    st.markdown('<div class="retro-section">▣ 06 · PERMANENT CLOUD HISTORY // PIXEL V13.5 + 24/7</div>',unsafe_allow_html=True)
+    st.html('<div class="retro-section">▣ 06 · PERMANENT CLOUD HISTORY // PIXEL V13.5 + 24/7</div>')
     if not CLOUD_READY:
         st.warning("Supabase not configured here. Set SUPABASE_URL and SUPABASE_KEY in Streamlit secrets.")
     else:
