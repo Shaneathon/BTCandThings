@@ -403,8 +403,11 @@ CLOUD_ERROR=None
 def cloud_request(method,table,params=None,payload=None,prefer=None):
     if not CLOUD_READY:
         raise RuntimeError("Supabase secrets are missing")
-    headers={"apikey":CLOUD_KEY,"Authorization":"Bearer "+CLOUD_KEY,
+    headers={"apikey":CLOUD_KEY,
              "Content-Type":"application/json","Accept":"application/json"}
+    # New Supabase sb_secret_ keys are API keys, not JWT bearer tokens.
+    if not CLOUD_KEY.startswith("sb_secret_"):
+        headers["Authorization"]="Bearer "+CLOUD_KEY
     if prefer: headers["Prefer"]=prefer
     response=requests.request(method,CLOUD_URL+"/rest/v1/"+table,
         headers=headers,params=params,json=payload,timeout=12)
@@ -1197,7 +1200,7 @@ except (sqlite3.Error,OSError) as exc:
 
 
 
-st.markdown('<div class="retro-section">▣ 06 · PERMANENT CLOUD HISTORY // PIXEL V13.1</div>',unsafe_allow_html=True)
+st.markdown('<div class="retro-section">▣ 06 · PERMANENT CLOUD HISTORY // PIXEL V13.5 + 24/7</div>',unsafe_allow_html=True)
 if not CLOUD_READY:
     st.warning("Supabase not configured here. Set SUPABASE_URL and SUPABASE_KEY in Streamlit secrets.")
 else:
@@ -1326,11 +1329,68 @@ else:
         x.metric("Cloud markets tracked",len(cloud_markets))
         y.metric("Verified US settlements",sum(m.get("settlement_status")=="VERIFIED" for m in cloud_markets))
         z.metric("Recent saved predictions",len(cloud_preds))
-        st.success("Supabase connected. Predictions save on dashboard refreshes when the official target is available.")
+        st.success("Supabase connected. DigitalOcean collects independently; this dashboard may also save observations while open.")
         with st.expander("Recent cloud predictions"):
             if cloud_preds:
                 st.dataframe(pd.DataFrame(cloud_preds),hide_index=True,use_container_width=True)
             else: st.caption("No cloud predictions saved yet.")
+        # Read-only explorer of samples collected by DigitalOcean and Streamlit.
+        @st.cache_data(ttl=60,show_spinner=False)
+        def cloud_collector_history():
+            records=[]
+            for offset in (0,1000,2000):
+                batch=cloud_request("GET","btc_predictions",params={
+                    "select":"market_slug,recorded_at,seconds_remaining,kraken_spot,price_to_beat,predicted_up_probability,predicted_down_probability,model_version",
+                    "order":"recorded_at.desc","limit":"1000","offset":str(offset)})
+                records.extend(batch)
+                if len(batch)<1000: break
+            return pd.DataFrame(records)
+
+        with st.expander("24/7 collector history · DigitalOcean + dashboard",expanded=True):
+            st.caption("Read-only Supabase history. The collector runs on DigitalOcean; opening this page is not required for collection. Data may be up to 60 seconds behind.")
+            collector_history=cloud_collector_history()
+            if collector_history.empty:
+                st.info("No saved prediction records found in Supabase yet.")
+            else:
+                h=collector_history.copy()
+                h["recorded_at"]=pd.to_datetime(h["recorded_at"],utc=True,errors="coerce")
+                h=h.dropna(subset=["recorded_at"])
+                for field in ("kraken_spot","price_to_beat","predicted_up_probability","seconds_remaining"):
+                    h[field]=pd.to_numeric(h[field],errors="coerce")
+                h=h.sort_values("recorded_at")
+                latest=h.iloc[-1]
+                sample_age=(pd.Timestamp.now(tz="UTC")-latest["recorded_at"]).total_seconds()
+                a,b,c,d=st.columns(4)
+                a.metric("Loaded predictions",f"{len(h):,}")
+                b.metric("Markets represented",f"{h.market_slug.nunique():,}")
+                c.metric("Latest record (UTC)",latest["recorded_at"].strftime("%b %d %H:%M:%S"))
+                d.metric("Latest sample age",f"{max(0,int(sample_age))} sec")
+                if sample_age>180:
+                    st.warning("Latest saved prediction is over 3 minutes old. Check the DigitalOcean service logs if collection should be active.")
+                st.caption("The view loads up to the latest 3,000 records. 'Loaded predictions' is not the all-time database total. Multiple observations from one market are not independent outcomes.")
+                model_choices=sorted(h["model_version"].dropna().astype(str).unique().tolist())
+                chosen_models=st.multiselect("Model versions",model_choices,default=model_choices,key="cloud_model_versions")
+                h=h[h["model_version"].isin(chosen_models)]
+                market_choices=h["market_slug"].dropna().unique().tolist()[::-1]
+                selected_market=st.selectbox("Market window",["All loaded markets"]+market_choices,key="cloud_market_window")
+                if selected_market!="All loaded markets":
+                    h=h[h["market_slug"]==selected_market]
+                if h.empty:
+                    st.info("No records match these filters.")
+                else:
+                    chart_data=h.set_index("recorded_at")[["predicted_up_probability","predicted_down_probability"]].rename(columns={
+                        "predicted_up_probability":"Model UP","predicted_down_probability":"Model DOWN"})
+                    st.markdown("**Experimental model probability over time**")
+                    st.line_chart(chart_data,use_container_width=True)
+                    st.caption("Probabilities are uncalibrated Kraken-based research estimates, not verified Polymarket win probabilities.")
+                    st.markdown("**Kraken spot and US price-to-beat (USD)**")
+                    st.line_chart(h.set_index("recorded_at")[["kraken_spot","price_to_beat"]].rename(columns={
+                        "kraken_spot":"Kraken spot","price_to_beat":"US price to beat"}),use_container_width=True)
+                    shown=h.sort_values("recorded_at",ascending=False)
+                    st.dataframe(shown.head(200),hide_index=True,use_container_width=True)
+                    st.download_button("Export filtered cloud predictions CSV",shown.to_csv(index=False).encode("utf-8"),
+                        "btc_collector_history.csv","text/csv",key="export_cloud_collector")
+                    st.caption("Official settlement accuracy remains pending until separately verified UP/DOWN results are available. This view does not score unresolved markets.")
         with st.expander("Official settlement verification queue",expanded=True):
             st.caption("Diagnostic V13.1: inspect official market state, selected market fields, and settlement response. Numeric settlement prices are NOT treated as payout odds or UP/DOWN winners. Rechecks up to five recent pending markets per refresh cycle.")
             if settlement_diagnostics:
@@ -1372,7 +1432,7 @@ else:
                 else:
                     st.info("Verified outcomes exist, but no eligible predictions have been matched yet.")
         st.caption('Pixel V13.3 includes the early-lean panel and next-window spot-direction preflight. The settlement queue also exposes available side mapping evidence. Numeric 0/1 settlement values remain diagnostic until a documented mapping confirms what they mean.')
-        st.caption("Cloud history survives redeploys. The website records only while actively running; this is not a background collector. Outcomes remain PENDING until the US API explicitly confirms a winner.")
+        st.caption("Cloud history survives redeploys. The DigitalOcean collector runs independently; dashboard-only research features still require an active Streamlit session. Outcomes remain PENDING until the US API explicitly confirms a winner.")
     except (RuntimeError,requests.RequestException,ValueError,TypeError) as cloud_exc:
         st.error("Cloud archive error: "+str(cloud_exc)[:240])
         st.caption("Check Streamlit Secrets and the Supabase tables. The local tracker remains available.")
