@@ -1,4 +1,4 @@
-import json, math, time, sqlite3, os
+import json, math, time, sqlite3, os, html
 from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
@@ -7,7 +7,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
 
-st.set_page_config(page_title="Shane's BTC Tracker", layout='wide')
+st.set_page_config(page_title="BTC and Things · Trading", page_icon="₿", layout='wide')
 st.markdown("""<style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 :root { color-scheme: dark; }
@@ -29,13 +29,24 @@ h1 {font-size:1.55rem !important;} h2 {font-size:1.2rem !important;} h3 {font-si
 .signal-title {font-size:23px;font-weight:800;color:#fbbf24;line-height:1.5;}
 .signal-sub {color:#a9b9cc;font-size:13px;}
 .retro-section {font-family:'Inter',sans-serif;letter-spacing:0;color:#e2e8f0;border-bottom:1px solid #29384e;padding:10px 0;margin:14px 0;font-weight:700;}
+/* Trading terminal: shared visual language for signal cards */
+.signal-card {min-height:174px; background:linear-gradient(125deg,#13243b,#0d192a);border:1px solid #334b66;border-radius:15px;padding:18px 22px;margin:3px 0 10px;box-sizing:border-box;}
+.signal-card.up {border-color:#22c55e;box-shadow:inset 0 0 0 1px #22c55e33;}
+.signal-card.down {border-color:#ef4444;box-shadow:inset 0 0 0 1px #ef444433;}
+.signal-card.neutral {border-color:#fbbf24;box-shadow:inset 0 0 0 1px #fbbf2433;}
+.signal-card .card-heading {font-size:13px;color:#cbd5e1;letter-spacing:.07em;font-weight:800;}
+.signal-card .card-value {font-size:42px;font-weight:800;letter-spacing:-.045em;line-height:1.2;margin:10px 0 6px;}
+.signal-card .card-meta {font-size:13px;color:#b7c6d8;line-height:1.6;}
+.signal-up {color:#22c55e!important;}.signal-down {color:#ef4444!important;}.signal-neutral {color:#fbbf24!important;}
+.preflight-advice {background:#14243a;border:1px solid #344b66;border-radius:12px;padding:13px 17px;margin:6px 0 15px;font-size:14px;color:#e2e8f0;}
+.preflight-advice strong {color:#fbbf24;}
 .modern-masthead {background:linear-gradient(105deg,#13263e,#0f192b);border:1px solid #2a405b;border-radius:16px;padding:18px 22px;margin-bottom:14px;}
 .modern-kicker {font-size:11px;letter-spacing:1.6px;color:#38bdf8;font-weight:700;}
 .modern-title {font-size:clamp(22px,2.5vw,32px);font-weight:800;letter-spacing:-.04em;color:#f8fafc;margin-top:3px;}
 .modern-sub {color:#94a3b8;font-size:12px;margin-top:4px;}
 @media(max-width:700px){.block-container{padding:.65rem .65rem 2rem !important;}.modern-masthead{padding:13px 14px;}}
 </style>""", unsafe_allow_html=True)
-st.markdown("""<div class="modern-masthead"><div class="modern-kicker">SHANEATHON · TRADING INTELLIGENCE · POLYMARKET US</div><div class="modern-title">Bitcoin Trade Tracker</div><div class="modern-sub">15-minute markets · 20-second data refresh · Research and paper-trading preparation</div></div>""",unsafe_allow_html=True)
+st.markdown("""<div class="modern-masthead"><div class="modern-kicker">BTC AND THINGS · TRADING INTELLIGENCE · POLYMARKET US</div><div class="modern-title">Bitcoin Trade Tracker</div><div class="modern-sub">15-minute markets · 20-second data refresh · Research and paper-trading preparation</div></div>""",unsafe_allow_html=True)
 st_autorefresh(interval=20_000, key='auto_refresh')
 
 @st.cache_data(ttl=15)
@@ -70,7 +81,7 @@ now=int(time.time()); start=now//900*900; remaining=max(0,start+900-now)
 slug=f'btc-updown-15m-{datetime.fromtimestamp(start,timezone.utc):%Y-%m-%d-%H%M}z'
 # Browser-side UTC-aligned countdown. Runs continuously without refreshing Streamlit.
 # Polymarket BTC 15m market slugs follow UTC epoch 900-second boundaries.
-top_left, top_right = st.columns([1, 1.65], gap="medium")
+top_left, top_right = st.columns([1, 1], gap="medium")
 with top_left:
     timer_top_slot=st.empty()
 with top_right:
@@ -453,10 +464,10 @@ with timer_top_slot:
     <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1" />
     <style>
     *{box-sizing:border-box}body{margin:0;background:transparent;color:#edf4ff;font-family:system-ui,-apple-system,sans-serif}
-    .panel{background:linear-gradient(110deg,#17263c,#121e30);border:1px solid #293e59;border-radius:12px;padding:12px 15px;box-shadow:none}
+    .panel{background:linear-gradient(110deg,#17263c,#121e30);border:1px solid #334b66;border-radius:14px;padding:22px 22px;min-height:348px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:none}
     .top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.label{font-size:11px;letter-spacing:1.7px;color:#9dafc8;font-weight:700}
-    .time{color:#f8fafc;font-size:34px;font-variant-numeric:tabular-nums;font-weight:800;letter-spacing:1px}.beat{text-align:center;min-width:180px}.beat-value{font-size:25px;font-weight:800;color:#38bdf8;font-variant-numeric:tabular-nums}.beat-source{font-size:10px;color:#9dafc8;margin-top:3px}.stage{font-size:13px;color:#38bdf8;font-weight:700}
-    .track{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:5px}.seg{height:5px;border-radius:6px;background:#2c3c52;overflow:hidden}.fill{height:100%;width:0;background:#ffc36a;transition:width .2s linear}
+    .time{color:#f8fafc;font-size:clamp(38px,5vw,65px);font-variant-numeric:tabular-nums;font-weight:800;letter-spacing:1px}.beat{text-align:left;min-width:160px}.beat-value{font-size:25px;font-weight:800;color:#38bdf8;font-variant-numeric:tabular-nums}.beat-source{font-size:10px;color:#9dafc8;margin-top:3px}.stage{font-size:13px;color:#38bdf8;font-weight:700}
+    .track{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:20px}.seg{height:5px;border-radius:6px;background:#2c3c52;overflow:hidden}.fill{height:100%;width:0;background:#ffc36a;transition:width .2s linear}
     .meta{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:4px;color:#9dafc8;font-size:12px}
     </style></head><body><div class="panel"><div class="top"><div><div class="label">POLYMARKET · BTC 15-MINUTE WINDOW</div><div id="timer" class="time">--:--</div></div><div class="beat"><div class="label">US PRICE TO BEAT</div><div class="beat-value">___BEAT_DISPLAY___</div><div class="beat-source">___BEAT_SOURCE___</div></div><div><div id="stage" class="stage">Syncing…</div><div id="window" style="font-size:12px;color:#9dafc8;margin-top:6px"></div></div></div>
     <div class="track"><div class="seg"><div class="fill" id="f0"></div></div><div class="seg"><div class="fill" id="f1"></div></div><div class="seg"><div class="fill" id="f2"></div></div><div class="seg"><div class="fill" id="f3"></div></div><div class="seg"><div class="fill" id="f4"></div></div></div><div class="meta"><span id="elapsed"></span><span id="next"></span></div></div>
@@ -471,9 +482,9 @@ with timer_top_slot:
     const next=Math.min(900,(stage+1)*180);document.getElementById('next').textContent='Next 3m boundary in '+pad(Math.floor(Math.max(0,next-elapsed)/60))+':'+pad(Math.ceil(Math.max(0,next-elapsed))%60);
     }tick();setInterval(tick,250);
     </script></body></html>
-    """.replace("___BEAT_DISPLAY___",beat_display).replace("___BEAT_SOURCE___",beat_source),height=170,scrolling=False)
+    """.replace("___BEAT_DISPLAY___",beat_display).replace("___BEAT_SOURCE___",beat_source),height=358,scrolling=False)
 
-# Pixel V13.3: early lean and pre-window directional research, above the main predictor.
+# Early lean and pre-window directional research, above the main predictor.
 early_ema_slope=float(df.ema9.iloc[-1]-df.ema9.iloc[-4])
 early_rsi_prev=float(df.rsi14.iloc[-4])
 early_ret3=float(df.close.iloc[-1]/df.close.iloc[-4]-1)
@@ -487,12 +498,18 @@ early_votes=[
 early_score=sum(early_votes)
 early_lean='UP' if early_score>=2 else 'DOWN' if early_score<=-2 else 'NEUTRAL'
 early_swing=(ema9!=ema21 and early_ret3*(ema9-ema21)<0 and (rs-early_rsi_prev)*(ema9-ema21)<0)
+# Color conveys direction, not forecast certainty.
+def signal_tone(direction):
+    return {'UP':('up','signal-up','↗'), 'DOWN':('down','signal-down','↘')}.get(direction,('neutral','signal-neutral','→'))
+
 with lean_top_slot.container():
-    st.markdown('#### Current BTC Lean')
-    top_a,top_b,top_c=st.columns(3)
-    top_a.metric('CURRENT BTC LEAN',early_lean)
-    top_b.metric('DIRECTIONAL AGREEMENT',f'{abs(early_score)}/5')
-    top_c.metric('SWING WATCH','WATCH' if early_swing else 'CLEAR')
+    lean_border, lean_text, lean_arrow = signal_tone(early_lean)
+    st.markdown(f'''<div class="signal-card {lean_border}">
+      <div class="card-heading">↗ &nbsp; CURRENT BTC LEAN</div>
+      <div class="card-value {lean_text}">{early_lean} {lean_arrow}</div>
+      <div class="card-meta">Directional agreement: <b>{abs(early_score)}/5</b><br>
+      Swing watch: <b>{'WATCH · potential reversal' if early_swing else 'CLEAR'}</b></div>
+    </div>''',unsafe_allow_html=True)
     st.caption('Completed Kraken 1-minute candles · spot momentum, not verified contract odds.')
 
 # The next market has a different, as-yet-unknown US price-to-beat.
@@ -649,21 +666,30 @@ with sqlite3.connect(research_db,timeout=10) as next_db:
     next_db.commit()
     past=pd.read_sql_query('SELECT * FROM next_window_preflight ORDER BY next_start DESC LIMIT 100',next_db)
 with preflight_top_slot.container():
-    st.markdown('#### Next Window Preflight')
-    preflight_a, preflight_b = st.columns(2)
-    preflight_a.metric('Opening direction · research', early_lean)
-    preflight_b.metric('Next window begins in', f'{seconds_to_next//60:02d}:{seconds_to_next%60:02d}')
-    if preflight:
-        if early_lean == 'NEUTRAL':
-            st.info('**Suggestion: WAIT.** No clear opening momentum lean; monitor for confirmation.')
-        elif early_swing:
-            st.warning(f'**Suggestion: WATCH {early_lean} cautiously.** Swing warning is active; wait for confirmation rather than assuming continuation.')
-        else:
-            st.info(f'**Suggestion: WATCH {early_lean}.** Experimental {abs(early_score)}/5 momentum agreement; wait for confirmation before considering a trade.')
+    pre_border, pre_text, pre_arrow = signal_tone(early_lean)
+    # Preflight is a distinct research phase; do not claim a new-window trade signal
+    # before the final three minutes of the current window.
+    pre_direction = early_lean if preflight else 'PENDING'
+    pre_border = pre_border if preflight else 'neutral'
+    pre_text = pre_text if preflight else 'signal-neutral'
+    pre_arrow = pre_arrow if preflight else '◷'
+    st.markdown(f'''<div class="signal-card {pre_border}">
+      <div class="card-heading">◎ &nbsp; NEXT WINDOW PREFLIGHT</div>
+      <div class="card-value {pre_text}">{pre_direction} {pre_arrow}</div>
+      <div class="card-meta">Next 15-minute window in: <b>{seconds_to_next//60:02d}:{seconds_to_next%60:02d}</b><br>
+      {'Experimental opening lean · ' + str(abs(early_score)) + '/5 agreement' if preflight else 'Preflight begins with 3 minutes remaining'}</div>
+    </div>''',unsafe_allow_html=True)
+    st.caption('Next-window first 3 minutes of Kraken spot; not a contract winner forecast.')
+    if not preflight:
+        suggestion='Preflight has not started. Continue observing the current BTC lean.'
+    elif early_lean=='NEUTRAL':
+        suggestion='WAIT. No clear opening momentum lean; watch for a stronger directional confirmation.'
+    elif early_swing:
+        suggestion=f'WATCH {early_lean} CAUTIOUSLY. Reversal risk is flagged; wait for confirmation.'
     else:
-        st.caption(f'Preflight activates in {max(0, seconds_to_next-180)//60:02d}:{max(0, seconds_to_next-180)%60:02d} · three minutes before the next window.')
-        st.info('**Suggestion: OBSERVE.** The next-window preflight period has not begun.')
-    st.caption('Research signal for the next window’s first 3 minutes of Kraken spot movement—not a Polymarket winner prediction or verified trading edge.')
+        suggestion=f'WATCH {early_lean}. Momentum agreement is {abs(early_score)}/5; wait for confirmation before considering an entry.'
+    # Advice appears directly below both cards, across the entire dashboard.
+    st.session_state['preflight_suggestion_text']=suggestion
     with st.expander('Next-window preflight history, candle audit and research accuracy'):
         st.markdown('**Candle boundary audit (UTC)**')
         st.caption('Opening reference = close of the 1-minute candle starting 60 seconds BEFORE the new 15-minute boundary. Evaluation = close of the candle starting 2 minutes AFTER the boundary. Both must be completed candles. Original outcomes are retained for comparison.')
@@ -686,6 +712,11 @@ with preflight_top_slot.container():
             st.download_button('Export full timestamp and candle audit CSV',view.to_csv(index=False),'next_window_preflight_audit.csv','text/csv')
         else:
             st.caption('No pre-window predictions have been saved yet.')
+
+st.markdown('<div class="preflight-advice"><strong>◉ PREFLIGHT SUGGESTION</strong> &nbsp; '+
+            html.escape(st.session_state.get('preflight_suggestion_text','Observing market momentum.'))+
+            '<div style="font-size:11px;color:#94a3b8;margin-top:5px">Research-only Kraken spot guidance; not a verified Polymarket trading edge.</div></div>',
+            unsafe_allow_html=True)
 
 # Pixel V10 — final ABOVE/BELOW target forecast with conservative historical calibration.
 # Historical calibration uses ONLY explicitly verified US winners, never Kraken proxies.
@@ -756,7 +787,7 @@ with ending_top_slot.container():
 trade_tab, performance_tab, advanced_tab = st.tabs(["Trading", "Performance", "Advanced · Research & Diagnostics"])
 with trade_tab:
     st.markdown("### Trade opportunity advisor")
-    st.warning("WAIT / OBSERVE — an entry/exit model has not yet been validated. No live buy/sell advice is generated.")
+    st.warning("WAIT / OBSERVE — a tradable entry/exit model has not yet been validated. The preflight panel above describes experimental Kraken momentum, not a verified buy/sell edge.")
     t1,t2,t3,t4=st.columns(4)
     t1.metric('Kraken BTC spot',f'${price:,.2f}')
     t2.metric('US price to beat',f'${reference:,.2f}' if reference is not None else 'PENDING')
