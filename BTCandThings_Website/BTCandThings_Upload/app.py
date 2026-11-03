@@ -77,9 +77,12 @@ with top_right:
     chart_top_slot=st.empty()
 # Live countdown is shown in the left panel; candle chart is on the right.
 # Reserve top-of-dashboard positions; fill after market and indicator data loads.
-lean_top_slot=st.empty()
+lean_col, preflight_col = st.columns([1, 1], gap="medium")
+with lean_col:
+    lean_top_slot=st.empty()
+with preflight_col:
+    preflight_top_slot=st.empty()
 ending_top_slot=st.empty()
-preflight_top_slot=st.empty()
 US_GATEWAY='https://gateway.polymarket.us'
 @st.cache_data(ttl=15)
 def us_get(path):
@@ -485,12 +488,12 @@ early_score=sum(early_votes)
 early_lean='UP' if early_score>=2 else 'DOWN' if early_score<=-2 else 'NEUTRAL'
 early_swing=(ema9!=ema21 and early_ret3*(ema9-ema21)<0 and (rs-early_rsi_prev)*(ema9-ema21)<0)
 with lean_top_slot.container():
-    st.markdown('<div class="retro-section">▣ CURRENT BTC LEAN // PIXEL V13.5</div>', unsafe_allow_html=True)
+    st.markdown('#### Current BTC Lean')
     top_a,top_b,top_c=st.columns(3)
     top_a.metric('CURRENT BTC LEAN',early_lean)
     top_b.metric('DIRECTIONAL AGREEMENT',f'{abs(early_score)}/5')
     top_c.metric('SWING WATCH','WATCH' if early_swing else 'CLEAR')
-    st.caption('Early lean uses completed Kraken 1-minute candles; it describes spot momentum, not verified Polymarket probabilities.')
+    st.caption('Completed Kraken 1-minute candles · spot momentum, not verified contract odds.')
 
 # The next market has a different, as-yet-unknown US price-to-beat.
 # Therefore only predict the first three minutes of Kraken spot direction, not next contract payout.
@@ -646,15 +649,21 @@ with sqlite3.connect(research_db,timeout=10) as next_db:
     next_db.commit()
     past=pd.read_sql_query('SELECT * FROM next_window_preflight ORDER BY next_start DESC LIMIT 100',next_db)
 with preflight_top_slot.container():
-    st.markdown('**NEXT 15-MINUTE WINDOW — FIRST 3-MINUTE DIRECTION**')
+    st.markdown('#### Next Window Preflight')
+    preflight_a, preflight_b = st.columns(2)
+    preflight_a.metric('Opening direction · research', early_lean)
+    preflight_b.metric('Next window begins in', f'{seconds_to_next//60:02d}:{seconds_to_next%60:02d}')
     if preflight:
-        if early_lean=='NEUTRAL':
-            st.info(f'Pre-window check active · next window starts in {seconds_to_next}s · no directional lean.')
+        if early_lean == 'NEUTRAL':
+            st.info('**Suggestion: WAIT.** No clear opening momentum lean; monitor for confirmation.')
+        elif early_swing:
+            st.warning(f'**Suggestion: WATCH {early_lean} cautiously.** Swing warning is active; wait for confirmation rather than assuming continuation.')
         else:
-            st.info(f'Pre-window check active · next window starts in {seconds_to_next}s · experimental opening lean: **{early_lean}** ({abs(early_score)}/5 agreement).')
+            st.info(f'**Suggestion: WATCH {early_lean}.** Experimental {abs(early_score)}/5 momentum agreement; wait for confirmation before considering a trade.')
     else:
-        st.caption(f'Pre-window monitoring begins in {seconds_to_next-180}s (3 minutes before the next 15-minute boundary). Current early lean: {early_lean}.')
-    st.caption('Experimental Kraken spot direction, NOT the next Polymarket US contract winner. Preflight requires the dashboard to be running; no prediction is backfilled.')
+        st.caption(f'Preflight activates in {max(0, seconds_to_next-180)//60:02d}:{max(0, seconds_to_next-180)%60:02d} · three minutes before the next window.')
+        st.info('**Suggestion: OBSERVE.** The next-window preflight period has not begun.')
+    st.caption('Research signal for the next window’s first 3 minutes of Kraken spot movement—not a Polymarket winner prediction or verified trading edge.')
     with st.expander('Next-window preflight history, candle audit and research accuracy'):
         st.markdown('**Candle boundary audit (UTC)**')
         st.caption('Opening reference = close of the 1-minute candle starting 60 seconds BEFORE the new 15-minute boundary. Evaluation = close of the candle starting 2 minutes AFTER the boundary. Both must be completed candles. Original outcomes are retained for comparison.')
@@ -681,7 +690,7 @@ with preflight_top_slot.container():
 # Pixel V10 — final ABOVE/BELOW target forecast with conservative historical calibration.
 # Historical calibration uses ONLY explicitly verified US winners, never Kraken proxies.
 with ending_top_slot.container():
-    st.markdown('<div class="retro-section">▣ FINAL TARGET PREDICTOR // PIXEL V13.5</div>', unsafe_allow_html=True)
+    st.markdown('#### Final Target Forecast · Research')
     if not verified_reference or reference is None or reference<=0:
         st.warning('Official US Price to Beat pending. Final-target forecast is paused rather than using an unverified proxy.')
     else:
@@ -772,7 +781,7 @@ with performance_tab:
     st.caption('Detailed historical research, cloud archives, and settlement diagnostics remain accessible in Advanced.')
 with advanced_tab:
     # Retro quick-look strip: price is a Kraken spot proxy, NOT US BRTI.
-    st.markdown('<div class="retro-section">▣ MARKET CONTROL PANEL // 1994 EDITION</div>', unsafe_allow_html=True)
+    st.markdown('#### Market Control Panel')
     quick1,quick2,quick3,quick4=st.columns(4)
     quick1.metric('BTC · KRAKEN SPOT',f'${price:,.2f}')
     quick2.metric('US PRICE TO BEAT' if reference is not None else 'MANUAL / KRAKEN PROXY' if strike>0 else 'US PRICE TO BEAT',f'${strike:,.2f}' if strike>0 else 'PENDING')
