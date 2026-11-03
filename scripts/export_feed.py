@@ -14,8 +14,7 @@ def fetch(table, params):
     if not key.startswith('sb_secret_'):
         headers['Authorization']='Bearer '+key
     with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=25) as response:
-        return json.load(response)
-
+        since=(now-timedelta(hours=6)).isoformat()
 now=datetime.now(timezone.utc)
 since=(now-timedelta(hours=24)).isoformat()
 rows=[]
