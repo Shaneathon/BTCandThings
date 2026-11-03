@@ -16,7 +16,7 @@ def fetch(table, params):
     with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=25) as response:
         since=(now-timedelta(hours=6)).isoformat()
 now=datetime.now(timezone.utc)
-since=(now-timedelta(hours=24)).isoformat()
+since=(now-timedelta(hours=6)).isoformat()
 rows=[]
 for offset in range(0,5000,1000):
     batch=fetch('btc_predictions',{
