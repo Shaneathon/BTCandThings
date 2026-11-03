@@ -9,80 +9,33 @@ from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="Shane's BTC Tracker", layout='wide')
 st.markdown("""<style>
-.stApp {background: #0b1019; color: #e9eff9;}
-.block-container {max-width: 1720px; padding: .35rem .85rem .9rem;}
-h1,h2,h3 {color: #edf4ff !important; letter-spacing: -.025em;}
-[data-testid="stMetric"] {background: #151e2d; border: 1px solid #29374b; border-radius: 8px; padding: 5px 8px;}
-[data-testid="stMetricLabel"] {color: #9dafc8;}
-[data-testid="stMetricValue"] {color: #edf4ff;}
-[data-testid="stDataFrame"] {border: 1px solid #29374b; border-radius: 12px; overflow: hidden;}
-.stButton button, .stDownloadButton button {background: #233550; color: white; border-radius: 10px; border: 1px solid #3a526f;}
-hr {border-color: #29374b;}
-.signal-hero {background: linear-gradient(120deg,#172236,#111b2a); border:1px solid #34445e; padding: 7px 10px; border-radius: 9px; margin: 3px 0 7px;}
-.signal-label {color:#9dafc8; font-size:12px; letter-spacing:2px; font-weight:700;}
-.signal-title {font-size:19px; font-weight:800; color:#f0b966; line-height:1.3;}
-.signal-sub {color:#aebed2; font-size:12px;}
-
-/* compact density */
-[data-testid="stVerticalBlock"] {gap: .24rem;}
-[data-testid="stHorizontalBlock"] {gap: .35rem;}
-[data-testid="stMetricValue"] {font-size: 1.08rem; line-height:1.15;}
-[data-testid="stMetricLabel"] {font-size: .68rem;}
-[data-testid="stMetricDelta"] {font-size: .7rem;}
-h1 {font-size:1.2rem!important;} h2 {font-size:1rem!important;} h3 {font-size:.88rem!important; margin: .2rem 0!important;}
-p, .stCaption, [data-testid="stCaptionContainer"] {font-size: .77rem; line-height:1.25;}
-[data-testid="stAlert"] {padding: .42rem .7rem;}
-[data-testid="stExpander"] {border-radius:8px;}
-[data-testid="stNumberInput"] input {min-height: 32px;}
-[data-testid="stDataFrame"] {font-size: .76rem;}
-hr {margin:.2rem 0!important;}
-section[data-testid='stSidebar'] {min-width: 230px;}
-[data-testid='stMetric'] {min-width:0;}
-[data-testid='stMetricValue'] {overflow-wrap:anywhere;}
-
-
-/* BTCandThings 1990s Pixel Dashboard skin — presentation only */
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Mono:wght@400;700&display=swap');
-:root { --pixel-bg:#0b1324; --pixel-panel:#15263b; --pixel-border:#4c8d9b; --pixel-cyan:#65e5dd; --pixel-amber:#ffc36a; --pixel-text:#e6f2e9; }
-.stApp { background: repeating-linear-gradient(0deg,transparent 0px,transparent 3px,rgba(101,229,221,.014) 4px),linear-gradient(135deg,#101c33,#090f1b 70%); color:var(--pixel-text); }
-html,body,[data-testid="stAppViewContainer"],.stApp button,.stApp input,.stApp label,.stApp p {font-family:'Space Mono',Consolas,monospace !important;}
-.block-container {max-width:1650px; padding: .7rem 1.1rem 2rem;}
-h1,h2,h3 {color:var(--pixel-cyan)!important; font-family:'Space Mono',Consolas,monospace!important; text-transform:uppercase; letter-spacing:.065em!important;}
-h3 {border-left:4px solid var(--pixel-amber); padding-left:9px; margin-top:12px!important;}
-[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stDataFrame"] {background:#14263c!important;border:2px solid #376579!important;border-radius:2px!important;box-shadow:3px 3px 0 #050b15!important;}
-[data-testid="stMetric"] {padding:9px 11px!important;}
-[data-testid="stMetricLabel"] {color:#9ec2cb!important; text-transform:uppercase;letter-spacing:.04em;}
-[data-testid="stMetricValue"] {color:#f5d58b!important; font-weight:800!important; font-variant-numeric:tabular-nums;}
-[data-testid="stAlert"] {border-radius:2px!important;border-left:5px solid var(--pixel-amber)!important;}
-.stButton button,.stDownloadButton button {background:#163b50!important;color:#8cf5e4!important;border:2px solid #64c5cb!important;border-radius:2px!important;box-shadow:3px 3px 0 #07101d!important;font-weight:700;}
-.stButton button:hover,.stDownloadButton button:hover {background:#28566a!important;}
-[data-testid="stSlider"] [role="slider"] {background:var(--pixel-amber)!important;}
-[data-testid="stCheckbox"] {accent-color:var(--pixel-cyan);}
-.signal-hero {background:linear-gradient(90deg,#20334c,#132238)!important;border:2px solid #65e5dd!important;border-radius:2px!important;box-shadow:4px 4px 0 #050b15;padding:12px!important;}
-.signal-label {color:var(--pixel-cyan)!important;}
-.signal-title {color:var(--pixel-amber)!important;font-family:'Press Start 2P',Consolas,monospace!important;font-size:14px!important;line-height:1.8!important;}
-.signal-sub {color:#c2d5d8!important;}
-.retro-masthead {border:3px solid #65e5dd;box-shadow:5px 5px 0 #050b15;background:linear-gradient(100deg,#142b41,#20294a);padding:16px 20px;margin:4px 0 14px;}
-.retro-kicker {color:#ffc36a;font:11px 'Space Mono',monospace;letter-spacing:2px;}
-.retro-title {font:clamp(15px,2.1vw,26px)/1.6 'Press Start 2P',monospace;color:#65e5dd;text-shadow:3px 3px #194d62;}
-.retro-sub {font:12px 'Space Mono',monospace;color:#a7c3cb;margin-top:6px;}
-.retro-pill {display:inline-block;background:#253b4a;color:#ffc36a;border:1px solid #ffc36a;padding:2px 7px;margin-left:7px;}
-hr {border-color:#366175!important;}
-@media(max-width:700px){.retro-masthead{padding:10px}.retro-title{font-size:14px}}
-
-
-/* 1990s pixel terminal v2 */
-.stApp {background: radial-gradient(circle at top right,#182948 0%,#090f1e 60%) !important;}
-.block-container {max-width:1540px!important;padding-top:.55rem!important;}
-[data-testid="stMetric"] {background:#152842!important;border:2px solid #3f91a9!important;box-shadow:3px 3px 0 #07121f;padding:9px!important;}
-[data-testid="stMetricLabel"] {color:#90e6e6!important;letter-spacing:1px;text-transform:uppercase;}
-[data-testid="stMetricValue"] {font-size:1.27rem!important;color:#ffcf70!important;}
-[data-testid="stAlert"] {border-left:3px solid #f6bd57!important;}
-[data-testid="stExpander"] {border:1px solid #46748c!important;background:#111f34!important;}
-.stButton button {border-radius:0!important;box-shadow:3px 3px 0 #07121f!important;}
-.retro-section {font-family:monospace;letter-spacing:2px;color:#66e6ec;border-bottom:2px dashed #386a85;padding:7px 0;margin:8px 0;font-weight:bold;}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+:root { color-scheme: dark; }
+.stApp {background: #0b1120 !important; color: #e2e8f0 !important;}
+html, body, .stApp, .stApp button, .stApp input, .stApp label, .stApp p {font-family: 'Inter',system-ui,sans-serif !important;}
+.block-container {max-width: 1600px !important; padding: 1rem 1.5rem 3rem !important;}
+h1,h2,h3 {color: #f8fafc !important; font-family:'Inter',sans-serif !important; letter-spacing:-.025em !important; text-transform:none !important;}
+h1 {font-size:1.55rem !important;} h2 {font-size:1.2rem !important;} h3 {font-size:1rem !important;}
+[data-testid='stMetric'],[data-testid='stExpander'],[data-testid='stDataFrame'] {background:#151f32 !important;border:1px solid #29384e !important;border-radius:12px !important;box-shadow:none !important;}
+[data-testid='stMetric'] {padding:12px 15px !important;}
+[data-testid='stMetricLabel'] {color:#94a3b8 !important; font-size:.78rem !important;}
+[data-testid='stMetricValue'] {color:#f8fafc !important;font-weight:700 !important;font-size:1.4rem !important;overflow-wrap:anywhere;}
+[data-testid='stAlert'] {border-radius:10px !important;}
+.stButton button,.stDownloadButton button {background:#1e3a5f !important;color:#e0f2fe !important;border:1px solid #36577b !important;border-radius:9px !important;box-shadow:none !important;}
+.stButton button:hover,.stDownloadButton button:hover {background:#264e7d !important;}
+[data-testid='stTabs'] button {font-weight:600 !important;}
+.signal-hero {background:linear-gradient(120deg,#172b42,#111c2d);border:1px solid #34465e;padding:15px 18px;border-radius:12px;margin:8px 0;}
+.signal-label {color:#93c5fd;font-size:11px;letter-spacing:1px;font-weight:700;}
+.signal-title {font-size:23px;font-weight:800;color:#fbbf24;line-height:1.5;}
+.signal-sub {color:#a9b9cc;font-size:13px;}
+.retro-section {font-family:'Inter',sans-serif;letter-spacing:0;color:#e2e8f0;border-bottom:1px solid #29384e;padding:10px 0;margin:14px 0;font-weight:700;}
+.modern-masthead {background:linear-gradient(105deg,#13263e,#0f192b);border:1px solid #2a405b;border-radius:16px;padding:18px 22px;margin-bottom:14px;}
+.modern-kicker {font-size:11px;letter-spacing:1.6px;color:#38bdf8;font-weight:700;}
+.modern-title {font-size:clamp(22px,2.5vw,32px);font-weight:800;letter-spacing:-.04em;color:#f8fafc;margin-top:3px;}
+.modern-sub {color:#94a3b8;font-size:12px;margin-top:4px;}
+@media(max-width:700px){.block-container{padding:.65rem .65rem 2rem !important;}.modern-masthead{padding:13px 14px;}}
 </style>""", unsafe_allow_html=True)
-st.markdown("""<div class="retro-masthead"><div class="retro-kicker">★ BTCANDTHINGS // MARKET RADAR v1.0 <span class="retro-pill">US EDITION</span></div><div class="retro-title">SHANE'S BTC TRACKER</div><div class="retro-sub">[ 15-MIN BTC ] &nbsp; [ 3-MIN FORECAST ] &nbsp; [ 20-SEC REFRESH ] &nbsp; [ RESEARCH ONLY ]</div></div>""",unsafe_allow_html=True)
+st.markdown("""<div class="modern-masthead"><div class="modern-kicker">SHANEATHON · TRADING INTELLIGENCE · POLYMARKET US</div><div class="modern-title">Bitcoin Trade Tracker</div><div class="modern-sub">15-minute markets · 20-second data refresh · Research and paper-trading preparation</div></div>""",unsafe_allow_html=True)
 st_autorefresh(interval=20_000, key='auto_refresh')
 
 @st.cache_data(ttl=15)
@@ -117,8 +70,12 @@ now=int(time.time()); start=now//900*900; remaining=max(0,start+900-now)
 slug=f'btc-updown-15m-{datetime.fromtimestamp(start,timezone.utc):%Y-%m-%d-%H%M}z'
 # Browser-side UTC-aligned countdown. Runs continuously without refreshing Streamlit.
 # Polymarket BTC 15m market slugs follow UTC epoch 900-second boundaries.
-timer_top_slot=st.empty()
-st.caption('Timer follows your computer clock and UTC 15-minute boundaries; verify the active market on Polymarket. Other data updates when you refresh.')
+top_left, top_right = st.columns([1, 1.65], gap="medium")
+with top_left:
+    timer_top_slot=st.empty()
+with top_right:
+    chart_top_slot=st.empty()
+# Live countdown is shown in the left panel; candle chart is on the right.
 # Reserve top-of-dashboard positions; fill after market and indicator data loads.
 lean_top_slot=st.empty()
 ending_top_slot=st.empty()
@@ -339,6 +296,34 @@ else:
             st.info(f'Using ${strike:,.2f} · {reference_source}. Do not treat this as an official settlement value.')
 verified_reference=reference is not None  # Typed US Retail API field; official settlement result still separate
 
+# Interactive Kraken candles. Kraken is not the official Polymarket US BRTI reference.
+with chart_top_slot.container():
+    chart_header, chart_interval_col = st.columns([2,1], vertical_alignment="center")
+    with chart_header:
+        st.markdown("**BTC / USD · Kraken candles**")
+    with chart_interval_col:
+        chart_interval = st.radio("Candle interval", ["1m", "5m"], horizontal=True, label_visibility="collapsed", key="modern_candle_interval")
+    try:
+        import plotly.graph_objects as go
+        candle_frame = df.set_index('time')[['open','high','low','close']].copy()
+        if chart_interval == '5m':
+            candle_frame = candle_frame.resample('5min').agg({'open':'first','high':'max','low':'min','close':'last'}).dropna()
+            # Exclude incomplete 5m candle (1m source already excludes live partial minute).
+            cutoff = pd.Timestamp.now(tz='UTC').floor('5min')
+            candle_frame = candle_frame[candle_frame.index < cutoff]
+        candle_frame = candle_frame.tail(100)
+        fig=go.Figure(go.Candlestick(x=candle_frame.index,open=candle_frame.open,high=candle_frame.high,low=candle_frame.low,close=candle_frame.close,
+                    increasing_line_color='#22c55e',decreasing_line_color='#f87171',name='Kraken BTC/USD'))
+        fig.update_layout(height=330,margin=dict(l=6,r=6,t=8,b=8),paper_bgcolor='#151f32',plot_bgcolor='#151f32',font_color='#94a3b8',
+            xaxis=dict(rangeslider=dict(visible=False),showgrid=True,gridcolor='#243247'),yaxis=dict(showgrid=True,gridcolor='#243247',side='right'),
+            dragmode='pan',showlegend=False)
+        if reference is not None:
+            fig.add_hline(y=reference,line_dash='dash',line_color='#fbbf24',annotation_text='US price to beat · different price feed',annotation_font_color='#fbbf24')
+        st.plotly_chart(fig,use_container_width=True,config={'scrollZoom':True,'displaylogo':False})
+        st.caption('Drag to pan · scroll to zoom · hover for OHLC. Kraken candles are not BRTI settlement prices.')
+    except ImportError:
+        st.warning('Install Plotly to enable the interactive candle chart: pip install plotly')
+
 # Shared persistent history database for the top-of-page predictor.
 ARCHIVE=os.path.join(os.path.dirname(os.path.abspath(__file__)),'btc_signal_history.sqlite3')
 
@@ -465,9 +450,9 @@ with timer_top_slot:
     <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1" />
     <style>
     *{box-sizing:border-box}body{margin:0;background:transparent;color:#edf4ff;font-family:system-ui,-apple-system,sans-serif}
-    .panel{background:linear-gradient(110deg,#183249,#121e37);border:2px solid #65e5dd;border-radius:2px;padding:8px 12px;box-shadow:3px 3px 0 #050b15}
+    .panel{background:linear-gradient(110deg,#17263c,#121e30);border:1px solid #293e59;border-radius:12px;padding:12px 15px;box-shadow:none}
     .top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.label{font-size:11px;letter-spacing:1.7px;color:#9dafc8;font-weight:700}
-    .time{color:#ffc36a;font-size:30px;font-variant-numeric:tabular-nums;font-weight:800;letter-spacing:1px}.beat{text-align:center;min-width:180px}.beat-value{font-size:25px;font-weight:800;color:#65e5dd;font-variant-numeric:tabular-nums}.beat-source{font-size:10px;color:#9dafc8;margin-top:3px}.stage{font-size:13px;color:#65e5dd;font-weight:700}
+    .time{color:#f8fafc;font-size:34px;font-variant-numeric:tabular-nums;font-weight:800;letter-spacing:1px}.beat{text-align:center;min-width:180px}.beat-value{font-size:25px;font-weight:800;color:#38bdf8;font-variant-numeric:tabular-nums}.beat-source{font-size:10px;color:#9dafc8;margin-top:3px}.stage{font-size:13px;color:#38bdf8;font-weight:700}
     .track{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:5px}.seg{height:5px;border-radius:6px;background:#2c3c52;overflow:hidden}.fill{height:100%;width:0;background:#ffc36a;transition:width .2s linear}
     .meta{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:4px;color:#9dafc8;font-size:12px}
     </style></head><body><div class="panel"><div class="top"><div><div class="label">POLYMARKET · BTC 15-MINUTE WINDOW</div><div id="timer" class="time">--:--</div></div><div class="beat"><div class="label">US PRICE TO BEAT</div><div class="beat-value">___BEAT_DISPLAY___</div><div class="beat-source">___BEAT_SOURCE___</div></div><div><div id="stage" class="stage">Syncing…</div><div id="window" style="font-size:12px;color:#9dafc8;margin-top:6px"></div></div></div>
@@ -483,7 +468,7 @@ with timer_top_slot:
     const next=Math.min(900,(stage+1)*180);document.getElementById('next').textContent='Next 3m boundary in '+pad(Math.floor(Math.max(0,next-elapsed)/60))+':'+pad(Math.ceil(Math.max(0,next-elapsed))%60);
     }tick();setInterval(tick,250);
     </script></body></html>
-    """.replace("___BEAT_DISPLAY___",beat_display).replace("___BEAT_SOURCE___",beat_source),height=128,scrolling=False)
+    """.replace("___BEAT_DISPLAY___",beat_display).replace("___BEAT_SOURCE___",beat_source),height=170,scrolling=False)
 
 # Pixel V13.3: early lean and pre-window directional research, above the main predictor.
 early_ema_slope=float(df.ema9.iloc[-1]-df.ema9.iloc[-4])
@@ -758,681 +743,709 @@ with ending_top_slot.container():
         st.caption('Predictions are archived on each active dashboard refresh. Cloud calibration uses verified US results only; the app must receive refreshes to record observations.')
 
 
-# Retro quick-look strip: price is a Kraken spot proxy, NOT US BRTI.
-st.markdown('<div class="retro-section">▣ MARKET CONTROL PANEL // 1994 EDITION</div>', unsafe_allow_html=True)
-quick1,quick2,quick3,quick4=st.columns(4)
-quick1.metric('BTC · KRAKEN SPOT',f'${price:,.2f}')
-quick2.metric('US PRICE TO BEAT' if reference is not None else 'MANUAL / KRAKEN PROXY' if strike>0 else 'US PRICE TO BEAT',f'${strike:,.2f}' if strike>0 else 'PENDING')
-quick3.metric('US MARKET ODDS','PENDING' if not market else 'LIVE QUOTES BELOW')
-quick4.metric('SIGNAL','WAIT / OBSERVE')
-st.caption('BTC spot and model calculations are research-only; US BRTI reference and outcome verification are separate.')
+# Trading-first navigation: legacy research and data operations remain available in Advanced.
+trade_tab, performance_tab, advanced_tab = st.tabs(["Trading", "Performance", "Advanced · Research & Diagnostics"])
+with trade_tab:
+    st.markdown("### Trade opportunity advisor")
+    st.warning("WAIT / OBSERVE — an entry/exit model has not yet been validated. No live buy/sell advice is generated.")
+    t1,t2,t3,t4=st.columns(4)
+    t1.metric('Kraken BTC spot',f'${price:,.2f}')
+    t2.metric('US price to beat',f'${reference:,.2f}' if reference is not None else 'PENDING')
+    t3.metric('Spot momentum',early_lean)
+    t4.metric('Signal agreement',f'{abs(early_score)}/5')
+    st.caption('Momentum is derived from completed Kraken candles. It is not a validated prediction of tradable YES/NO price movement.')
+    st.markdown('### Position planning · manual / illustrative')
+    pos1,pos2,pos3=st.columns(3)
+    with pos1:
+        entry_cents=st.number_input('Entry price (¢ per contract)',min_value=1.0,max_value=99.0,value=55.0,step=1.0,key='plan_entry')
+    with pos2:
+        exit_cents=st.number_input('Target exit price (¢)',min_value=1.0,max_value=99.0,value=75.0,step=1.0,key='plan_exit')
+    with pos3:
+        shares=st.number_input('Contracts',min_value=1,max_value=100000,value=100,step=1,key='plan_shares')
+    gross=(exit_cents-entry_cents)*shares/100
+    st.metric('Hypothetical gross P/L if both orders fill',f'${gross:+,.2f}')
+    st.caption('Before fees, spread, slippage and execution risk. These inputs do not place orders or track a live position.')
+    st.info('Live YES/NO executable quotes, order-flow pressure, and target-hit probability require additional verified data integration. No pressure or profitability signal is fabricated.')
+with performance_tab:
+    st.markdown('### Model and trading performance')
+    st.info('Verified settlement accuracy and executable paper-trade performance will appear here as reliable outcomes and trade quotes become available.')
+    st.caption('Detailed historical research, cloud archives, and settlement diagnostics remain accessible in Advanced.')
+with advanced_tab:
+    # Retro quick-look strip: price is a Kraken spot proxy, NOT US BRTI.
+    st.markdown('<div class="retro-section">▣ MARKET CONTROL PANEL // 1994 EDITION</div>', unsafe_allow_html=True)
+    quick1,quick2,quick3,quick4=st.columns(4)
+    quick1.metric('BTC · KRAKEN SPOT',f'${price:,.2f}')
+    quick2.metric('US PRICE TO BEAT' if reference is not None else 'MANUAL / KRAKEN PROXY' if strike>0 else 'US PRICE TO BEAT',f'${strike:,.2f}' if strike>0 else 'PENDING')
+    quick3.metric('US MARKET ODDS','PENDING' if not market else 'LIVE QUOTES BELOW')
+    quick4.metric('SIGNAL','WAIT / OBSERVE')
+    st.caption('BTC spot and model calculations are research-only; US BRTI reference and outcome verification are separate.')
 
-# Two-column workstation: signals/market left, forecasts/history right.
-left_col, right_col = st.columns([1, 1], gap="medium")
-with left_col:
-    st.subheader('01 · MARKET RADAR · US TICKET PRICES')
-    asks={}; book_ok=False
-    st.write('US event:',slug)
-    if market:
-        market_slug=market.get('slug') or market.get('symbol')
-        with st.expander('US contract details · inspect market fields',expanded=False):
-            st.json({k:market.get(k) for k in ('id','slug','symbol','question','marketType','outcomes','outcomePrices','active','closed') if k in market})
-            st.caption('Official US Crypto FAQs: LONG pays on UP (close >= open); SHORT pays on DOWN. Applies to verified BTC Up/Down contracts.')
-        if market_slug:
-            # The official US SDK implements its own BBO and book endpoints.
-            # Do not guess a REST route from the event URL.
-            try:
-                from polymarket_us import PolymarketUS
-            except ImportError:
-                st.warning('Official Polymarket US SDK not installed. In Command Prompt run: py -3.12 -m pip install polymarket-us')
-            else:
+    # Two-column workstation: signals/market left, forecasts/history right.
+    left_col, right_col = st.columns([1, 1], gap="medium")
+    with left_col:
+        st.subheader('01 · MARKET RADAR · US TICKET PRICES')
+        asks={}; book_ok=False
+        st.write('US event:',slug)
+        if market:
+            market_slug=market.get('slug') or market.get('symbol')
+            with st.expander('US contract details · inspect market fields',expanded=False):
+                st.json({k:market.get(k) for k in ('id','slug','symbol','question','marketType','outcomes','outcomePrices','active','closed') if k in market})
+                st.caption('Official US Crypto FAQs: LONG pays on UP (close >= open); SHORT pays on DOWN. Applies to verified BTC Up/Down contracts.')
+            if market_slug:
+                # The official US SDK implements its own BBO and book endpoints.
+                # Do not guess a REST route from the event URL.
                 try:
-                    @st.cache_data(ttl=15,show_spinner=False)
-                    def fetch_us_quote_sdk(contract_slug):
-                        client=PolymarketUS()
-                        try:
-                            return client.markets.bbo(contract_slug)
-                        finally:
-                            client.close()
-                    quote=fetch_us_quote_sdk(str(market_slug))
-                    st.success('US SDK returned live market quotes for this exact US contract.')
-                    # LONG = UP and SHORT = DOWN only when the typed US contract
-                    # metadata identifies this as a BTC Up/Down market.
-                    md=quote.get('marketData',{}) if isinstance(quote,dict) else {}
-                    if not isinstance(md,dict): md={}
-                    def quote_value(field):
-                        obj=md.get(field)
-                        try:
-                            val=float(obj.get('value') if isinstance(obj,dict) else obj)
-                            return val if math.isfinite(val) and 0<=val<=1 else None
-                        except (TypeError,ValueError,AttributeError): return None
-                    long_px=quote_value('longQuote')
-                    short_px=quote_value('shortQuote')
-                    best_ask=quote_value('bestAsk')
-                    best_bid=quote_value('bestBid')
-                    quote_symbol=md.get('marketSlug')
-                    if quote_symbol and str(quote_symbol)!=str(market_slug):
-                        st.error('Quote symbol does not match the discovered US contract. Prices suppressed.')
-                    elif long_px is not None and short_px is not None:
-                        q1,q2,q3,q4=st.columns(4)
-                        typed_terms=(full_market or {}).get('assetPriceTerms') or {}
-                        typed_asset=typed_terms.get('asset') or {}
-                        typed_kind=str(typed_terms.get('marketType','')).upper()
-                        mapped=(str(typed_asset.get('symbol','')).lower() in ('btc','xbt') and ('UPDOWN' in typed_kind or 'UP_DOWN' in typed_kind))
-                        q1.metric('US UP (LONG)' if mapped else 'US LONG quote',f'{long_px:.0%}')
-                        q2.metric('US DOWN (SHORT)' if mapped else 'US SHORT quote',f'{short_px:.0%}')
-                        q3.metric('US best ask',f'{best_ask:.0%}' if best_ask is not None else 'n/a')
-                        q4.metric('US best bid',f'{best_bid:.0%}' if best_bid is not None else 'n/a')
-                        st.caption(('US BTC UP/DOWN mapping verified by typed market metadata and official US Crypto FAQs.' if mapped else 'LONG/SHORT shown until typed US BTC Up/Down metadata is confirmed.')+' Quotes are indicative and can change before execution.')
-                        if abs(long_px+short_px-1)>0.03:
-                            st.warning('LONG and SHORT quotes are not complementary; inspect the raw response before interpreting them.')
-                    else:
-                        st.warning('Quote returned but LONG/SHORT price fields were not readable.')
-                    with st.expander('US quote diagnostics · raw BBO response',expanded=False):
-                        st.json(quote)
-                    st.caption('Official US price to beat: '+(f'${reference:,.2f} from typed market record.' if reference is not None else 'pending publication. No trading signal is issued.'))
-                except Exception as exc:
-                    st.warning(f'US SDK BBO unavailable: {type(exc).__name__}: {str(exc)[:240]}')
-                    st.caption('A market slug found in event metadata may not be a tradable exchange instrument slug. Inspect the contract details above.')
-    else:
-        st.caption('US odds pending market mapping; international odds are never substituted.')
+                    from polymarket_us import PolymarketUS
+                except ImportError:
+                    st.warning('Official Polymarket US SDK not installed. In Command Prompt run: py -3.12 -m pip install polymarket-us')
+                else:
+                    try:
+                        @st.cache_data(ttl=15,show_spinner=False)
+                        def fetch_us_quote_sdk(contract_slug):
+                            client=PolymarketUS()
+                            try:
+                                return client.markets.bbo(contract_slug)
+                            finally:
+                                client.close()
+                        quote=fetch_us_quote_sdk(str(market_slug))
+                        st.success('US SDK returned live market quotes for this exact US contract.')
+                        # LONG = UP and SHORT = DOWN only when the typed US contract
+                        # metadata identifies this as a BTC Up/Down market.
+                        md=quote.get('marketData',{}) if isinstance(quote,dict) else {}
+                        if not isinstance(md,dict): md={}
+                        def quote_value(field):
+                            obj=md.get(field)
+                            try:
+                                val=float(obj.get('value') if isinstance(obj,dict) else obj)
+                                return val if math.isfinite(val) and 0<=val<=1 else None
+                            except (TypeError,ValueError,AttributeError): return None
+                        long_px=quote_value('longQuote')
+                        short_px=quote_value('shortQuote')
+                        best_ask=quote_value('bestAsk')
+                        best_bid=quote_value('bestBid')
+                        quote_symbol=md.get('marketSlug')
+                        if quote_symbol and str(quote_symbol)!=str(market_slug):
+                            st.error('Quote symbol does not match the discovered US contract. Prices suppressed.')
+                        elif long_px is not None and short_px is not None:
+                            q1,q2,q3,q4=st.columns(4)
+                            typed_terms=(full_market or {}).get('assetPriceTerms') or {}
+                            typed_asset=typed_terms.get('asset') or {}
+                            typed_kind=str(typed_terms.get('marketType','')).upper()
+                            mapped=(str(typed_asset.get('symbol','')).lower() in ('btc','xbt') and ('UPDOWN' in typed_kind or 'UP_DOWN' in typed_kind))
+                            q1.metric('US UP (LONG)' if mapped else 'US LONG quote',f'{long_px:.0%}')
+                            q2.metric('US DOWN (SHORT)' if mapped else 'US SHORT quote',f'{short_px:.0%}')
+                            q3.metric('US best ask',f'{best_ask:.0%}' if best_ask is not None else 'n/a')
+                            q4.metric('US best bid',f'{best_bid:.0%}' if best_bid is not None else 'n/a')
+                            st.caption(('US BTC UP/DOWN mapping verified by typed market metadata and official US Crypto FAQs.' if mapped else 'LONG/SHORT shown until typed US BTC Up/Down metadata is confirmed.')+' Quotes are indicative and can change before execution.')
+                            if abs(long_px+short_px-1)>0.03:
+                                st.warning('LONG and SHORT quotes are not complementary; inspect the raw response before interpreting them.')
+                        else:
+                            st.warning('Quote returned but LONG/SHORT price fields were not readable.')
+                        with st.expander('US quote diagnostics · raw BBO response',expanded=False):
+                            st.json(quote)
+                        st.caption('Official US price to beat: '+(f'${reference:,.2f} from typed market record.' if reference is not None else 'pending publication. No trading signal is issued.'))
+                    except Exception as exc:
+                        st.warning(f'US SDK BBO unavailable: {type(exc).__name__}: {str(exc)[:240]}')
+                        st.caption('A market slug found in event metadata may not be a tradable exchange instrument slug. Inspect the contract details above.')
+        else:
+            st.caption('US odds pending market mapping; international odds are never substituted.')
 
-    st.subheader('02 · SIGNAL CENTER · MODEL & MARKET')
-    st.caption('A normal-return volatility model, NOT a trained or validated predictor. This is a hypothesis to backtest, not a proven advantage.')
-    st.markdown('''<div class="signal-hero"><div class="signal-label">PRIMARY SIGNAL · RESEARCH MODE</div><div class="signal-title">WAIT / OBSERVE</div><div class="signal-sub">No validated trading edge. The indicators and simulations below are exploratory, not an actionable BUY/SELL recommendation.</div></div>''', unsafe_allow_html=True)
-    if strike<=0:st.warning('Waiting for the official price to beat before enabling the model.')
-    else:
-        # Current spot-to-strike, zero drift; proxy volatility. Floors guard against implausible certainty.
-        sigma=max(minute_vol,0.00005)*math.sqrt(max(remaining/60,1))
-        z=math.log(price/strike)/sigma
-        p_up=min(0.995,max(0.005,normal_cdf(z)))
-        # uncertainty interval under ± 1 minute-vol discrepancy in observed price, not a confidence interval
-        low=normal_cdf(z-1);high=normal_cdf(z+1)
-        c1,c2,c3=st.columns(3)
-        c1.metric('Illustrative UP probability',f'{p_up:.1%}')
-        c2.metric('Illustrative DOWN probability',f'{1-p_up:.1%}')
-        c3.metric('Spot minus strike',f'${price-strike:+,.2f}')
-        st.write(f'Sensitivity to a one-minute-volatility shift in reference price: UP {low:.1%}–{high:.1%}. This is **not** a statistical confidence interval.')
-        st.write(f'EMA 9 vs 21: {"bullish" if ema9>ema21 else "bearish"}; RSI: {rs:.1f}; 5m volume / 20m average: {vol5/vol20:.2f}×. These are descriptive only and are **not** added as untested prediction boosts.')
-        fee=st.number_input('Estimated total costs per share (USD, fees + slippage)',min_value=0.0,max_value=0.25,value=0.03,step=0.005,format='%.3f')
-        if book_ok:
-            rows=[]
-            for side,prob in [('UP',p_up),('DOWN',1-p_up)]:
-                ask=asks[side.lower()];edge=prob-ask-fee
-                rows.append({'Side':side,'Model probability':f'{prob:.1%}','Best ask':f'${ask:.3f}','Assumed costs':f'${fee:.3f}','Hypothetical EV/share':f'${edge:+.3f}'})
-            st.dataframe(pd.DataFrame(rows),hide_index=True,use_container_width=True)
-            st.warning('NO VERIFIED EDGE / NO BET SIGNAL: model is not calibrated to US BRTI outcomes and quotes may be stale or unavailable at your size. Positive hypothetical EV is not evidence of profitability.')
+        st.subheader('02 · SIGNAL CENTER · MODEL & MARKET')
+        st.caption('A normal-return volatility model, NOT a trained or validated predictor. This is a hypothesis to backtest, not a proven advantage.')
+        st.markdown('''<div class="signal-hero"><div class="signal-label">PRIMARY SIGNAL · RESEARCH MODE</div><div class="signal-title">WAIT / OBSERVE</div><div class="signal-sub">No validated trading edge. The indicators and simulations below are exploratory, not an actionable BUY/SELL recommendation.</div></div>''', unsafe_allow_html=True)
+        if strike<=0:st.warning('Waiting for the official price to beat before enabling the model.')
+        else:
+            # Current spot-to-strike, zero drift; proxy volatility. Floors guard against implausible certainty.
+            sigma=max(minute_vol,0.00005)*math.sqrt(max(remaining/60,1))
+            z=math.log(price/strike)/sigma
+            p_up=min(0.995,max(0.005,normal_cdf(z)))
+            # uncertainty interval under ± 1 minute-vol discrepancy in observed price, not a confidence interval
+            low=normal_cdf(z-1);high=normal_cdf(z+1)
+            c1,c2,c3=st.columns(3)
+            c1.metric('Illustrative UP probability',f'{p_up:.1%}')
+            c2.metric('Illustrative DOWN probability',f'{1-p_up:.1%}')
+            c3.metric('Spot minus strike',f'${price-strike:+,.2f}')
+            st.write(f'Sensitivity to a one-minute-volatility shift in reference price: UP {low:.1%}–{high:.1%}. This is **not** a statistical confidence interval.')
+            st.write(f'EMA 9 vs 21: {"bullish" if ema9>ema21 else "bearish"}; RSI: {rs:.1f}; 5m volume / 20m average: {vol5/vol20:.2f}×. These are descriptive only and are **not** added as untested prediction boosts.')
+            fee=st.number_input('Estimated total costs per share (USD, fees + slippage)',min_value=0.0,max_value=0.25,value=0.03,step=0.005,format='%.3f')
+            if book_ok:
+                rows=[]
+                for side,prob in [('UP',p_up),('DOWN',1-p_up)]:
+                    ask=asks[side.lower()];edge=prob-ask-fee
+                    rows.append({'Side':side,'Model probability':f'{prob:.1%}','Best ask':f'${ask:.3f}','Assumed costs':f'${fee:.3f}','Hypothetical EV/share':f'${edge:+.3f}'})
+                st.dataframe(pd.DataFrame(rows),hide_index=True,use_container_width=True)
+                st.warning('NO VERIFIED EDGE / NO BET SIGNAL: model is not calibrated to US BRTI outcomes and quotes may be stale or unavailable at your size. Positive hypothetical EV is not evidence of profitability.')
 
-    st.subheader('02A · SIGNAL STATS · INDEPENDENT METRICS')
-    st.caption("Independent Shane's BTC Tracker calculations. Experimental signals; historical win rates are not yet verified.")
-    trend = 'LONG' if ema9 > ema21 else 'SHORT' if ema9 < ema21 else 'NEUTRAL'
-    # Transparent, explicitly local confluence rubric; never imply parity with the third-party 4.5 scale.
-    trend_votes = [ema9 > ema21, rs > 50, float(last['close']) > float(last['open']), vol5 > vol20]
-    long_votes = sum(trend_votes)
-    short_votes = 4 - long_votes
-    conf_side = 'LONG' if long_votes > short_votes else 'SHORT' if short_votes > long_votes else 'MIXED'
-    conf_score = max(long_votes, short_votes)
-    mc_up = mc_down = None
-    if strike > 0:
-        # Zero-drift normal return proxy, distinct from the analytic normal CDF above.
-        mc_rng = np.random.default_rng(20261102)
-        mc_samples = mc_rng.normal(0, max(minute_vol, .00005), (5000, max(1, math.ceil(remaining/60))))
-        mc_end = price * np.exp(mc_samples.sum(axis=1) * math.sqrt(max(remaining/60, .1)/max(1, math.ceil(remaining/60))))
-        mc_up = float(np.mean(mc_end >= strike))
-        mc_down = 1 - mc_up
-    blend_up = (p_up + mc_up)/2 if mc_up is not None else None
-    blend_down = 1-blend_up if blend_up is not None else None
-    r1,r2,r3,r4=st.columns(4)
-    r1.metric('Trend (EMA 9/21)',trend)
-    r2.metric('Confluence (our 4 reads)',f'{conf_score}/4 · {conf_side}')
-    r3.metric('15m UP model (proxy)',f'{p_up:.3f}' if strike>0 else 'n/a')
-    r4.metric('15m DOWN model (proxy)',f'{1-p_up:.3f}' if strike>0 else 'n/a')
-    r5,r6,r7,r8=st.columns(4)
-    r5.metric('MC UP (spot proxy)',f'{mc_up:.3f}' if mc_up is not None else 'n/a')
-    r6.metric('MC DOWN (spot proxy)',f'{mc_down:.3f}' if mc_down is not None else 'n/a')
-    r7.metric('Blend UP (unvalidated)',f'{blend_up:.3f}' if blend_up is not None else 'n/a')
-    r8.metric('Blend DOWN (unvalidated)',f'{blend_down:.3f}' if blend_down is not None else 'n/a')
-    if book_ok and blend_up is not None:
-        edge_up=blend_up-asks['up']
-        edge_down=blend_down-asks['down']
-        a,b,c=st.columns(3)
-        a.metric('UP edge before fees (proxy)',f'{edge_up:+.3f}')
-        b.metric('DOWN edge before fees (proxy)',f'{edge_down:+.3f}')
-        c.metric('Desk decision','WAIT')
-    else:
-        st.caption('Edge unavailable until both ticket prices and a verified price to beat are available.')
-    with st.expander('Opening prices and historical win records'):
-        st.write('Opening UP/DOWN prices require snapshots at each market start. Historical win rates require saved predictions matched with verified settlement outcomes. No results are fabricated.')
+        st.subheader('02A · SIGNAL STATS · INDEPENDENT METRICS')
+        st.caption("Independent Shane's BTC Tracker calculations. Experimental signals; historical win rates are not yet verified.")
+        trend = 'LONG' if ema9 > ema21 else 'SHORT' if ema9 < ema21 else 'NEUTRAL'
+        # Transparent, explicitly local confluence rubric; never imply parity with the third-party 4.5 scale.
+        trend_votes = [ema9 > ema21, rs > 50, float(last['close']) > float(last['open']), vol5 > vol20]
+        long_votes = sum(trend_votes)
+        short_votes = 4 - long_votes
+        conf_side = 'LONG' if long_votes > short_votes else 'SHORT' if short_votes > long_votes else 'MIXED'
+        conf_score = max(long_votes, short_votes)
+        mc_up = mc_down = None
+        if strike > 0:
+            # Zero-drift normal return proxy, distinct from the analytic normal CDF above.
+            mc_rng = np.random.default_rng(20261102)
+            mc_samples = mc_rng.normal(0, max(minute_vol, .00005), (5000, max(1, math.ceil(remaining/60))))
+            mc_end = price * np.exp(mc_samples.sum(axis=1) * math.sqrt(max(remaining/60, .1)/max(1, math.ceil(remaining/60))))
+            mc_up = float(np.mean(mc_end >= strike))
+            mc_down = 1 - mc_up
+        blend_up = (p_up + mc_up)/2 if mc_up is not None else None
+        blend_down = 1-blend_up if blend_up is not None else None
+        r1,r2,r3,r4=st.columns(4)
+        r1.metric('Trend (EMA 9/21)',trend)
+        r2.metric('Confluence (our 4 reads)',f'{conf_score}/4 · {conf_side}')
+        r3.metric('15m UP model (proxy)',f'{p_up:.3f}' if strike>0 else 'n/a')
+        r4.metric('15m DOWN model (proxy)',f'{1-p_up:.3f}' if strike>0 else 'n/a')
+        r5,r6,r7,r8=st.columns(4)
+        r5.metric('MC UP (spot proxy)',f'{mc_up:.3f}' if mc_up is not None else 'n/a')
+        r6.metric('MC DOWN (spot proxy)',f'{mc_down:.3f}' if mc_down is not None else 'n/a')
+        r7.metric('Blend UP (unvalidated)',f'{blend_up:.3f}' if blend_up is not None else 'n/a')
+        r8.metric('Blend DOWN (unvalidated)',f'{blend_down:.3f}' if blend_down is not None else 'n/a')
+        if book_ok and blend_up is not None:
+            edge_up=blend_up-asks['up']
+            edge_down=blend_down-asks['down']
+            a,b,c=st.columns(3)
+            a.metric('UP edge before fees (proxy)',f'{edge_up:+.3f}')
+            b.metric('DOWN edge before fees (proxy)',f'{edge_down:+.3f}')
+            c.metric('Desk decision','WAIT')
+        else:
+            st.caption('Edge unavailable until both ticket prices and a verified price to beat are available.')
+        with st.expander('Opening prices and historical win records'):
+            st.write('Opening UP/DOWN prices require snapshots at each market start. Historical win rates require saved predictions matched with verified settlement outcomes. No results are fabricated.')
 
-    # Countdown is browser-side; the Streamlit app itself refreshes every 20 seconds.
-    components.html("""
-    <style>body{margin:0;background:transparent;color:#dce7f8;font:13px system-ui,-apple-system,sans-serif}.bar{background:#151e2d;border:1px solid #34445e;border-radius:8px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px}.label{color:#9dafc8}.count{color:#49dda6;font-size:20px;font-weight:750;font-variant-numeric:tabular-nums}</style>
-    <div class="bar"><div><strong>LEAN &amp; SWING UPDATE</strong><div class="label">Automatic dashboard refresh every 20 seconds</div></div><div><span class="count" id="count">20s</span><div class="label" id="state">Next refresh</div></div></div>
-    <script>const begun=performance.now();function tick(){let left=Math.max(0,20-(performance.now()-begun)/1000);document.getElementById('count').textContent=left.toFixed(0)+'s';if(left===0)document.getElementById('state').textContent='Refresh due…';}tick();setInterval(tick,200);</script>
-    """,height=70,scrolling=False)
+        # Countdown is browser-side; the Streamlit app itself refreshes every 20 seconds.
+        components.html("""
+        <style>body{margin:0;background:transparent;color:#dce7f8;font:13px system-ui,-apple-system,sans-serif}.bar{background:#151e2d;border:1px solid #34445e;border-radius:8px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px}.label{color:#9dafc8}.count{color:#49dda6;font-size:20px;font-weight:750;font-variant-numeric:tabular-nums}</style>
+        <div class="bar"><div><strong>LEAN &amp; SWING UPDATE</strong><div class="label">Automatic dashboard refresh every 20 seconds</div></div><div><span class="count" id="count">20s</span><div class="label" id="state">Next refresh</div></div></div>
+        <script>const begun=performance.now();function tick(){let left=Math.max(0,20-(performance.now()-begun)/1000);document.getElementById('count').textContent=left.toFixed(0)+'s';if(left===0)document.getElementById('state').textContent='Refresh due…';}tick();setInterval(tick,200);</script>
+        """,height=70,scrolling=False)
 
-    st.subheader('02B · MOMENTUM RADAR · LEAN & SWING')
-    st.caption('Descriptive price-action and odds signals, not validated forecasts. Checks on each 20-second app refresh; Kraken indicators use completed 1-minute candles, so values may remain unchanged between refreshes.')
-    DB=os.path.join(os.path.dirname(os.path.abspath(__file__)),'btc_signal_history.sqlite3')
-    lean_db=sqlite3.connect(DB,timeout=10)
-    lean_db.execute('CREATE TABLE IF NOT EXISTS lean_ticks (slug TEXT, captured INTEGER, candle_time INTEGER, spot REAL, up_ask REAL, down_ask REAL, lean TEXT, score INTEGER, swing TEXT, PRIMARY KEY(slug,captured))')
-    lean_db.execute('CREATE TABLE IF NOT EXISTS lean_stage (slug TEXT, stage INTEGER, captured INTEGER, stage_end INTEGER, lean TEXT, score INTEGER, swing TEXT, spot REAL, up_ask REAL, down_ask REAL, segment_up INTEGER, PRIMARY KEY(slug,stage))')
-    # Directional votes are independent of the official strike.
-    close_series=df.close.astype(float)
-    ret3=float(close_series.iloc[-1]/close_series.iloc[-4]-1) if len(df)>4 else 0.0
-    ret5=float(close_series.iloc[-1]/close_series.iloc[-6]-1) if len(df)>6 else 0.0
-    ema_slope=float(df.ema9.iloc[-1]-df.ema9.iloc[-4]) if len(df)>4 else 0.0
-    prev_rsi=float(df.rsi14.iloc[-4]) if len(df)>4 else rs
-    votes=[('EMA alignment',1 if ema9>ema21 else -1 if ema9<ema21 else 0),('EMA slope',1 if ema_slope>0 else -1 if ema_slope<0 else 0),('3-minute momentum',1 if ret3>0 else -1 if ret3<0 else 0),('RSI above/below 50',1 if rs>50 else -1 if rs<50 else 0),('RSI direction',1 if rs>prev_rsi else -1 if rs<prev_rsi else 0)]
-    lean_score=sum(v for _,v in votes)
-    lean_label='UP' if lean_score>=2 else 'DOWN' if lean_score<=-2 else 'NEUTRAL'
-    lean_strength=abs(lean_score)
-    # Swing is an early warning only: opposing short-term momentum and weakening RSI.
-    trend_dir=1 if ema9>ema21 else -1 if ema9<ema21 else 0
-    momentum_dir=1 if ret3>0 else -1 if ret3<0 else 0
-    rsi_dir=1 if rs>prev_rsi else -1 if rs<prev_rsi else 0
-    swing_watch=(trend_dir!=0 and momentum_dir==-trend_dir and rsi_dir==-trend_dir)
-    swing_label='POTENTIAL REVERSAL' if swing_watch else 'No aligned reversal warning'
-    # Compare market asks with a previous observation from this same contract.
-    prev=lean_db.execute('SELECT up_ask,down_ask,lean FROM lean_ticks WHERE slug=? AND captured<? ORDER BY captured DESC LIMIT 1',(slug,now)).fetchone()
-    up_change=(asks['up']-prev[0]) if prev and asks.get('up') is not None and prev[0] is not None else None
-    down_change=(asks['down']-prev[1]) if prev and asks.get('down') is not None and prev[1] is not None else None
-    odds_lean='UP strengthening' if up_change is not None and down_change is not None and up_change>0.005 and down_change< -0.005 else 'DOWN strengthening' if up_change is not None and down_change is not None and down_change>0.005 and up_change< -0.005 else 'No clear shift / insufficient history'
-    market_disagreement=(odds_lean=='UP strengthening' and lean_label=='DOWN') or (odds_lean=='DOWN strengthening' and lean_label=='UP')
-    lean_db.execute('INSERT OR IGNORE INTO lean_ticks VALUES (?,?,?,?,?,?,?,?,?)',(slug,now,int(last['time'].timestamp()),price,asks.get('up'),asks.get('down'),lean_label,lean_score,swing_label))
-    stage_idx=min(2,max(0,(now-start)//300))
-    lean_db.execute('INSERT OR IGNORE INTO lean_stage (slug,stage,captured,stage_end,lean,score,swing,spot,up_ask,down_ask) VALUES (?,?,?,?,?,?,?,?,?,?)',(slug,stage_idx,now,start+(stage_idx+1)*300,lean_label,lean_score,swing_label,price,asks.get('up'),asks.get('down')))
-    # Historical stage resolution: completed Kraken candles, only if exact boundary observations exist.
-    close_by_time={int(t.timestamp())+60:float(c) for t,c in zip(df.time,df.close)}
-    for old_slug,old_stage,end_time in lean_db.execute('SELECT slug,stage,stage_end FROM lean_stage WHERE segment_up IS NULL').fetchall():
-        first=close_by_time.get(end_time-300);final=close_by_time.get(end_time)
-        if end_time<=now and first is not None and final is not None:
-            lean_db.execute('UPDATE lean_stage SET segment_up=? WHERE slug=? AND stage=?',(int(final>first),old_slug,old_stage))
-    lean_db.commit()
-    la,lb,lc,ld=st.columns(4)
-    la.metric('BTC price-action lean',lean_label)
-    lb.metric('Directional agreement',f'{lean_strength}/5')
-    lc.metric('Swing watch','WATCH' if swing_watch else 'CLEAR')
-    ld.metric('3-minute momentum',f'{ret3:+.3%}')
-    st.write(f'**Swing status:** {swing_label}. **Market odds:** {odds_lean}.' + (' **Price/odds disagreement detected.**' if market_disagreement else ''))
-    with st.expander('Lean inputs, recent odds changes & historical checks'):
-        st.dataframe(pd.DataFrame([{'Indicator':name,'Vote':'UP' if val>0 else 'DOWN' if val<0 else 'NEUTRAL'} for name,val in votes]),hide_index=True,use_container_width=True)
-        st.write(f'UP ask change: {up_change:+.3f}' if up_change is not None else 'UP ask change: waiting for second observation')
-        st.write(f'DOWN ask change: {down_change:+.3f}' if down_change is not None else 'DOWN ask change: waiting for second observation')
-        hist_lean=pd.read_sql_query('SELECT * FROM lean_stage ORDER BY captured DESC',lean_db)
-        resolved=hist_lean.dropna(subset=['segment_up'])
-        directional=resolved[resolved.lean.isin(['UP','DOWN'])]
-        correct=((directional.lean=='UP')==(directional.segment_up==1)).mean() if len(directional) else None
-        x,y,z=st.columns(3)
-        x.metric('Saved stage leans',len(hist_lean))
-        y.metric('Resolved stage leans',len(directional))
-        z.metric('Kraken 5m-stage accuracy',f'{correct:.1%}' if correct is not None else 'Pending')
-        st.dataframe(hist_lean.head(30),hide_index=True,use_container_width=True)
-        st.download_button('Export lean history',hist_lean.to_csv(index=False),'btc_lean_history.csv','text/csv')
-        st.caption('Each stage records its first observed lean only. Stage accuracy uses Kraken close-to-close 5-minute moves, not official Polymarket outcomes. NEUTRAL calls are excluded. Historical stages outside Kraken candle retention may remain unresolved. Market odds shifts compare successive sampled asks, not trades or true order flow.')
-    lean_db.close()
+        st.subheader('02B · MOMENTUM RADAR · LEAN & SWING')
+        st.caption('Descriptive price-action and odds signals, not validated forecasts. Checks on each 20-second app refresh; Kraken indicators use completed 1-minute candles, so values may remain unchanged between refreshes.')
+        DB=os.path.join(os.path.dirname(os.path.abspath(__file__)),'btc_signal_history.sqlite3')
+        lean_db=sqlite3.connect(DB,timeout=10)
+        lean_db.execute('CREATE TABLE IF NOT EXISTS lean_ticks (slug TEXT, captured INTEGER, candle_time INTEGER, spot REAL, up_ask REAL, down_ask REAL, lean TEXT, score INTEGER, swing TEXT, PRIMARY KEY(slug,captured))')
+        lean_db.execute('CREATE TABLE IF NOT EXISTS lean_stage (slug TEXT, stage INTEGER, captured INTEGER, stage_end INTEGER, lean TEXT, score INTEGER, swing TEXT, spot REAL, up_ask REAL, down_ask REAL, segment_up INTEGER, PRIMARY KEY(slug,stage))')
+        # Directional votes are independent of the official strike.
+        close_series=df.close.astype(float)
+        ret3=float(close_series.iloc[-1]/close_series.iloc[-4]-1) if len(df)>4 else 0.0
+        ret5=float(close_series.iloc[-1]/close_series.iloc[-6]-1) if len(df)>6 else 0.0
+        ema_slope=float(df.ema9.iloc[-1]-df.ema9.iloc[-4]) if len(df)>4 else 0.0
+        prev_rsi=float(df.rsi14.iloc[-4]) if len(df)>4 else rs
+        votes=[('EMA alignment',1 if ema9>ema21 else -1 if ema9<ema21 else 0),('EMA slope',1 if ema_slope>0 else -1 if ema_slope<0 else 0),('3-minute momentum',1 if ret3>0 else -1 if ret3<0 else 0),('RSI above/below 50',1 if rs>50 else -1 if rs<50 else 0),('RSI direction',1 if rs>prev_rsi else -1 if rs<prev_rsi else 0)]
+        lean_score=sum(v for _,v in votes)
+        lean_label='UP' if lean_score>=2 else 'DOWN' if lean_score<=-2 else 'NEUTRAL'
+        lean_strength=abs(lean_score)
+        # Swing is an early warning only: opposing short-term momentum and weakening RSI.
+        trend_dir=1 if ema9>ema21 else -1 if ema9<ema21 else 0
+        momentum_dir=1 if ret3>0 else -1 if ret3<0 else 0
+        rsi_dir=1 if rs>prev_rsi else -1 if rs<prev_rsi else 0
+        swing_watch=(trend_dir!=0 and momentum_dir==-trend_dir and rsi_dir==-trend_dir)
+        swing_label='POTENTIAL REVERSAL' if swing_watch else 'No aligned reversal warning'
+        # Compare market asks with a previous observation from this same contract.
+        prev=lean_db.execute('SELECT up_ask,down_ask,lean FROM lean_ticks WHERE slug=? AND captured<? ORDER BY captured DESC LIMIT 1',(slug,now)).fetchone()
+        up_change=(asks['up']-prev[0]) if prev and asks.get('up') is not None and prev[0] is not None else None
+        down_change=(asks['down']-prev[1]) if prev and asks.get('down') is not None and prev[1] is not None else None
+        odds_lean='UP strengthening' if up_change is not None and down_change is not None and up_change>0.005 and down_change< -0.005 else 'DOWN strengthening' if up_change is not None and down_change is not None and down_change>0.005 and up_change< -0.005 else 'No clear shift / insufficient history'
+        market_disagreement=(odds_lean=='UP strengthening' and lean_label=='DOWN') or (odds_lean=='DOWN strengthening' and lean_label=='UP')
+        lean_db.execute('INSERT OR IGNORE INTO lean_ticks VALUES (?,?,?,?,?,?,?,?,?)',(slug,now,int(last['time'].timestamp()),price,asks.get('up'),asks.get('down'),lean_label,lean_score,swing_label))
+        stage_idx=min(2,max(0,(now-start)//300))
+        lean_db.execute('INSERT OR IGNORE INTO lean_stage (slug,stage,captured,stage_end,lean,score,swing,spot,up_ask,down_ask) VALUES (?,?,?,?,?,?,?,?,?,?)',(slug,stage_idx,now,start+(stage_idx+1)*300,lean_label,lean_score,swing_label,price,asks.get('up'),asks.get('down')))
+        # Historical stage resolution: completed Kraken candles, only if exact boundary observations exist.
+        close_by_time={int(t.timestamp())+60:float(c) for t,c in zip(df.time,df.close)}
+        for old_slug,old_stage,end_time in lean_db.execute('SELECT slug,stage,stage_end FROM lean_stage WHERE segment_up IS NULL').fetchall():
+            first=close_by_time.get(end_time-300);final=close_by_time.get(end_time)
+            if end_time<=now and first is not None and final is not None:
+                lean_db.execute('UPDATE lean_stage SET segment_up=? WHERE slug=? AND stage=?',(int(final>first),old_slug,old_stage))
+        lean_db.commit()
+        la,lb,lc,ld=st.columns(4)
+        la.metric('BTC price-action lean',lean_label)
+        lb.metric('Directional agreement',f'{lean_strength}/5')
+        lc.metric('Swing watch','WATCH' if swing_watch else 'CLEAR')
+        ld.metric('3-minute momentum',f'{ret3:+.3%}')
+        st.write(f'**Swing status:** {swing_label}. **Market odds:** {odds_lean}.' + (' **Price/odds disagreement detected.**' if market_disagreement else ''))
+        with st.expander('Lean inputs, recent odds changes & historical checks'):
+            st.dataframe(pd.DataFrame([{'Indicator':name,'Vote':'UP' if val>0 else 'DOWN' if val<0 else 'NEUTRAL'} for name,val in votes]),hide_index=True,use_container_width=True)
+            st.write(f'UP ask change: {up_change:+.3f}' if up_change is not None else 'UP ask change: waiting for second observation')
+            st.write(f'DOWN ask change: {down_change:+.3f}' if down_change is not None else 'DOWN ask change: waiting for second observation')
+            hist_lean=pd.read_sql_query('SELECT * FROM lean_stage ORDER BY captured DESC',lean_db)
+            resolved=hist_lean.dropna(subset=['segment_up'])
+            directional=resolved[resolved.lean.isin(['UP','DOWN'])]
+            correct=((directional.lean=='UP')==(directional.segment_up==1)).mean() if len(directional) else None
+            x,y,z=st.columns(3)
+            x.metric('Saved stage leans',len(hist_lean))
+            y.metric('Resolved stage leans',len(directional))
+            z.metric('Kraken 5m-stage accuracy',f'{correct:.1%}' if correct is not None else 'Pending')
+            st.dataframe(hist_lean.head(30),hide_index=True,use_container_width=True)
+            st.download_button('Export lean history',hist_lean.to_csv(index=False),'btc_lean_history.csv','text/csv')
+            st.caption('Each stage records its first observed lean only. Stage accuracy uses Kraken close-to-close 5-minute moves, not official Polymarket outcomes. NEUTRAL calls are excluded. Historical stages outside Kraken candle retention may remain unresolved. Market odds shifts compare successive sampled asks, not trades or true order flow.')
+        lean_db.close()
 
-with right_col:
-    st.subheader('03 · PIXEL FORECAST · FIVE 3-MIN STAGES')
-    st.caption('3-minute windows show shorter-term movement; the original 5-minute view remains below. These are zero-drift spot-price simulations, not validated directional predictions or trade signals.')
-    lookback=st.select_slider('Historical return sample (minutes)',options=[60,120,240,480],value=240)
-    samples=np.log(df.close).diff().dropna().tail(lookback).to_numpy()
-    rng=np.random.default_rng(42)
-    N=8000
-    elapsed=(now-start)/60
-    def make_segment_forecasts(width, count):
-        results=[]
-        for i in range(count):
-            seg_start=i*width; seg_end=(i+1)*width
-            future_start=max(elapsed,seg_start)
-            future_minutes=max(0,seg_end-future_start)
-            if future_minutes<=0:
-                results.append({'Segment':f'{seg_start}–{seg_end} min','Status':'Completed','P(rise)':'—','Median end price':'—','10–90% end range':'—'})
-                continue
-            full=int(future_minutes); fraction=future_minutes-full
-            paths=np.zeros(N)
-            if full: paths+=rng.choice(samples,size=(N,full),replace=True).sum(axis=1)
-            if fraction>0: paths+=rng.choice(samples,size=N,replace=True)*math.sqrt(fraction)
-            endings=price*np.exp(paths)
-            results.append({'Segment':f'{seg_start}–{seg_end} min','Status':'Current' if seg_start<=elapsed<seg_end else 'Upcoming','P(rise)':f'{float(np.mean(paths>0)):.1%}','Median end price':f'${np.median(endings):,.0f}','10–90% end range':f'${np.quantile(endings,.1):,.0f} – ${np.quantile(endings,.9):,.0f}'})
-        return results
-    segments_3=make_segment_forecasts(3,5)
-    for row_start in (0,3):
-        cols=st.columns(3)
-        for col, segment in zip(cols,segments_3[row_start:row_start+3]):
-            with col:
-                st.markdown(f'**{segment["Segment"]}** · {segment["Status"]}')
-                st.metric('P(rise) · baseline',segment['P(rise)'])
-                st.caption(f'Median end: {segment["Median end price"]}')
-    with st.expander('Detailed five-stage (3-minute) forecast table'):
-        st.dataframe(pd.DataFrame(segments_3),hide_index=True,use_container_width=True)
-    segments=make_segment_forecasts(5,3)
-    with st.expander('Broader trend · three 5-minute forecasts'):
-        st.dataframe(pd.DataFrame(segments),hide_index=True,use_container_width=True)
-        st.caption('Retained for comparison with the 3-minute windows; shorter windows can be noisier.')
-    st.info('The future segment probabilities are from today’s observed spot, not from a forecast of the price at each segment’s beginning. They are probabilities of net price change over the remaining portion of that segment. A 50/50 reading is expected from the zero-drift baseline and is not an actionable signal.')
-    if strike>0:
-        full=int(remaining/60);fraction=remaining/60-full
-        paths=np.zeros(N)
-        if full:paths+=rng.choice(samples,size=(N,full),replace=True).sum(axis=1)
-        if fraction>0:paths+=rng.choice(samples,size=N,replace=True)*math.sqrt(fraction)
-        outcomes=price*np.exp(paths)
-        p_boot=float(np.mean(outcomes>strike))
-        st.metric('Simulated P(final Kraken spot above selected reference)',f'{p_boot:.1%}')
-        st.caption('This models the ending Kraken spot proxy, not the US BRTI settlement. It is deliberately NOT used to issue a betting recommendation.')
-        if book_ok:
-            up_gap=p_boot-asks['up'];down_gap=(1-p_boot)-asks['down']
-            st.write(f'Before costs, simulated probability minus current ask: UP {up_gap:+.1%}; DOWN {down_gap:+.1%}. These gaps are not proven tradeable edges.')
-        st.warning('Entry timing: WAIT / OBSERVE by default. The tool cannot determine whether buying now beats waiting five minutes without a validated forecast of future share prices, settlement data, and transaction costs.')
-    else:st.warning('Waiting for the price to beat to show a provisional final-outcome simulation.')
-
-
-    # Persistent local snapshots; captured once per stage and never overwritten.
-    DB=os.path.join(os.path.dirname(os.path.abspath(__file__)),'btc_signal_history.sqlite3')
-    with st.expander('04 · HIGH SCORE HISTORY · ACCURACY TRACKER',expanded=True):
-        try:
-            con=sqlite3.connect(DB,timeout=10)
-            con.execute('CREATE TABLE IF NOT EXISTS snapshots (slug TEXT, stage INTEGER, captured INTEGER, stage_end INTEGER, p_up REAL, p_segment REAL, up_ask REAL, down_ask REAL, winner TEXT, segment_up INTEGER, PRIMARY KEY(slug,stage))')
-            stage=min(2,max(0,(now-start)//300))
-            if verified_reference and book_ok and blend_up is not None:
-                sp=float(segments[stage]['P(rise)'].strip('%'))/100 if segments[stage]['Status']=='Current' and segments[stage]['P(rise)']!='—' else None
-                con.execute('INSERT OR IGNORE INTO snapshots (slug,stage,captured,stage_end,p_up,p_segment,up_ask,down_ask) VALUES (?,?,?,?,?,?,?,?)',(slug,stage,now,start+(stage+1)*300,blend_up,sp,asks['up'],asks['down']))
-            else:st.caption('Official-result snapshot pending US-verified price to beat and live asks. Proxy calculations are never saved as verified forecasts.')
-            close_by_time={int(t.timestamp())+60:float(c) for t,c in zip(df.time,df.close)}
-            for ms,si,ce in con.execute('SELECT slug,stage,stage_end FROM snapshots WHERE segment_up IS NULL').fetchall():
-                opening=close_by_time.get(ce-300);closing=close_by_time.get(ce)
-                if ce<=now and opening is not None and closing is not None:
-                    con.execute('UPDATE snapshots SET segment_up=? WHERE slug=? AND stage=?',(int(closing>opening),ms,si))
-            # US-only: do not infer official settlement from Kraken or international markets.
-            con.commit()
-            history=pd.read_sql_query('SELECT * FROM snapshots ORDER BY captured DESC',con)
-            if len(history):
-                official=history.dropna(subset=['winner','p_up']);segment=history.dropna(subset=['segment_up','p_segment'])
-                a,b,c=st.columns(3);a.metric('Saved stage snapshots',len(history));b.metric('Official results',len(official));c.metric('Final direction accuracy',f'{((official.p_up>=.5)==(official.winner=="UP")).mean():.1%}' if len(official) else 'Pending')
-                summary=[]
-                for i in range(3):
-                    r=segment[segment.stage==i]
-                    summary.append({'Stage':f'{i*5}–{(i+1)*5}m','Resolved spot-proxy forecasts':len(r),'Accuracy':f'{((r.p_segment>=.5)==(r.segment_up==1)).mean():.1%}' if len(r) else 'Pending'})
-                st.dataframe(pd.DataFrame(summary),hide_index=True,use_container_width=True)
-                if len(official):
-                    st.metric('Brier score (lower is better)',f'{((official.p_up-(official.winner=="UP").astype(int))**2).mean():.3f}')
-                    pl=sum((1 if ('UP' if r.p_up>=.5 else 'DOWN')==r.winner else 0)-(r.up_ask if r.p_up>=.5 else r.down_ask) for _,r in official.iterrows())
-                    st.metric('Hypothetical one-share P/L before costs',f'${pl:+.2f}')
-                st.dataframe(history.head(40),hide_index=True,use_container_width=True)
-                st.download_button('Export saved accuracy history',history.to_csv(index=False),'btc_accuracy_history.csv','text/csv')
-            else:st.write('No predictions saved yet. Leave the app running to begin collecting snapshots.')
-            st.caption('Local SQLite file persists across restarts. Stage results use Kraken 1-minute spot closes, NOT US BRTI. Official results require an explicit resolved winner from Polymarket; otherwise pending. Paper returns exclude fees and slippage. No orders placed.')
-            con.close()
-        except (sqlite3.Error,OSError) as exc:st.error(f'History database error: {exc}')
-
-    st.markdown('**04 · Historical observation log** · Record observations for later testing; no trades are placed.')
-    if 'logs' not in st.session_state:st.session_state.logs=[]
-    if st.button('Record current observation'):
-        st.session_state.logs.append({'utc':datetime.now(timezone.utc).isoformat(),'slug':slug,'spot_proxy':price,'strike':strike if strike>0 else None,'strike_source':reference_source,'seconds_remaining':remaining,'rsi14':rs,'ema9':ema9,'ema21':ema21,'volatility_1m':minute_vol,'up_ask':asks.get('up'),'down_ask':asks.get('down'),'model_up_probability':p_up if strike>0 else None})
-        st.success('Observation added to this session.')
-    if st.session_state.logs:
-        st.dataframe(pd.DataFrame(st.session_state.logs),use_container_width=True)
-        st.download_button('Download observations CSV',pd.DataFrame(st.session_state.logs).to_csv(index=False),'btc_signal_observations.csv','text/csv')
-    st.caption('The countdown updates live; other data refreshes when you reload the page. Session observations may disappear if the server restarts; download the CSV. No API keys are used.')
-
-    st.divider()
-    st.markdown('**UTC market window details**')
-    st.markdown(f'**Current UTC window:** {datetime.fromtimestamp(start,timezone.utc):%Y-%m-%d %H:%M}–{datetime.fromtimestamp(start+900,timezone.utc):%H:%M} • **Time remaining:** {remaining//60}m {remaining%60}s')
-    st.markdown(f'[Open current Polymarket US window](https://polymarket.us/event/{slug})')
-
-
-# PIXEL V9 — AUTOMATED RESEARCH ARCHIVE
-# Saves a timestamped sample every dashboard refresh, without treating Kraken
-# prices or a market quote as verified US settlement data.
-st.markdown('<div class="retro-section">▣ 05 · AUTOMATED US MARKET ARCHIVE // PIXEL V9</div>', unsafe_allow_html=True)
-ARCHIVE=os.path.join(os.path.dirname(os.path.abspath(__file__)),'btc_signal_history.sqlite3')
-try:
-    archive=sqlite3.connect(ARCHIVE,timeout=10)
-    archive.execute('''CREATE TABLE IF NOT EXISTS us_market_samples (
-      event_slug TEXT NOT NULL, captured INTEGER NOT NULL, market_slug TEXT,
-      window_start INTEGER, window_end INTEGER, seconds_left INTEGER,
-      us_price_to_beat REAL, kraken_spot REAL, model_up REAL,
-      up_long_quote REAL, down_short_quote REAL, best_bid REAL, best_ask REAL,
-      quote_status TEXT, PRIMARY KEY(event_slug,captured))''')
-    archive.execute('''CREATE TABLE IF NOT EXISTS us_market_results (
-      event_slug TEXT PRIMARY KEY, market_slug TEXT, window_end INTEGER,
-      official_winner TEXT, verified_at INTEGER, source TEXT,
-      status TEXT NOT NULL DEFAULT 'PENDING')''')
-    archive.execute('CREATE INDEX IF NOT EXISTS us_samples_by_time ON us_market_samples(captured)')
-    # Reuse the live quote already fetched in Market Radar, only when the
-    # typed contract identifies BTC Up/Down and the returned slug matches.
-    archive_quote=locals().get('quote')
-    archive_md=archive_quote.get('marketData',{}) if isinstance(archive_quote,dict) else {}
-    if not isinstance(archive_md,dict): archive_md={}
-    archive_terms=(full_market or {}).get('assetPriceTerms') or {}
-    archive_asset=archive_terms.get('asset') or {}
-    archive_mapped=(str(archive_asset.get('symbol','')).lower() in ('btc','xbt')
-                    and 'UP_DOWN' in str(archive_terms.get('marketType','')).upper())
-    archive_market_slug=(full_market or {}).get('slug')
-    archive_quote_ok=bool(archive_mapped and archive_market_slug
-                          and archive_md.get('marketSlug')==archive_market_slug)
-    def archive_price(field):
-        if not archive_quote_ok:return None
-        value=archive_md.get(field)
-        try:
-            v=float(value.get('value') if isinstance(value,dict) else value)
-            return v if math.isfinite(v) and 0<=v<=1 else None
-        except (TypeError,ValueError,AttributeError):return None
-    archive_up=archive_price('longQuote')
-    archive_down=archive_price('shortQuote')
-    archive_bid=archive_price('bestBid')
-    archive_ask=archive_price('bestAsk')
-    # Zero-drift research probability. Never store a proxy as official.
-    archive_model=None
-    if verified_reference and strike>0 and math.isfinite(minute_vol):
-        archive_sigma=max(minute_vol,.00005)*math.sqrt(max(remaining/60,1))
-        archive_model=min(.995,max(.005,normal_cdf(math.log(price/strike)/archive_sigma)))
-    archive.execute('''INSERT OR IGNORE INTO us_market_samples
-       (event_slug,captured,market_slug,window_start,window_end,seconds_left,
-        us_price_to_beat,kraken_spot,model_up,up_long_quote,down_short_quote,
-        best_bid,best_ask,quote_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-        (slug,now,archive_market_slug,start,start+900,remaining,
-         reference if verified_reference else None,price,archive_model,
-         archive_up,archive_down,archive_bid,archive_ask,
-         'MAPPED' if archive_quote_ok else 'UNVERIFIED'))
-    archive.execute('''INSERT OR IGNORE INTO us_market_results
-        (event_slug,market_slug,window_end,status) VALUES (?,?,?,'PENDING')''',
-        (slug,archive_market_slug,start+900))
-    archive.commit()
-    # Automatically recheck a few recently completed markets, rate-limited
-    # to once every 5 minutes per Streamlit process. The official winner is
-    # left pending unless a trustworthy, explicit outcome is returned.
-    @st.cache_data(ttl=300,show_spinner=False)
-    def inspect_completed_us_market(market_slug):
-        return us_full_market(market_slug)
-    pending=archive.execute('''SELECT event_slug,market_slug FROM us_market_results
-       WHERE status='PENDING' AND window_end<? AND market_slug IS NOT NULL
-       ORDER BY window_end DESC LIMIT 5''',(now-60,)).fetchall()
-    for old_slug,old_market_slug in pending:
-        try:
-            completed=inspect_completed_us_market(old_market_slug)
-            # A final market record is retained as a status check, not as a
-            # winner unless it exposes an explicit, documented winner field.
-            explicit=completed.get('winningOutcome') or completed.get('winningSide')
-            status=str(completed.get('state') or completed.get('status') or '').upper()
-            if status in ('SETTLED','RESOLVED','MARKET_STATE_SETTLED','MARKET_STATE_RESOLVED') and isinstance(explicit,str) and explicit.upper() in ('UP','DOWN'):
-                archive.execute('''UPDATE us_market_results SET official_winner=?,verified_at=?,source=?,status='VERIFIED'
-                   WHERE event_slug=?''',(explicit.upper(),now,'US full market explicit winningOutcome/winningSide',old_slug))
-        except Exception:
-            pass # API outages never overwrite or fabricate results
-    archive.commit()
-    counts=archive.execute('''SELECT COUNT(*),COUNT(DISTINCT event_slug),
-        SUM(CASE WHEN model_up IS NOT NULL THEN 1 ELSE 0 END),
-        SUM(CASE WHEN up_long_quote IS NOT NULL THEN 1 ELSE 0 END)
-        FROM us_market_samples''').fetchone()
-    verified_count=archive.execute("SELECT COUNT(*) FROM us_market_results WHERE status='VERIFIED'").fetchone()[0]
-    a,b,c,d=st.columns(4)
-    a.metric('Saved refresh samples',counts[0]);b.metric('Markets tracked',counts[1])
-    c.metric('Model samples',counts[2] or 0);d.metric('Verified outcomes',verified_count)
-    st.caption('Automatically records one observation per refresh. US reference and mapped quotes are stored only when verified in the API. Kraken spot is a separate research feed. No orders are placed.')
-    recent=pd.read_sql_query('''SELECT datetime(captured,'unixepoch') AS utc,
-      event_slug,seconds_left,us_price_to_beat,kraken_spot,model_up,
-      up_long_quote,down_short_quote,quote_status
-      FROM us_market_samples ORDER BY captured DESC LIMIT 100''',archive)
-    with st.expander('Recent archived observations and CSV export'):
-        st.dataframe(recent,hide_index=True,use_container_width=True)
-        st.download_button('Export recent samples CSV',recent.to_csv(index=False),
-                           'btc_us_market_samples.csv','text/csv',key='v9_export_samples')
-    outcomes=pd.read_sql_query('SELECT * FROM us_market_results ORDER BY window_end DESC LIMIT 100',archive)
-    with st.expander('US settlement verification queue'):
-        st.dataframe(outcomes,hide_index=True,use_container_width=True)
-        st.caption('Completed markets remain PENDING unless the US API explicitly identifies a winner. No Kraken-derived winners or assumed settlement prices are counted as official.')
-    if verified_count:
-        evaluation=pd.read_sql_query('''SELECT s.event_slug,s.model_up,r.official_winner,
-          s.up_long_quote,s.down_short_quote FROM us_market_samples s
-          JOIN us_market_results r ON s.event_slug=r.event_slug
-          WHERE r.status='VERIFIED' AND s.model_up IS NOT NULL
-          AND s.captured=(SELECT MIN(t.captured) FROM us_market_samples t
-              WHERE t.event_slug=s.event_slug AND t.model_up IS NOT NULL)''',archive)
-        if len(evaluation):
-            actual=(evaluation.official_winner=='UP').astype(float)
-            brier=float(((evaluation.model_up-actual)**2).mean())
-            accuracy=float(((evaluation.model_up>=.5)==(actual==1)).mean())
-            st.write(f'**First valid sample per settled market:** {len(evaluation)} · Direction accuracy {accuracy:.1%} · Brier score {brier:.3f}.')
-    archive.close()
-except (sqlite3.Error,OSError) as exc:
-    st.error(f'Automated archive unavailable: {exc}')
-
-
-
-st.markdown('<div class="retro-section">▣ 06 · PERMANENT CLOUD HISTORY // PIXEL V13.5 + 24/7</div>',unsafe_allow_html=True)
-if not CLOUD_READY:
-    st.warning("Supabase not configured here. Set SUPABASE_URL and SUPABASE_KEY in Streamlit secrets.")
-else:
-    try:
-        cloud_request("POST","btc_markets",
-            params={"on_conflict":"market_slug"},
-            payload={"market_slug":slug,"window_start":utc_iso(start),
-                     "window_end":utc_iso(start+900),
-                     "price_to_beat":reference if verified_reference else None},
-            prefer="resolution=merge-duplicates,return=minimal")
-        if verified_reference and reference and 'final_display' in globals():
-            archive_quote=locals().get("quote")
-            quote_md=archive_quote.get("marketData",{}) if isinstance(archive_quote,dict) else {}
-            if not isinstance(quote_md,dict):quote_md={}
-            quote_market=quote_md.get("marketSlug")
-            confirmed_contract=(full_market or {}).get("slug")
-            terms=(full_market or {}).get("assetPriceTerms") or {}
-            asset=terms.get("asset") or {}
-            mapped=(str(asset.get("symbol","")).lower() in ("btc","xbt") and
-                    any(t in str(terms.get("marketType","")).upper() for t in ("UPDOWN","UP_DOWN")))
-            def cloud_quote(field):
-                if not (mapped and quote_market and quote_market==confirmed_contract):
-                    return None
-                raw=quote_md.get(field)
-                try:
-                    number=float(raw.get("value") if isinstance(raw,dict) else raw)
-                    return number if math.isfinite(number) and 0<=number<=1 else None
-                except (TypeError,ValueError,AttributeError):
-                    return None
-            cloud_request("POST","btc_predictions",
-                params={"on_conflict":"market_slug,recorded_at"},
-                payload={"market_slug":slug,"recorded_at":utc_iso(now),
-                         "seconds_remaining":remaining,"kraken_spot":price,
-                         "price_to_beat":reference,
-                         "predicted_up_probability":float(final_display),
-                         "predicted_down_probability":float(1-final_display),
-                         "market_up_quote":cloud_quote("longQuote"),
-                         "market_down_quote":cloud_quote("shortQuote"),
-                         "model_version":"Pixel V13.3"},
-                prefer="resolution=ignore-duplicates,return=minimal")
-        @st.cache_data(ttl=300,show_spinner=False)
-        def cloud_pending_markets():
-            return cloud_request("GET","btc_markets",params={
-                "select":"market_slug,window_end","settlement_status":"eq.PENDING",
-                "window_end":"lt."+utc_iso(int(time.time())-60),
-                "order":"window_end.desc","limit":"5"})
-        # Polymarket US documents /v1/markets/{slug}/settlement as a numeric
-        # settlement price. It does not document that 0 or 1 maps to BTC UP/DOWN.
-        # Therefore a numeric response is diagnostic evidence only, not a winner.
-        @st.cache_data(ttl=300,show_spinner=False)
-        def official_settlement_diagnostic(contract_slug):
-            return us_get('/v1/markets/'+contract_slug+'/settlement')
-
-        def safe_market_diagnostics(record):
-            # Only market metadata, never credentials, account data, or request headers.
-            if not isinstance(record,dict):
-                return {"response_type":type(record).__name__}
-            interesting=("state","status","result","outcome","winner","settle","resolution","side","contract","assetPriceTerms")
-            return {str(k):str(v)[:600] for k,v in record.items()
-                    if any(token in str(k).lower() for token in interesting)}
-
-        def side_mapping_evidence(market, settlement):
-            """Diagnostic only: a 0/1 settlement is not an UP/DOWN winner without a documented mapping."""
-            if not isinstance(market,dict):
-                return 'Market details unavailable'
-            fields=('marketSides','sides','outcomes','contracts','instrument','assetPriceTerms',
-                    'longSide','shortSide','yesSide','noSide','description','rules','title')
-            available={k:market[k] for k in fields if k in market}
-            if not available:
-                return 'No explicit side definitions in market response'
-            return str(available)[:1800]
-
-        settlement_diagnostics=[]
-        for item in cloud_pending_markets():
-            old_slug=item["market_slug"]
-            entry={"Event":old_slug,"Contract":"unresolved",
-                   "API state":"unknown","Settlement price":"unavailable",
-                   "Winner":"PENDING","Market fields":"not retrieved",
-                   "Settlement response":"not retrieved","Side mapping evidence":"not retrieved","Check note":""}
-            try:
-                _,old_contract,_=us_discover(old_slug)
-                contract=(old_contract or {}).get("slug")
-                if not contract:
-                    settlement_diagnostics.append(entry)
+    with right_col:
+        st.subheader('03 · PIXEL FORECAST · FIVE 3-MIN STAGES')
+        st.caption('3-minute windows show shorter-term movement; the original 5-minute view remains below. These are zero-drift spot-price simulations, not validated directional predictions or trade signals.')
+        lookback=st.select_slider('Historical return sample (minutes)',options=[60,120,240,480],value=240)
+        samples=np.log(df.close).diff().dropna().tail(lookback).to_numpy()
+        rng=np.random.default_rng(42)
+        N=8000
+        elapsed=(now-start)/60
+        def make_segment_forecasts(width, count):
+            results=[]
+            for i in range(count):
+                seg_start=i*width; seg_end=(i+1)*width
+                future_start=max(elapsed,seg_start)
+                future_minutes=max(0,seg_end-future_start)
+                if future_minutes<=0:
+                    results.append({'Segment':f'{seg_start}–{seg_end} min','Status':'Completed','P(rise)':'—','Median end price':'—','10–90% end range':'—'})
                     continue
-                entry["Contract"]=contract
-                completed=us_full_market(contract)
-                state=str(completed.get("state") or completed.get("status") or "unknown").upper()
-                entry["API state"]=state
-                entry["Market fields"]=str(safe_market_diagnostics(completed))[:1200]
-                entry["Side mapping evidence"]=side_mapping_evidence(completed,None)
-                try:
-                    settlement=official_settlement_diagnostic(contract)
-                    entry["Settlement response"]=str(safe_market_diagnostics(settlement))[:1200]
-                    if isinstance(settlement,dict):
-                        entry["Settlement price"]=str(settlement.get("settlement","unavailable"))
-                except Exception as settle_exc:
-                    entry["Settlement response"]="Unavailable: "+type(settle_exc).__name__
-                # Conservative verification: the full official market must
-                # explicitly identify an UP or DOWN winner and be final.
-                explicit=completed.get("winningOutcome") or completed.get("winningSide")
-                if (state in ("SETTLED","RESOLVED","MARKET_STATE_SETTLED","MARKET_STATE_RESOLVED")
-                    and isinstance(explicit,str) and explicit.upper() in ("UP","DOWN")):
-                    cloud_request("PATCH","btc_markets",
-                        params={"market_slug":"eq."+old_slug,"settlement_status":"eq.PENDING"},
-                        payload={"official_winner":explicit.upper(),
-                                 "settlement_status":"VERIFIED","settled_at":utc_iso(now),
-                                 "updated_at":utc_iso(now)},prefer="return=minimal")
-                    entry["Winner"]=explicit.upper()+" (verified)"
-                if entry["Winner"]=="PENDING":
-                    entry["Check note"]="No documented explicit final UP/DOWN winner identified"
-            except Exception as exc:
-                entry["API state"]="Lookup unavailable: "+type(exc).__name__
-                entry["Check note"]=str(exc)[:180]
-            settlement_diagnostics.append(entry)
-        @st.cache_data(ttl=60,show_spinner=False)
-        def cloud_counts():
-            markets=cloud_request("GET","btc_markets",params={
-                "select":"market_slug,settlement_status","limit":"1000"})
-            preds=cloud_request("GET","btc_predictions",params={
-                "select":"market_slug,recorded_at,predicted_up_probability,seconds_remaining",
-                "order":"recorded_at.desc","limit":"30"})
-            return markets,preds
-        cloud_markets,cloud_preds=cloud_counts()
-        x,y,z=st.columns(3)
-        x.metric("Cloud markets tracked",len(cloud_markets))
-        y.metric("Verified US settlements",sum(m.get("settlement_status")=="VERIFIED" for m in cloud_markets))
-        z.metric("Recent saved predictions",len(cloud_preds))
-        st.success("Supabase connected. DigitalOcean collects independently; this dashboard may also save observations while open.")
-        with st.expander("Recent cloud predictions"):
-            if cloud_preds:
-                st.dataframe(pd.DataFrame(cloud_preds),hide_index=True,use_container_width=True)
-            else: st.caption("No cloud predictions saved yet.")
-        # Read-only explorer of samples collected by DigitalOcean and Streamlit.
-        @st.cache_data(ttl=60,show_spinner=False)
-        def cloud_collector_history():
-            records=[]
-            for offset in (0,1000,2000):
-                batch=cloud_request("GET","btc_predictions",params={
-                    "select":"market_slug,recorded_at,seconds_remaining,kraken_spot,price_to_beat,predicted_up_probability,predicted_down_probability,model_version",
-                    "order":"recorded_at.desc","limit":"1000","offset":str(offset)})
-                records.extend(batch)
-                if len(batch)<1000: break
-            return pd.DataFrame(records)
+                full=int(future_minutes); fraction=future_minutes-full
+                paths=np.zeros(N)
+                if full: paths+=rng.choice(samples,size=(N,full),replace=True).sum(axis=1)
+                if fraction>0: paths+=rng.choice(samples,size=N,replace=True)*math.sqrt(fraction)
+                endings=price*np.exp(paths)
+                results.append({'Segment':f'{seg_start}–{seg_end} min','Status':'Current' if seg_start<=elapsed<seg_end else 'Upcoming','P(rise)':f'{float(np.mean(paths>0)):.1%}','Median end price':f'${np.median(endings):,.0f}','10–90% end range':f'${np.quantile(endings,.1):,.0f} – ${np.quantile(endings,.9):,.0f}'})
+            return results
+        segments_3=make_segment_forecasts(3,5)
+        for row_start in (0,3):
+            cols=st.columns(3)
+            for col, segment in zip(cols,segments_3[row_start:row_start+3]):
+                with col:
+                    st.markdown(f'**{segment["Segment"]}** · {segment["Status"]}')
+                    st.metric('P(rise) · baseline',segment['P(rise)'])
+                    st.caption(f'Median end: {segment["Median end price"]}')
+        with st.expander('Detailed five-stage (3-minute) forecast table'):
+            st.dataframe(pd.DataFrame(segments_3),hide_index=True,use_container_width=True)
+        segments=make_segment_forecasts(5,3)
+        with st.expander('Broader trend · three 5-minute forecasts'):
+            st.dataframe(pd.DataFrame(segments),hide_index=True,use_container_width=True)
+            st.caption('Retained for comparison with the 3-minute windows; shorter windows can be noisier.')
+        st.info('The future segment probabilities are from today’s observed spot, not from a forecast of the price at each segment’s beginning. They are probabilities of net price change over the remaining portion of that segment. A 50/50 reading is expected from the zero-drift baseline and is not an actionable signal.')
+        if strike>0:
+            full=int(remaining/60);fraction=remaining/60-full
+            paths=np.zeros(N)
+            if full:paths+=rng.choice(samples,size=(N,full),replace=True).sum(axis=1)
+            if fraction>0:paths+=rng.choice(samples,size=N,replace=True)*math.sqrt(fraction)
+            outcomes=price*np.exp(paths)
+            p_boot=float(np.mean(outcomes>strike))
+            st.metric('Simulated P(final Kraken spot above selected reference)',f'{p_boot:.1%}')
+            st.caption('This models the ending Kraken spot proxy, not the US BRTI settlement. It is deliberately NOT used to issue a betting recommendation.')
+            if book_ok:
+                up_gap=p_boot-asks['up'];down_gap=(1-p_boot)-asks['down']
+                st.write(f'Before costs, simulated probability minus current ask: UP {up_gap:+.1%}; DOWN {down_gap:+.1%}. These gaps are not proven tradeable edges.')
+            st.warning('Entry timing: WAIT / OBSERVE by default. The tool cannot determine whether buying now beats waiting five minutes without a validated forecast of future share prices, settlement data, and transaction costs.')
+        else:st.warning('Waiting for the price to beat to show a provisional final-outcome simulation.')
 
-        with st.expander("24/7 collector history · DigitalOcean + dashboard",expanded=True):
-            st.caption("Read-only Supabase history. The collector runs on DigitalOcean; opening this page is not required for collection. Data may be up to 60 seconds behind.")
-            collector_history=cloud_collector_history()
-            if collector_history.empty:
-                st.info("No saved prediction records found in Supabase yet.")
-            else:
-                h=collector_history.copy()
-                h["recorded_at"]=pd.to_datetime(h["recorded_at"],utc=True,errors="coerce")
-                h=h.dropna(subset=["recorded_at"])
-                for field in ("kraken_spot","price_to_beat","predicted_up_probability","seconds_remaining"):
-                    h[field]=pd.to_numeric(h[field],errors="coerce")
-                h=h.sort_values("recorded_at")
-                latest=h.iloc[-1]
-                sample_age=(pd.Timestamp.now(tz="UTC")-latest["recorded_at"]).total_seconds()
-                a,b,c,d=st.columns(4)
-                a.metric("Loaded predictions",f"{len(h):,}")
-                b.metric("Markets represented",f"{h.market_slug.nunique():,}")
-                c.metric("Latest record (UTC)",latest["recorded_at"].strftime("%b %d %H:%M:%S"))
-                d.metric("Latest sample age",f"{max(0,int(sample_age))} sec")
-                if sample_age>180:
-                    st.warning("Latest saved prediction is over 3 minutes old. Check the DigitalOcean service logs if collection should be active.")
-                st.caption("The view loads up to the latest 3,000 records. 'Loaded predictions' is not the all-time database total. Multiple observations from one market are not independent outcomes.")
-                model_choices=sorted(h["model_version"].dropna().astype(str).unique().tolist())
-                chosen_models=st.multiselect("Model versions",model_choices,default=model_choices,key="cloud_model_versions")
-                h=h[h["model_version"].isin(chosen_models)]
-                market_choices=h["market_slug"].dropna().unique().tolist()[::-1]
-                selected_market=st.selectbox("Market window",["All loaded markets"]+market_choices,key="cloud_market_window")
-                if selected_market!="All loaded markets":
-                    h=h[h["market_slug"]==selected_market]
-                if h.empty:
-                    st.info("No records match these filters.")
+
+        # Persistent local snapshots; captured once per stage and never overwritten.
+        DB=os.path.join(os.path.dirname(os.path.abspath(__file__)),'btc_signal_history.sqlite3')
+        with st.expander('04 · HIGH SCORE HISTORY · ACCURACY TRACKER',expanded=True):
+            try:
+                con=sqlite3.connect(DB,timeout=10)
+                con.execute('CREATE TABLE IF NOT EXISTS snapshots (slug TEXT, stage INTEGER, captured INTEGER, stage_end INTEGER, p_up REAL, p_segment REAL, up_ask REAL, down_ask REAL, winner TEXT, segment_up INTEGER, PRIMARY KEY(slug,stage))')
+                stage=min(2,max(0,(now-start)//300))
+                if verified_reference and book_ok and blend_up is not None:
+                    sp=float(segments[stage]['P(rise)'].strip('%'))/100 if segments[stage]['Status']=='Current' and segments[stage]['P(rise)']!='—' else None
+                    con.execute('INSERT OR IGNORE INTO snapshots (slug,stage,captured,stage_end,p_up,p_segment,up_ask,down_ask) VALUES (?,?,?,?,?,?,?,?)',(slug,stage,now,start+(stage+1)*300,blend_up,sp,asks['up'],asks['down']))
+                else:st.caption('Official-result snapshot pending US-verified price to beat and live asks. Proxy calculations are never saved as verified forecasts.')
+                close_by_time={int(t.timestamp())+60:float(c) for t,c in zip(df.time,df.close)}
+                for ms,si,ce in con.execute('SELECT slug,stage,stage_end FROM snapshots WHERE segment_up IS NULL').fetchall():
+                    opening=close_by_time.get(ce-300);closing=close_by_time.get(ce)
+                    if ce<=now and opening is not None and closing is not None:
+                        con.execute('UPDATE snapshots SET segment_up=? WHERE slug=? AND stage=?',(int(closing>opening),ms,si))
+                # US-only: do not infer official settlement from Kraken or international markets.
+                con.commit()
+                history=pd.read_sql_query('SELECT * FROM snapshots ORDER BY captured DESC',con)
+                if len(history):
+                    official=history.dropna(subset=['winner','p_up']);segment=history.dropna(subset=['segment_up','p_segment'])
+                    a,b,c=st.columns(3);a.metric('Saved stage snapshots',len(history));b.metric('Official results',len(official));c.metric('Final direction accuracy',f'{((official.p_up>=.5)==(official.winner=="UP")).mean():.1%}' if len(official) else 'Pending')
+                    summary=[]
+                    for i in range(3):
+                        r=segment[segment.stage==i]
+                        summary.append({'Stage':f'{i*5}–{(i+1)*5}m','Resolved spot-proxy forecasts':len(r),'Accuracy':f'{((r.p_segment>=.5)==(r.segment_up==1)).mean():.1%}' if len(r) else 'Pending'})
+                    st.dataframe(pd.DataFrame(summary),hide_index=True,use_container_width=True)
+                    if len(official):
+                        st.metric('Brier score (lower is better)',f'{((official.p_up-(official.winner=="UP").astype(int))**2).mean():.3f}')
+                        pl=sum((1 if ('UP' if r.p_up>=.5 else 'DOWN')==r.winner else 0)-(r.up_ask if r.p_up>=.5 else r.down_ask) for _,r in official.iterrows())
+                        st.metric('Hypothetical one-share P/L before costs',f'${pl:+.2f}')
+                    st.dataframe(history.head(40),hide_index=True,use_container_width=True)
+                    st.download_button('Export saved accuracy history',history.to_csv(index=False),'btc_accuracy_history.csv','text/csv')
+                else:st.write('No predictions saved yet. Leave the app running to begin collecting snapshots.')
+                st.caption('Local SQLite file persists across restarts. Stage results use Kraken 1-minute spot closes, NOT US BRTI. Official results require an explicit resolved winner from Polymarket; otherwise pending. Paper returns exclude fees and slippage. No orders placed.')
+                con.close()
+            except (sqlite3.Error,OSError) as exc:st.error(f'History database error: {exc}')
+
+        st.markdown('**04 · Historical observation log** · Record observations for later testing; no trades are placed.')
+        if 'logs' not in st.session_state:st.session_state.logs=[]
+        if st.button('Record current observation'):
+            st.session_state.logs.append({'utc':datetime.now(timezone.utc).isoformat(),'slug':slug,'spot_proxy':price,'strike':strike if strike>0 else None,'strike_source':reference_source,'seconds_remaining':remaining,'rsi14':rs,'ema9':ema9,'ema21':ema21,'volatility_1m':minute_vol,'up_ask':asks.get('up'),'down_ask':asks.get('down'),'model_up_probability':p_up if strike>0 else None})
+            st.success('Observation added to this session.')
+        if st.session_state.logs:
+            st.dataframe(pd.DataFrame(st.session_state.logs),use_container_width=True)
+            st.download_button('Download observations CSV',pd.DataFrame(st.session_state.logs).to_csv(index=False),'btc_signal_observations.csv','text/csv')
+        st.caption('The countdown updates live; other data refreshes when you reload the page. Session observations may disappear if the server restarts; download the CSV. No API keys are used.')
+
+        st.divider()
+        st.markdown('**UTC market window details**')
+        st.markdown(f'**Current UTC window:** {datetime.fromtimestamp(start,timezone.utc):%Y-%m-%d %H:%M}–{datetime.fromtimestamp(start+900,timezone.utc):%H:%M} • **Time remaining:** {remaining//60}m {remaining%60}s')
+        st.markdown(f'[Open current Polymarket US window](https://polymarket.us/event/{slug})')
+
+
+    # PIXEL V9 — AUTOMATED RESEARCH ARCHIVE
+    # Saves a timestamped sample every dashboard refresh, without treating Kraken
+    # prices or a market quote as verified US settlement data.
+    st.markdown('<div class="retro-section">▣ 05 · AUTOMATED US MARKET ARCHIVE // PIXEL V9</div>', unsafe_allow_html=True)
+    ARCHIVE=os.path.join(os.path.dirname(os.path.abspath(__file__)),'btc_signal_history.sqlite3')
+    try:
+        archive=sqlite3.connect(ARCHIVE,timeout=10)
+        archive.execute('''CREATE TABLE IF NOT EXISTS us_market_samples (
+          event_slug TEXT NOT NULL, captured INTEGER NOT NULL, market_slug TEXT,
+          window_start INTEGER, window_end INTEGER, seconds_left INTEGER,
+          us_price_to_beat REAL, kraken_spot REAL, model_up REAL,
+          up_long_quote REAL, down_short_quote REAL, best_bid REAL, best_ask REAL,
+          quote_status TEXT, PRIMARY KEY(event_slug,captured))''')
+        archive.execute('''CREATE TABLE IF NOT EXISTS us_market_results (
+          event_slug TEXT PRIMARY KEY, market_slug TEXT, window_end INTEGER,
+          official_winner TEXT, verified_at INTEGER, source TEXT,
+          status TEXT NOT NULL DEFAULT 'PENDING')''')
+        archive.execute('CREATE INDEX IF NOT EXISTS us_samples_by_time ON us_market_samples(captured)')
+        # Reuse the live quote already fetched in Market Radar, only when the
+        # typed contract identifies BTC Up/Down and the returned slug matches.
+        archive_quote=locals().get('quote')
+        archive_md=archive_quote.get('marketData',{}) if isinstance(archive_quote,dict) else {}
+        if not isinstance(archive_md,dict): archive_md={}
+        archive_terms=(full_market or {}).get('assetPriceTerms') or {}
+        archive_asset=archive_terms.get('asset') or {}
+        archive_mapped=(str(archive_asset.get('symbol','')).lower() in ('btc','xbt')
+                        and 'UP_DOWN' in str(archive_terms.get('marketType','')).upper())
+        archive_market_slug=(full_market or {}).get('slug')
+        archive_quote_ok=bool(archive_mapped and archive_market_slug
+                              and archive_md.get('marketSlug')==archive_market_slug)
+        def archive_price(field):
+            if not archive_quote_ok:return None
+            value=archive_md.get(field)
+            try:
+                v=float(value.get('value') if isinstance(value,dict) else value)
+                return v if math.isfinite(v) and 0<=v<=1 else None
+            except (TypeError,ValueError,AttributeError):return None
+        archive_up=archive_price('longQuote')
+        archive_down=archive_price('shortQuote')
+        archive_bid=archive_price('bestBid')
+        archive_ask=archive_price('bestAsk')
+        # Zero-drift research probability. Never store a proxy as official.
+        archive_model=None
+        if verified_reference and strike>0 and math.isfinite(minute_vol):
+            archive_sigma=max(minute_vol,.00005)*math.sqrt(max(remaining/60,1))
+            archive_model=min(.995,max(.005,normal_cdf(math.log(price/strike)/archive_sigma)))
+        archive.execute('''INSERT OR IGNORE INTO us_market_samples
+           (event_slug,captured,market_slug,window_start,window_end,seconds_left,
+            us_price_to_beat,kraken_spot,model_up,up_long_quote,down_short_quote,
+            best_bid,best_ask,quote_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            (slug,now,archive_market_slug,start,start+900,remaining,
+             reference if verified_reference else None,price,archive_model,
+             archive_up,archive_down,archive_bid,archive_ask,
+             'MAPPED' if archive_quote_ok else 'UNVERIFIED'))
+        archive.execute('''INSERT OR IGNORE INTO us_market_results
+            (event_slug,market_slug,window_end,status) VALUES (?,?,?,'PENDING')''',
+            (slug,archive_market_slug,start+900))
+        archive.commit()
+        # Automatically recheck a few recently completed markets, rate-limited
+        # to once every 5 minutes per Streamlit process. The official winner is
+        # left pending unless a trustworthy, explicit outcome is returned.
+        @st.cache_data(ttl=300,show_spinner=False)
+        def inspect_completed_us_market(market_slug):
+            return us_full_market(market_slug)
+        pending=archive.execute('''SELECT event_slug,market_slug FROM us_market_results
+           WHERE status='PENDING' AND window_end<? AND market_slug IS NOT NULL
+           ORDER BY window_end DESC LIMIT 5''',(now-60,)).fetchall()
+        for old_slug,old_market_slug in pending:
+            try:
+                completed=inspect_completed_us_market(old_market_slug)
+                # A final market record is retained as a status check, not as a
+                # winner unless it exposes an explicit, documented winner field.
+                explicit=completed.get('winningOutcome') or completed.get('winningSide')
+                status=str(completed.get('state') or completed.get('status') or '').upper()
+                if status in ('SETTLED','RESOLVED','MARKET_STATE_SETTLED','MARKET_STATE_RESOLVED') and isinstance(explicit,str) and explicit.upper() in ('UP','DOWN'):
+                    archive.execute('''UPDATE us_market_results SET official_winner=?,verified_at=?,source=?,status='VERIFIED'
+                       WHERE event_slug=?''',(explicit.upper(),now,'US full market explicit winningOutcome/winningSide',old_slug))
+            except Exception:
+                pass # API outages never overwrite or fabricate results
+        archive.commit()
+        counts=archive.execute('''SELECT COUNT(*),COUNT(DISTINCT event_slug),
+            SUM(CASE WHEN model_up IS NOT NULL THEN 1 ELSE 0 END),
+            SUM(CASE WHEN up_long_quote IS NOT NULL THEN 1 ELSE 0 END)
+            FROM us_market_samples''').fetchone()
+        verified_count=archive.execute("SELECT COUNT(*) FROM us_market_results WHERE status='VERIFIED'").fetchone()[0]
+        a,b,c,d=st.columns(4)
+        a.metric('Saved refresh samples',counts[0]);b.metric('Markets tracked',counts[1])
+        c.metric('Model samples',counts[2] or 0);d.metric('Verified outcomes',verified_count)
+        st.caption('Automatically records one observation per refresh. US reference and mapped quotes are stored only when verified in the API. Kraken spot is a separate research feed. No orders are placed.')
+        recent=pd.read_sql_query('''SELECT datetime(captured,'unixepoch') AS utc,
+          event_slug,seconds_left,us_price_to_beat,kraken_spot,model_up,
+          up_long_quote,down_short_quote,quote_status
+          FROM us_market_samples ORDER BY captured DESC LIMIT 100''',archive)
+        with st.expander('Recent archived observations and CSV export'):
+            st.dataframe(recent,hide_index=True,use_container_width=True)
+            st.download_button('Export recent samples CSV',recent.to_csv(index=False),
+                               'btc_us_market_samples.csv','text/csv',key='v9_export_samples')
+        outcomes=pd.read_sql_query('SELECT * FROM us_market_results ORDER BY window_end DESC LIMIT 100',archive)
+        with st.expander('US settlement verification queue'):
+            st.dataframe(outcomes,hide_index=True,use_container_width=True)
+            st.caption('Completed markets remain PENDING unless the US API explicitly identifies a winner. No Kraken-derived winners or assumed settlement prices are counted as official.')
+        if verified_count:
+            evaluation=pd.read_sql_query('''SELECT s.event_slug,s.model_up,r.official_winner,
+              s.up_long_quote,s.down_short_quote FROM us_market_samples s
+              JOIN us_market_results r ON s.event_slug=r.event_slug
+              WHERE r.status='VERIFIED' AND s.model_up IS NOT NULL
+              AND s.captured=(SELECT MIN(t.captured) FROM us_market_samples t
+                  WHERE t.event_slug=s.event_slug AND t.model_up IS NOT NULL)''',archive)
+            if len(evaluation):
+                actual=(evaluation.official_winner=='UP').astype(float)
+                brier=float(((evaluation.model_up-actual)**2).mean())
+                accuracy=float(((evaluation.model_up>=.5)==(actual==1)).mean())
+                st.write(f'**First valid sample per settled market:** {len(evaluation)} · Direction accuracy {accuracy:.1%} · Brier score {brier:.3f}.')
+        archive.close()
+    except (sqlite3.Error,OSError) as exc:
+        st.error(f'Automated archive unavailable: {exc}')
+
+
+
+    st.markdown('<div class="retro-section">▣ 06 · PERMANENT CLOUD HISTORY // PIXEL V13.5 + 24/7</div>',unsafe_allow_html=True)
+    if not CLOUD_READY:
+        st.warning("Supabase not configured here. Set SUPABASE_URL and SUPABASE_KEY in Streamlit secrets.")
+    else:
+        try:
+            cloud_request("POST","btc_markets",
+                params={"on_conflict":"market_slug"},
+                payload={"market_slug":slug,"window_start":utc_iso(start),
+                         "window_end":utc_iso(start+900),
+                         "price_to_beat":reference if verified_reference else None},
+                prefer="resolution=merge-duplicates,return=minimal")
+            if verified_reference and reference and 'final_display' in globals():
+                archive_quote=locals().get("quote")
+                quote_md=archive_quote.get("marketData",{}) if isinstance(archive_quote,dict) else {}
+                if not isinstance(quote_md,dict):quote_md={}
+                quote_market=quote_md.get("marketSlug")
+                confirmed_contract=(full_market or {}).get("slug")
+                terms=(full_market or {}).get("assetPriceTerms") or {}
+                asset=terms.get("asset") or {}
+                mapped=(str(asset.get("symbol","")).lower() in ("btc","xbt") and
+                        any(t in str(terms.get("marketType","")).upper() for t in ("UPDOWN","UP_DOWN")))
+                def cloud_quote(field):
+                    if not (mapped and quote_market and quote_market==confirmed_contract):
+                        return None
+                    raw=quote_md.get(field)
+                    try:
+                        number=float(raw.get("value") if isinstance(raw,dict) else raw)
+                        return number if math.isfinite(number) and 0<=number<=1 else None
+                    except (TypeError,ValueError,AttributeError):
+                        return None
+                cloud_request("POST","btc_predictions",
+                    params={"on_conflict":"market_slug,recorded_at"},
+                    payload={"market_slug":slug,"recorded_at":utc_iso(now),
+                             "seconds_remaining":remaining,"kraken_spot":price,
+                             "price_to_beat":reference,
+                             "predicted_up_probability":float(final_display),
+                             "predicted_down_probability":float(1-final_display),
+                             "market_up_quote":cloud_quote("longQuote"),
+                             "market_down_quote":cloud_quote("shortQuote"),
+                             "model_version":"Pixel V13.3"},
+                    prefer="resolution=ignore-duplicates,return=minimal")
+            @st.cache_data(ttl=300,show_spinner=False)
+            def cloud_pending_markets():
+                return cloud_request("GET","btc_markets",params={
+                    "select":"market_slug,window_end","settlement_status":"eq.PENDING",
+                    "window_end":"lt."+utc_iso(int(time.time())-60),
+                    "order":"window_end.desc","limit":"5"})
+            # Polymarket US documents /v1/markets/{slug}/settlement as a numeric
+            # settlement price. It does not document that 0 or 1 maps to BTC UP/DOWN.
+            # Therefore a numeric response is diagnostic evidence only, not a winner.
+            @st.cache_data(ttl=300,show_spinner=False)
+            def official_settlement_diagnostic(contract_slug):
+                return us_get('/v1/markets/'+contract_slug+'/settlement')
+
+            def safe_market_diagnostics(record):
+                # Only market metadata, never credentials, account data, or request headers.
+                if not isinstance(record,dict):
+                    return {"response_type":type(record).__name__}
+                interesting=("state","status","result","outcome","winner","settle","resolution","side","contract","assetPriceTerms")
+                return {str(k):str(v)[:600] for k,v in record.items()
+                        if any(token in str(k).lower() for token in interesting)}
+
+            def side_mapping_evidence(market, settlement):
+                """Diagnostic only: a 0/1 settlement is not an UP/DOWN winner without a documented mapping."""
+                if not isinstance(market,dict):
+                    return 'Market details unavailable'
+                fields=('marketSides','sides','outcomes','contracts','instrument','assetPriceTerms',
+                        'longSide','shortSide','yesSide','noSide','description','rules','title')
+                available={k:market[k] for k in fields if k in market}
+                if not available:
+                    return 'No explicit side definitions in market response'
+                return str(available)[:1800]
+
+            settlement_diagnostics=[]
+            for item in cloud_pending_markets():
+                old_slug=item["market_slug"]
+                entry={"Event":old_slug,"Contract":"unresolved",
+                       "API state":"unknown","Settlement price":"unavailable",
+                       "Winner":"PENDING","Market fields":"not retrieved",
+                       "Settlement response":"not retrieved","Side mapping evidence":"not retrieved","Check note":""}
+                try:
+                    _,old_contract,_=us_discover(old_slug)
+                    contract=(old_contract or {}).get("slug")
+                    if not contract:
+                        settlement_diagnostics.append(entry)
+                        continue
+                    entry["Contract"]=contract
+                    completed=us_full_market(contract)
+                    state=str(completed.get("state") or completed.get("status") or "unknown").upper()
+                    entry["API state"]=state
+                    entry["Market fields"]=str(safe_market_diagnostics(completed))[:1200]
+                    entry["Side mapping evidence"]=side_mapping_evidence(completed,None)
+                    try:
+                        settlement=official_settlement_diagnostic(contract)
+                        entry["Settlement response"]=str(safe_market_diagnostics(settlement))[:1200]
+                        if isinstance(settlement,dict):
+                            entry["Settlement price"]=str(settlement.get("settlement","unavailable"))
+                    except Exception as settle_exc:
+                        entry["Settlement response"]="Unavailable: "+type(settle_exc).__name__
+                    # Conservative verification: the full official market must
+                    # explicitly identify an UP or DOWN winner and be final.
+                    explicit=completed.get("winningOutcome") or completed.get("winningSide")
+                    if (state in ("SETTLED","RESOLVED","MARKET_STATE_SETTLED","MARKET_STATE_RESOLVED")
+                        and isinstance(explicit,str) and explicit.upper() in ("UP","DOWN")):
+                        cloud_request("PATCH","btc_markets",
+                            params={"market_slug":"eq."+old_slug,"settlement_status":"eq.PENDING"},
+                            payload={"official_winner":explicit.upper(),
+                                     "settlement_status":"VERIFIED","settled_at":utc_iso(now),
+                                     "updated_at":utc_iso(now)},prefer="return=minimal")
+                        entry["Winner"]=explicit.upper()+" (verified)"
+                    if entry["Winner"]=="PENDING":
+                        entry["Check note"]="No documented explicit final UP/DOWN winner identified"
+                except Exception as exc:
+                    entry["API state"]="Lookup unavailable: "+type(exc).__name__
+                    entry["Check note"]=str(exc)[:180]
+                settlement_diagnostics.append(entry)
+            @st.cache_data(ttl=60,show_spinner=False)
+            def cloud_counts():
+                markets=cloud_request("GET","btc_markets",params={
+                    "select":"market_slug,settlement_status","limit":"1000"})
+                preds=cloud_request("GET","btc_predictions",params={
+                    "select":"market_slug,recorded_at,predicted_up_probability,seconds_remaining",
+                    "order":"recorded_at.desc","limit":"30"})
+                return markets,preds
+            cloud_markets,cloud_preds=cloud_counts()
+            x,y,z=st.columns(3)
+            x.metric("Cloud markets tracked",len(cloud_markets))
+            y.metric("Verified US settlements",sum(m.get("settlement_status")=="VERIFIED" for m in cloud_markets))
+            z.metric("Recent saved predictions",len(cloud_preds))
+            st.success("Supabase connected. DigitalOcean collects independently; this dashboard may also save observations while open.")
+            with st.expander("Recent cloud predictions"):
+                if cloud_preds:
+                    st.dataframe(pd.DataFrame(cloud_preds),hide_index=True,use_container_width=True)
+                else: st.caption("No cloud predictions saved yet.")
+            # Read-only explorer of samples collected by DigitalOcean and Streamlit.
+            @st.cache_data(ttl=60,show_spinner=False)
+            def cloud_collector_history():
+                records=[]
+                for offset in (0,1000,2000):
+                    batch=cloud_request("GET","btc_predictions",params={
+                        "select":"market_slug,recorded_at,seconds_remaining,kraken_spot,price_to_beat,predicted_up_probability,predicted_down_probability,model_version",
+                        "order":"recorded_at.desc","limit":"1000","offset":str(offset)})
+                    records.extend(batch)
+                    if len(batch)<1000: break
+                return pd.DataFrame(records)
+
+            with st.expander("24/7 collector history · DigitalOcean + dashboard",expanded=True):
+                st.caption("Read-only Supabase history. The collector runs on DigitalOcean; opening this page is not required for collection. Data may be up to 60 seconds behind.")
+                collector_history=cloud_collector_history()
+                if collector_history.empty:
+                    st.info("No saved prediction records found in Supabase yet.")
                 else:
-                    chart_data=h.set_index("recorded_at")[["predicted_up_probability","predicted_down_probability"]].rename(columns={
-                        "predicted_up_probability":"Model UP","predicted_down_probability":"Model DOWN"})
-                    st.markdown("**Experimental model probability over time**")
-                    st.line_chart(chart_data,use_container_width=True)
-                    st.caption("Probabilities are uncalibrated Kraken-based research estimates, not verified Polymarket win probabilities.")
-                    st.markdown("**Kraken spot and US price-to-beat (USD)**")
-                    st.line_chart(h.set_index("recorded_at")[["kraken_spot","price_to_beat"]].rename(columns={
-                        "kraken_spot":"Kraken spot","price_to_beat":"US price to beat"}),use_container_width=True)
-                    shown=h.sort_values("recorded_at",ascending=False)
-                    st.dataframe(shown.head(200),hide_index=True,use_container_width=True)
-                    st.download_button("Export filtered cloud predictions CSV",shown.to_csv(index=False).encode("utf-8"),
-                        "btc_collector_history.csv","text/csv",key="export_cloud_collector")
-                    st.caption("Official settlement accuracy remains pending until separately verified UP/DOWN results are available. This view does not score unresolved markets.")
-        with st.expander("Official settlement verification queue",expanded=True):
-            st.caption("Diagnostic V13.1: inspect official market state, selected market fields, and settlement response. Numeric settlement prices are NOT treated as payout odds or UP/DOWN winners. Rechecks up to five recent pending markets per refresh cycle.")
-            if settlement_diagnostics:
-                st.dataframe(pd.DataFrame(settlement_diagnostics),hide_index=True,use_container_width=True)
-            else:
-                st.info("No completed markets waiting for verification yet.")
-        with st.expander("Verified forecast accuracy by 3-minute stage",expanded=True):
-            verified_rows=cloud_request("GET","btc_markets",params={
-                "select":"market_slug,official_winner",
-                "settlement_status":"eq.VERIFIED","official_winner":"in.(UP,DOWN)",
-                "limit":"1000"})
-            if not verified_rows:
-                st.info("No officially verified UP/DOWN outcomes yet. Accuracy is pending, not zero percent.")
-            else:
-                winner_map={r["market_slug"]:r["official_winner"] for r in verified_rows}
-                pred_rows=[]
-                for event_id in winner_map:
-                    pred_rows.extend(cloud_request("GET","btc_predictions",params={
-                        "select":"market_slug,recorded_at,seconds_remaining,predicted_up_probability",
-                        "market_slug":"eq."+event_id,
-                        "predicted_up_probability":"not.is.null",
-                        "order":"recorded_at.asc","limit":"1000"}))
-                stage_results=[]
-                if pred_rows:
-                    hist=pd.DataFrame(pred_rows)
-                    hist["stage"]=( (900-pd.to_numeric(hist.seconds_remaining,errors="coerce")).clip(0,899)//180 ).astype(int)
-                    hist=hist.sort_values("recorded_at").drop_duplicates(["market_slug","stage"],keep="first")
-                    hist["actual_up"]=hist.market_slug.map(winner_map).eq("UP").astype(int)
-                    hist["p"]=pd.to_numeric(hist.predicted_up_probability,errors="coerce")
-                    hist=hist.dropna(subset=["p"])
-                    for stage_idx, group in hist.groupby("stage"):
-                        stage_results.append({"Elapsed stage":f"{stage_idx*3}–{(stage_idx+1)*3} min",
-                            "Independent markets":len(group),
-                            "Direction accuracy":f"{((group.p>=.5)==(group.actual_up==1)).mean():.1%}",
-                            "Brier score":round(float(((group.p-group.actual_up)**2).mean()),4)})
-                if stage_results:
-                    st.dataframe(pd.DataFrame(stage_results),hide_index=True,use_container_width=True)
-                    st.caption("One earliest recorded prediction per verified market per stage; no unverified or current market results included. Research estimates are not validated trading probabilities.")
+                    h=collector_history.copy()
+                    h["recorded_at"]=pd.to_datetime(h["recorded_at"],utc=True,errors="coerce")
+                    h=h.dropna(subset=["recorded_at"])
+                    for field in ("kraken_spot","price_to_beat","predicted_up_probability","seconds_remaining"):
+                        h[field]=pd.to_numeric(h[field],errors="coerce")
+                    h=h.sort_values("recorded_at")
+                    latest=h.iloc[-1]
+                    sample_age=(pd.Timestamp.now(tz="UTC")-latest["recorded_at"]).total_seconds()
+                    a,b,c,d=st.columns(4)
+                    a.metric("Loaded predictions",f"{len(h):,}")
+                    b.metric("Markets represented",f"{h.market_slug.nunique():,}")
+                    c.metric("Latest record (UTC)",latest["recorded_at"].strftime("%b %d %H:%M:%S"))
+                    d.metric("Latest sample age",f"{max(0,int(sample_age))} sec")
+                    if sample_age>180:
+                        st.warning("Latest saved prediction is over 3 minutes old. Check the DigitalOcean service logs if collection should be active.")
+                    st.caption("The view loads up to the latest 3,000 records. 'Loaded predictions' is not the all-time database total. Multiple observations from one market are not independent outcomes.")
+                    model_choices=sorted(h["model_version"].dropna().astype(str).unique().tolist())
+                    chosen_models=st.multiselect("Model versions",model_choices,default=model_choices,key="cloud_model_versions")
+                    h=h[h["model_version"].isin(chosen_models)]
+                    market_choices=h["market_slug"].dropna().unique().tolist()[::-1]
+                    selected_market=st.selectbox("Market window",["All loaded markets"]+market_choices,key="cloud_market_window")
+                    if selected_market!="All loaded markets":
+                        h=h[h["market_slug"]==selected_market]
+                    if h.empty:
+                        st.info("No records match these filters.")
+                    else:
+                        chart_data=h.set_index("recorded_at")[["predicted_up_probability","predicted_down_probability"]].rename(columns={
+                            "predicted_up_probability":"Model UP","predicted_down_probability":"Model DOWN"})
+                        st.markdown("**Experimental model probability over time**")
+                        st.line_chart(chart_data,use_container_width=True)
+                        st.caption("Probabilities are uncalibrated Kraken-based research estimates, not verified Polymarket win probabilities.")
+                        st.markdown("**Kraken spot and US price-to-beat (USD)**")
+                        st.line_chart(h.set_index("recorded_at")[["kraken_spot","price_to_beat"]].rename(columns={
+                            "kraken_spot":"Kraken spot","price_to_beat":"US price to beat"}),use_container_width=True)
+                        shown=h.sort_values("recorded_at",ascending=False)
+                        st.dataframe(shown.head(200),hide_index=True,use_container_width=True)
+                        st.download_button("Export filtered cloud predictions CSV",shown.to_csv(index=False).encode("utf-8"),
+                            "btc_collector_history.csv","text/csv",key="export_cloud_collector")
+                        st.caption("Official settlement accuracy remains pending until separately verified UP/DOWN results are available. This view does not score unresolved markets.")
+            with st.expander("Official settlement verification queue",expanded=True):
+                st.caption("Diagnostic V13.1: inspect official market state, selected market fields, and settlement response. Numeric settlement prices are NOT treated as payout odds or UP/DOWN winners. Rechecks up to five recent pending markets per refresh cycle.")
+                if settlement_diagnostics:
+                    st.dataframe(pd.DataFrame(settlement_diagnostics),hide_index=True,use_container_width=True)
                 else:
-                    st.info("Verified outcomes exist, but no eligible predictions have been matched yet.")
-        st.caption('Pixel V13.3 includes the early-lean panel and next-window spot-direction preflight. The settlement queue also exposes available side mapping evidence. Numeric 0/1 settlement values remain diagnostic until a documented mapping confirms what they mean.')
-        st.caption("Cloud history survives redeploys. The DigitalOcean collector runs independently; dashboard-only research features still require an active Streamlit session. Outcomes remain PENDING until the US API explicitly confirms a winner.")
-    except (RuntimeError,requests.RequestException,ValueError,TypeError) as cloud_exc:
-        st.error("Cloud archive error: "+str(cloud_exc)[:240])
-        st.caption("Check Streamlit Secrets and the Supabase tables. The local tracker remains available.")
+                    st.info("No completed markets waiting for verification yet.")
+            with st.expander("Verified forecast accuracy by 3-minute stage",expanded=True):
+                verified_rows=cloud_request("GET","btc_markets",params={
+                    "select":"market_slug,official_winner",
+                    "settlement_status":"eq.VERIFIED","official_winner":"in.(UP,DOWN)",
+                    "limit":"1000"})
+                if not verified_rows:
+                    st.info("No officially verified UP/DOWN outcomes yet. Accuracy is pending, not zero percent.")
+                else:
+                    winner_map={r["market_slug"]:r["official_winner"] for r in verified_rows}
+                    pred_rows=[]
+                    for event_id in winner_map:
+                        pred_rows.extend(cloud_request("GET","btc_predictions",params={
+                            "select":"market_slug,recorded_at,seconds_remaining,predicted_up_probability",
+                            "market_slug":"eq."+event_id,
+                            "predicted_up_probability":"not.is.null",
+                            "order":"recorded_at.asc","limit":"1000"}))
+                    stage_results=[]
+                    if pred_rows:
+                        hist=pd.DataFrame(pred_rows)
+                        hist["stage"]=( (900-pd.to_numeric(hist.seconds_remaining,errors="coerce")).clip(0,899)//180 ).astype(int)
+                        hist=hist.sort_values("recorded_at").drop_duplicates(["market_slug","stage"],keep="first")
+                        hist["actual_up"]=hist.market_slug.map(winner_map).eq("UP").astype(int)
+                        hist["p"]=pd.to_numeric(hist.predicted_up_probability,errors="coerce")
+                        hist=hist.dropna(subset=["p"])
+                        for stage_idx, group in hist.groupby("stage"):
+                            stage_results.append({"Elapsed stage":f"{stage_idx*3}–{(stage_idx+1)*3} min",
+                                "Independent markets":len(group),
+                                "Direction accuracy":f"{((group.p>=.5)==(group.actual_up==1)).mean():.1%}",
+                                "Brier score":round(float(((group.p-group.actual_up)**2).mean()),4)})
+                    if stage_results:
+                        st.dataframe(pd.DataFrame(stage_results),hide_index=True,use_container_width=True)
+                        st.caption("One earliest recorded prediction per verified market per stage; no unverified or current market results included. Research estimates are not validated trading probabilities.")
+                    else:
+                        st.info("Verified outcomes exist, but no eligible predictions have been matched yet.")
+            st.caption('Pixel V13.3 includes the early-lean panel and next-window spot-direction preflight. The settlement queue also exposes available side mapping evidence. Numeric 0/1 settlement values remain diagnostic until a documented mapping confirms what they mean.')
+            st.caption("Cloud history survives redeploys. The DigitalOcean collector runs independently; dashboard-only research features still require an active Streamlit session. Outcomes remain PENDING until the US API explicitly confirms a winner.")
+        except (RuntimeError,requests.RequestException,ValueError,TypeError) as cloud_exc:
+            st.error("Cloud archive error: "+str(cloud_exc)[:240])
+            st.caption("Check Streamlit Secrets and the Supabase tables. The local tracker remains available.")
