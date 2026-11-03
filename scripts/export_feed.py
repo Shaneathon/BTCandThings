@@ -3,7 +3,7 @@ import json, os, urllib.parse, urllib.request
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-base=os.environ['SUPABASE_URL'].strip().rstrip('/')
+base=os.environ['SUPABASE_URL'].strip().rstrip('/')https://github.com/Shaneathon/BTCandThings/blob/main/scripts/export_feed.py
 key=os.environ['SUPABASE_KEY'].strip()
 if not base.startswith('https://') or not key:
     raise RuntimeError('Invalid Supabase configuration')
@@ -14,7 +14,7 @@ def fetch(table, params):
     if not key.startswith('sb_secret_'):
         headers['Authorization']='Bearer '+key
     with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=25) as response:
-        since=(now-timedelta(hours=6)).isoformat()
+                return json.load(response)
 now=datetime.now(timezone.utc)
 since=(now-timedelta(hours=6)).isoformat()
 rows=[]
