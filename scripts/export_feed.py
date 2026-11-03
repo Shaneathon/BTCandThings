@@ -3,7 +3,7 @@ import json, os, urllib.parse, urllib.request
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-base=os.environ['SUPABASE_URL'].strip().rstrip('/')https://github.com/Shaneathon/BTCandThings/blob/main/scripts/export_feed.py
+base=os.environ['SUPABASE_URL'].strip().rstrip('/')
 key=os.environ['SUPABASE_KEY'].strip()
 if not base.startswith('https://') or not key:
     raise RuntimeError('Invalid Supabase configuration')
