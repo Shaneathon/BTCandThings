@@ -5,7 +5,6 @@ import pandas as pd
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
-from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="BTC and Things · Trading", page_icon="₿", layout='wide')
 st.html("""<style>
@@ -46,7 +45,7 @@ h1 {font-size:1.55rem !important;} h2 {font-size:1.2rem !important;} h3 {font-si
 .modern-sub {color:#94a3b8;font-size:12px;margin-top:4px;}
 @media(max-width:700px){.block-container{padding:.65rem .65rem 2rem !important;}.modern-masthead{padding:13px 14px;}}
 </style>""")
-st.html("""<div class="modern-masthead"><div class="modern-kicker">BTC AND THINGS · TRADING INTELLIGENCE · POLYMARKET US</div><div class="modern-title">Bitcoin Trade Tracker</div><div class="modern-sub">15-minute markets · live countdown · manual or optional 60-second market refresh</div></div>""")
+st.html("""<div class="modern-masthead"><div class="modern-kicker">BTC AND THINGS · TRADING INTELLIGENCE · POLYMARKET US</div><div class="modern-title">Bitcoin Trade Tracker</div><div class="modern-sub">15-minute markets · live countdown · automatic 60-second market refresh</div></div>""")
 # The live countdown uses its own JavaScript clock and does not need a rerun.
 # Auto-refresh is opt-in to avoid a third-party component loading failure and
 # repeated full-page redraws. Historical recording still occurs on app reruns.
@@ -59,8 +58,17 @@ with st.sidebar:
     if not auto_refresh_enabled:
         st.caption("Live countdown continues; price, chart and signals update on manual refresh.")
 if auto_refresh_enabled:
-    st_autorefresh(interval=60_000, key='auto_refresh')
-    st.sidebar.caption("Market data refreshes about once per minute while this page stays open.")
+    # Native Streamlit fragment: no third-party JavaScript component required.
+    # The fragment is invoked once on each full run and re-executes after 60 seconds.
+    st.session_state['_btc_last_full_run'] = time.monotonic()
+
+    @st.fragment(run_every="60s")
+    def _native_market_refresh():
+        if time.monotonic() - st.session_state.get('_btc_last_full_run', time.monotonic()) >= 55:
+            st.rerun(scope="app")
+
+    _native_market_refresh()
+    st.sidebar.caption("Automatic market refresh: ON · every 60 seconds")
 
 @st.cache_data(ttl=15)
 def get_json(url, params=None):
@@ -323,33 +331,62 @@ else:
             st.info(f'Using ${strike:,.2f} · {reference_source}. Do not treat this as an official settlement value.')
 verified_reference=reference is not None  # Typed US Retail API field; official settlement result still separate
 
-# Interactive Kraken candles. Kraken is not the official Polymarket US BRTI reference.
+# Lightweight, server-rendered SVG candlesticks avoid Plotly's dynamically loaded frontend module.
+# Kraken candles are NOT the official Polymarket US BRTI settlement reference.
 with chart_top_slot.container():
-    chart_header, chart_interval_col = st.columns([2,1], vertical_alignment="center")
+    chart_header, chart_interval_col = st.columns([2, 1], vertical_alignment="center")
     with chart_header:
         st.markdown("**BTC / USD · Kraken candles**")
     with chart_interval_col:
-        chart_interval = st.radio("Candle interval", ["1m", "5m"], horizontal=True, label_visibility="collapsed", key="modern_candle_interval")
-    try:
-        import plotly.graph_objects as go
-        candle_frame = df.set_index('time')[['open','high','low','close']].copy()
-        if chart_interval == '5m':
-            candle_frame = candle_frame.resample('5min').agg({'open':'first','high':'max','low':'min','close':'last'}).dropna()
-            # Exclude incomplete 5m candle (1m source already excludes live partial minute).
-            cutoff = pd.Timestamp.now(tz='UTC').floor('5min')
-            candle_frame = candle_frame[candle_frame.index < cutoff]
-        candle_frame = candle_frame.tail(100)
-        fig=go.Figure(go.Candlestick(x=candle_frame.index,open=candle_frame.open,high=candle_frame.high,low=candle_frame.low,close=candle_frame.close,
-                    increasing_line_color='#22c55e',decreasing_line_color='#f87171',name='Kraken BTC/USD'))
-        fig.update_layout(height=330,margin=dict(l=6,r=6,t=8,b=8),paper_bgcolor='#151f32',plot_bgcolor='#151f32',font_color='#94a3b8',
-            xaxis=dict(rangeslider=dict(visible=False),showgrid=True,gridcolor='#243247'),yaxis=dict(showgrid=True,gridcolor='#243247',side='right'),
-            dragmode='pan',showlegend=False)
-        if reference is not None:
-            fig.add_hline(y=reference,line_dash='dash',line_color='#fbbf24',annotation_text='US price to beat · different price feed',annotation_font_color='#fbbf24')
-        st.plotly_chart(fig,width="stretch",config={'scrollZoom':True,'displaylogo':False})
-        st.caption('Drag to pan · scroll to zoom · hover for OHLC. Kraken candles are not BRTI settlement prices.')
-    except ImportError:
-        st.warning('Install Plotly to enable the interactive candle chart: pip install plotly')
+        chart_interval = st.radio("Candle interval", ["1m", "5m"], horizontal=True,
+                                  label_visibility="collapsed", key="modern_candle_interval")
+    candle_frame = df.set_index('time')[['open', 'high', 'low', 'close']].copy()
+    if chart_interval == '5m':
+        candle_frame = candle_frame.resample('5min').agg({
+            'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last'}).dropna()
+        candle_frame = candle_frame[candle_frame.index < pd.Timestamp.now(tz='UTC').floor('5min')]
+    candle_frame = candle_frame.tail(80)
+    if candle_frame.empty:
+        st.warning('No completed candles available for this interval.')
+    else:
+        high = float(candle_frame.high.max())
+        low = float(candle_frame.low.min())
+        if reference is not None and low * 0.98 <= reference <= high * 1.02:
+            high, low = max(high, reference), min(low, reference)
+        pad = max((high-low)*0.06, 0.5)
+        high += pad
+        low -= pad
+        w, h, left, right, top, bottom = 900, 310, 12, 94, 14, 30
+        plot_w, plot_h = w-left-right, h-top-bottom
+        def _y(v):
+            return top + (high-float(v)) / max(high-low, 1e-9) * plot_h
+        step = plot_w / max(len(candle_frame), 1)
+        candle_width = max(2, step*0.62)
+        svg = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" '
+               'role="img" aria-label="Kraken BTC USD candlestick chart" '
+               'style="width:100%;height:auto;display:block;background:#151f32;border-radius:12px">']
+        for tick in range(5):
+            value = low+(high-low)*tick/4
+            yy = _y(value)
+            svg.append(f'<line x1="{left}" y1="{yy:.1f}" x2="{w-right}" y2="{yy:.1f}" stroke="#29384e"/>')
+            svg.append(f'<text x="{w-right+8}" y="{yy+4:.1f}" fill="#94a3b8" font-size="13">${value:,.0f}</text>')
+        for i, row in enumerate(candle_frame.itertuples()):
+            x = left+(i+0.5)*step
+            up = float(row.close) >= float(row.open)
+            color = '#22c55e' if up else '#f87171'
+            y_open, y_close = _y(row.open), _y(row.close)
+            y_body = min(y_open, y_close)
+            body_height = max(abs(y_open-y_close), 1.3)
+            svg.append(f'<line x1="{x:.1f}" y1="{_y(row.high):.1f}" x2="{x:.1f}" y2="{_y(row.low):.1f}" stroke="{color}" stroke-width="1.5"/>')
+            svg.append(f'<rect x="{x-candle_width/2:.1f}" y="{y_body:.1f}" width="{candle_width:.1f}" height="{body_height:.1f}" fill="{color}"/>')
+        if reference is not None and low <= reference <= high:
+            yy = _y(reference)
+            svg.append(f'<line x1="{left}" y1="{yy:.1f}" x2="{w-right}" y2="{yy:.1f}" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="6 4"/>')
+        svg.append(f'<text x="{left}" y="{h-9}" fill="#94a3b8" font-size="12">{candle_frame.index[0]:%H:%M} UTC</text>')
+        svg.append(f'<text x="{w-right}" y="{h-9}" text-anchor="end" fill="#94a3b8" font-size="12">{candle_frame.index[-1]:%H:%M} UTC</text>')
+        svg.append('</svg>')
+        st.html(''.join(svg))
+        st.caption('Completed Kraken candles · static chart for reliable loading · yellow line = US target when available. Not BRTI settlement prices.')
 
 # Shared persistent history database for the top-of-page predictor.
 ARCHIVE=os.path.join(os.path.dirname(os.path.abspath(__file__)),'btc_signal_history.sqlite3')
