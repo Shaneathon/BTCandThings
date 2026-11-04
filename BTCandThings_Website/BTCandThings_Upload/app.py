@@ -349,44 +349,59 @@ with chart_top_slot.container():
     if candle_frame.empty:
         st.warning('No completed candles available for this interval.')
     else:
-        high = float(candle_frame.high.max())
-        low = float(candle_frame.low.min())
-        if reference is not None and low * 0.98 <= reference <= high * 1.02:
-            high, low = max(high, reference), min(low, reference)
-        pad = max((high-low)*0.06, 0.5)
-        high += pad
-        low -= pad
-        w, h, left, right, top, bottom = 900, 310, 12, 94, 14, 30
-        plot_w, plot_h = w-left-right, h-top-bottom
-        def _y(v):
-            return top + (high-float(v)) / max(high-low, 1e-9) * plot_h
-        step = plot_w / max(len(candle_frame), 1)
-        candle_width = max(2, step*0.62)
-        svg = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" '
-               'role="img" aria-label="Kraken BTC USD candlestick chart" '
-               'style="width:100%;height:auto;display:block;background:#151f32;border-radius:12px">']
+        # CSS/HTML candlesticks: st.html reliably renders these ordinary HTML
+        # elements (the dashboard cards use the same rendering mechanism).
+        # Avoid raw <svg>, which can be stripped by HTML sanitization, and
+        # avoid external JS chart components and Streamlit media endpoints.
+        chart_high = float(candle_frame['high'].max())
+        chart_low = float(candle_frame['low'].min())
+        if reference is not None and chart_low * 0.98 <= reference <= chart_high * 1.02:
+            chart_high = max(chart_high, float(reference))
+            chart_low = min(chart_low, float(reference))
+        chart_pad = max((chart_high - chart_low) * 0.06, 0.5)
+        chart_high += chart_pad
+        chart_low -= chart_pad
+        chart_span = max(chart_high - chart_low, 1e-9)
+        def chart_y(v):
+            return (chart_high - float(v)) / chart_span * 100.0
+        chart_parts = ["""<style>
+        .btc-chart{position:relative;height:300px;background:#151f32;border:1px solid #29384e;
+            border-radius:12px;overflow:hidden;margin:4px 0 8px}
+        .btc-plot{position:absolute;left:8px;right:84px;top:12px;bottom:28px}
+        .btc-grid{position:absolute;left:0;right:0;border-top:1px solid #29384e;height:0}
+        .btc-axis{position:absolute;right:-78px;transform:translateY(-50%);font:12px system-ui;
+            color:#94a3b8;white-space:nowrap}
+        .btc-candle{position:absolute;top:0;bottom:0}
+        .btc-wick{position:absolute;width:2px;transform:translateX(-50%);border-radius:1px}
+        .btc-body{position:absolute;transform:translateX(-50%);border-radius:1px;min-height:2px}
+        .btc-target{position:absolute;left:0;right:0;border-top:2px dashed #fbbf24;height:0}
+        .btc-time{position:absolute;bottom:8px;color:#94a3b8;font:12px system-ui}
+        </style><div class="btc-chart" role="img" aria-label="Kraken BTC USD candlestick chart"><div class="btc-plot">"""]
         for tick in range(5):
-            value = low+(high-low)*tick/4
-            yy = _y(value)
-            svg.append(f'<line x1="{left}" y1="{yy:.1f}" x2="{w-right}" y2="{yy:.1f}" stroke="#29384e"/>')
-            svg.append(f'<text x="{w-right+8}" y="{yy+4:.1f}" fill="#94a3b8" font-size="13">${value:,.0f}</text>')
+            val = chart_low + chart_span * tick / 4
+            y = chart_y(val)
+            chart_parts.append(f'<div class="btc-grid" style="top:{y:.3f}%"><span class="btc-axis">${val:,.0f}</span></div>')
+        count = len(candle_frame)
+        candle_width = min(68.0 / count, 2.5)
         for i, row in enumerate(candle_frame.itertuples()):
-            x = left+(i+0.5)*step
-            up = float(row.close) >= float(row.open)
-            color = '#22c55e' if up else '#f87171'
-            y_open, y_close = _y(row.open), _y(row.close)
-            y_body = min(y_open, y_close)
-            body_height = max(abs(y_open-y_close), 1.3)
-            svg.append(f'<line x1="{x:.1f}" y1="{_y(row.high):.1f}" x2="{x:.1f}" y2="{_y(row.low):.1f}" stroke="{color}" stroke-width="1.5"/>')
-            svg.append(f'<rect x="{x-candle_width/2:.1f}" y="{y_body:.1f}" width="{candle_width:.1f}" height="{body_height:.1f}" fill="{color}"/>')
-        if reference is not None and low <= reference <= high:
-            yy = _y(reference)
-            svg.append(f'<line x1="{left}" y1="{yy:.1f}" x2="{w-right}" y2="{yy:.1f}" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="6 4"/>')
-        svg.append(f'<text x="{left}" y="{h-9}" fill="#94a3b8" font-size="12">{candle_frame.index[0]:%H:%M} UTC</text>')
-        svg.append(f'<text x="{w-right}" y="{h-9}" text-anchor="end" fill="#94a3b8" font-size="12">{candle_frame.index[-1]:%H:%M} UTC</text>')
-        svg.append('</svg>')
-        st.html(''.join(svg))
-        st.caption('Completed Kraken candles · static chart for reliable loading · yellow line = US target when available. Not BRTI settlement prices.')
+            x = (i + 0.5) * 100 / count
+            wick_top, wick_bottom = chart_y(row.high), chart_y(row.low)
+            open_y, close_y = chart_y(row.open), chart_y(row.close)
+            body_top, body_bottom = min(open_y, close_y), max(open_y, close_y)
+            color = '#22c55e' if row.close >= row.open else '#f87171'
+            chart_parts.append(
+                f'<div class="btc-candle" style="left:{x:.4f}%">'
+                f'<div class="btc-wick" style="top:{wick_top:.3f}%;height:{max(wick_bottom-wick_top,.12):.3f}%;background:{color}"></div>'
+                f'<div class="btc-body" style="top:{body_top:.3f}%;height:{max(body_bottom-body_top,.35):.3f}%;width:clamp(2px,{candle_width:.4f}vw,9px);background:{color}"></div>'
+                '</div>')
+        if reference is not None and chart_low <= reference <= chart_high:
+            chart_parts.append(f'<div class="btc-target" style="top:{chart_y(reference):.3f}%"></div>')
+        chart_parts.append('</div>')
+        chart_parts.append(f'<span class="btc-time" style="left:12px">{candle_frame.index[0]:%H:%M} UTC</span>')
+        chart_parts.append(f'<span class="btc-time" style="right:90px">{candle_frame.index[-1]:%H:%M} UTC</span>')
+        chart_parts.append('</div>')
+        st.html(''.join(chart_parts))
+        st.caption('Completed Kraken candles · green = up, red = down · yellow dashed line = US target when available. Not BRTI settlement prices.')
 
 # Shared persistent history database for the top-of-page predictor.
 ARCHIVE=os.path.join(os.path.dirname(os.path.abspath(__file__)),'btc_signal_history.sqlite3')
