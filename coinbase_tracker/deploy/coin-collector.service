@@ -1,0 +1,18 @@
+[Unit]
+Description=Coin Coinbase public research data collector (no trading)
+After=network-online.target
+[Service]
+User=coin
+Group=coin
+WorkingDirectory=/opt/coin
+ExecStart=/opt/coin/venv/bin/python -m coinbase_tracker.collector --db /var/lib/coin/research.sqlite --loop --interval 15
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/coin
+UMask=0077
+[Install]
+WantedBy=multi-user.target

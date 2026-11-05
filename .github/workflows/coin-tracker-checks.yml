@@ -1,0 +1,28 @@
+name: Coinbase research tracker checks
+on:
+  push:
+    branches: ['tracker/coinbase-research']
+  pull_request:
+    paths:
+      - 'coinbase_tracker/**'
+      - 'coinbase_bot/runner.py'
+      - 'trading_bot/server.py'
+      - '.github/workflows/coin-tracker-checks.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  research-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r coinbase_tracker/requirements.txt
+      - name: Collector, CBot integration and shared transport regression tests
+        run: |
+          python -m unittest discover -s coinbase_tracker/tests -v
+          python -m unittest discover -s coinbase_bot/tests -v
+          python -m unittest discover -s trading_bot/tests -v
+      - run: python coinbase_tracker/smoke_ui.py

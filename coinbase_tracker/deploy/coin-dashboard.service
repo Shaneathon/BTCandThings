@@ -1,0 +1,18 @@
+[Unit]
+Description=Coin independent Coinbase tracker dashboard
+After=coin-status.service
+[Service]
+User=coin
+Group=coin
+WorkingDirectory=/opt/coin
+EnvironmentFile=/etc/coin.env
+ExecStart=/opt/coin/venv/bin/streamlit run coinbase_tracker/app.py --server.address=127.0.0.1 --server.port=8504 --server.headless=true
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+UMask=0077
+[Install]
+WantedBy=multi-user.target

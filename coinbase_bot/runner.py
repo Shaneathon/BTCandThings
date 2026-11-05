@@ -14,11 +14,18 @@ def main():
     parser.add_argument('--kill-file',type=Path,required=True)
     parser.add_argument('--snapshots',type=Path,help='Offline reviewed fixture data instead of public reads')
     parser.add_argument('--loop',action='store_true')
+    parser.add_argument('--tracker-url',help='Optional coin tracker /status source instead of duplicate public requests')
     args=parser.parse_args()
+    if args.snapshots and args.tracker_url:
+        parser.error('Choose tracker or offline snapshots, not both')
     bot=PaperBot(args.ledger,Config(**json.loads(args.config.read_text())))
     try:
         while True:
-            if args.snapshots:
+            if args.tracker_url:
+                import os
+                from coinbase_tracker.client import fetch,bot_inputs
+                data=bot_inputs(fetch(args.tracker_url,os.environ.get('COIN_READ_TOKEN','')))
+            elif args.snapshots:
                 if args.snapshots.stat().st_size>4_000_000: raise ValueError('Snapshot file too large')
                 data=json.loads(args.snapshots.read_text())
             else:

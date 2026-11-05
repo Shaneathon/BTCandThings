@@ -16,8 +16,8 @@ def snapshot(path):
 
 
 class Handler(BaseHTTPRequestHandler):
-    def __init__(self,*args,ledger,token,**kwargs):
-        self.ledger,self.token=ledger,token
+    def __init__(self,*args,ledger,token,reader=snapshot,**kwargs):
+        self.ledger,self.token,self.reader=ledger,token,reader
         super().__init__(*args,**kwargs)
 
     def do_GET(self):
@@ -28,7 +28,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(401)
             return
         try:
-            payload=json.dumps(snapshot(self.ledger)).encode()
+            payload=json.dumps(self.reader(self.ledger)).encode()
         except Exception:
             self.send_error(503,'Status unavailable')
             return
