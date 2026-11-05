@@ -251,6 +251,21 @@ def us_discover(event_slug):
         diagnostics.append('No exact US API match found. Website URL alone does not establish an API instrument ID.')
     return found_event,found_market,diagnostics
 
+# Six-market Polymarket US radar is independent of the BTC-only model below.
+# No additional asset is assigned BTC probabilities or BTC settlement outcomes.
+from market_board import render_market_radar
+
+@st.cache_data(ttl=30,show_spinner=False)
+def radar_full_market(contract_slug):
+    response=us_get('/v1/market/slug/'+contract_slug)
+    root=response.get('data',response) if isinstance(response,dict) else response
+    if isinstance(root,dict) and isinstance(root.get('market'),dict):
+        root=root['market']
+    return root if isinstance(root,dict) else None
+
+with st.expander("Six-asset 15-minute market radar · BTC / ETH / XRP / SOL / Gold / Silver", expanded=True):
+    render_market_radar(st, us_discover, radar_full_market, start)
+
 us_event,market,us_diagnostics=us_discover(slug)
 if not us_event and not market:
     st.warning('US event/market not verified for this exact 15-minute window. Live US odds unavailable; no substitute market will be used.')
