@@ -1,0 +1,24 @@
+name: Read-only research audit checks
+on:
+  pull_request:
+    paths:
+      - 'tools/research_report.py'
+      - 'tools/test_research_report.py'
+      - '.github/workflows/research-audit-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Syntax and offline unit tests (no credentials)
+        run: |
+          python -m py_compile tools/research_report.py
+          python -m unittest discover -s tools -p 'test_research_report.py' -v
