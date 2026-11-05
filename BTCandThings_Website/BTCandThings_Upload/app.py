@@ -115,7 +115,7 @@ h1 {font-size:1.55rem !important;} h2 {font-size:1.2rem !important;} h3 {font-si
     }
 }
 </style>""")
-st.html("""<div class="modern-masthead"><div class="modern-kicker">BTC AND THINGS · TRADING INTELLIGENCE · POLYMARKET US</div><div class="modern-title">Bitcoin Trade Tracker</div><div class="modern-sub">15-minute markets · live countdown · automatic 60-second market refresh</div></div>""")
+st.html("""<div class="modern-masthead"><div class="modern-kicker">BTC AND THINGS · TRADING INTELLIGENCE · POLYMARKET US</div><div class="modern-title">Multi-Asset Market Tracker</div><div class="modern-sub">Six assets · 5-minute and 15-minute markets · live monitoring</div></div>""")
 # The live countdown uses its own JavaScript clock and does not need a rerun.
 # Auto-refresh is opt-in to avoid a third-party component loading failure and
 # repeated full-page redraws. Historical recording still occurs on app reruns.
@@ -167,6 +167,15 @@ def parse_array(v):
     if isinstance(v,list): return v
     try: return json.loads(v)
     except Exception:return []
+
+# Compact top-level market navigation. Only one asset and one duration is visible.
+# All other views are independently verified monitors, not cloned BTC forecasts.
+st.markdown("### Select market")
+nav_assets = ("BTC", "ETH", "XRP", "SOL", "GOLD", "SILVER")
+selected_asset = st.radio("Asset", nav_assets, horizontal=True, key="workspace_asset")
+selected_duration = st.radio("Duration", ("15m", "5m"), horizontal=True,
+                             key="workspace_duration")
+st.caption(f"Viewing {selected_asset} · {selected_duration} · Polymarket US")
 
 now=int(time.time()); start=now//900*900; remaining=max(0,start+900-now)
 slug=f'btc-updown-15m-{datetime.fromtimestamp(start,timezone.utc):%Y-%m-%d-%H%M}z'
@@ -251,20 +260,22 @@ def us_discover(event_slug):
         diagnostics.append('No exact US API match found. Website URL alone does not establish an API instrument ID.')
     return found_event,found_market,diagnostics
 
-# Six-market Polymarket US radar is independent of the BTC-only model below.
-# No additional asset is assigned BTC probabilities or BTC settlement outcomes.
-from market_board import render_market_radar
+# Keep the fully developed BTC 15m tracker intact. Other selections open a
+# focused read-only workspace, without running BTC-only models or archive writes.
+if selected_asset != "BTC" or selected_duration != "15m":
+    from market_workspace import render_workspace
 
-@st.cache_data(ttl=30,show_spinner=False)
-def radar_full_market(contract_slug):
-    response=us_get('/v1/market/slug/'+contract_slug)
-    root=response.get('data',response) if isinstance(response,dict) else response
-    if isinstance(root,dict) and isinstance(root.get('market'),dict):
-        root=root['market']
-    return root if isinstance(root,dict) else None
+    @st.cache_data(ttl=30, show_spinner=False)
+    def workspace_full_market(contract_slug):
+        response=us_get('/v1/market/slug/'+contract_slug)
+        root=response.get('data',response) if isinstance(response,dict) else response
+        if isinstance(root,dict) and isinstance(root.get('market'),dict):
+            root=root['market']
+        return root if isinstance(root,dict) else None
 
-with st.expander("Six-asset 15-minute market radar · BTC / ETH / XRP / SOL / Gold / Silver", expanded=True):
-    render_market_radar(st, us_discover, radar_full_market, start)
+    render_workspace(st, components, selected_asset, selected_duration, now,
+                     us_discover, workspace_full_market, get_json)
+    st.stop()
 
 us_event,market,us_diagnostics=us_discover(slug)
 if not us_event and not market:

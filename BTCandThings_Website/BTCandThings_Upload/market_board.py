@@ -22,7 +22,7 @@ def market_slug(prefix, start):
     return f"{prefix}-updown-15m-{datetime.fromtimestamp(start, timezone.utc):%Y-%m-%d-%H%M}z"
 
 
-def typed_reference(market, allowed_symbols, start):
+def typed_reference(market, allowed_symbols, start, seconds=900):
     """Only accept a target tied to the expected asset, type and 15m window."""
     if not isinstance(market, dict):
         return None
@@ -42,7 +42,7 @@ def typed_reference(market, allowed_symbols, start):
             return int(datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp())
         except (ValueError, TypeError, OverflowError):
             return None
-    if epoch(terms.get("windowStart")) != start or epoch(terms.get("windowEnd")) != start+900:
+    if epoch(terms.get("windowStart")) != start or epoch(terms.get("windowEnd")) != start+seconds:
         return None
     raw = terms.get("priceToBeat")
     if not isinstance(raw, dict) or str(raw.get("currency", "USD")).upper() != "USD":
