@@ -9,10 +9,10 @@ class WorkspaceTests(unittest.TestCase):
     def test_all_twelve_selectable(self):
         self.assertEqual(len(ASSETS)*len(DURATIONS),12)
     def test_five_minute_slug(self):
-        self.assertEqual(event_slug("ETH","5m",1793829300),"eth-updown-5m-2026-11-04-2255z")
+        self.assertEqual(event_slug("ETH","5m",1793832900),"eth-updown-5m-2026-11-04-2255z")
     def test_unsupported_metal_five_minute(self):
-        self.assertIsNone(event_slug("GOLD","5m",1793829300))
-        self.assertIsNotNone(event_slug("GOLD","15m",1793829000))
+        self.assertIsNone(event_slug("GOLD","5m",1793832900))
+        self.assertIsNotNone(event_slug("GOLD","15m",1793832600))
     def test_boundaries(self):
         self.assertEqual(window_for(901, "5m"),(900,1200))
         self.assertEqual(window_for(901, "15m"),(900,1800))
@@ -22,9 +22,9 @@ class WorkspaceTests(unittest.TestCase):
                 "windowStart":"2026-11-04T22:55:00Z",
                 "windowEnd":"2026-11-04T23:00:00Z",
                 "priceToBeat":{"value":"2400","currency":"USD"}}}
-        self.assertEqual(verified_target(market,"ETH",1793829300,"5m"),2400)
-        self.assertIsNone(verified_target(market,"ETH",1793829300,"15m"))
-        self.assertIsNone(verified_target(market,"BTC",1793829300,"5m"))
+        self.assertEqual(verified_target(market,"ETH",1793832900,"5m"),2400)
+        self.assertIsNone(verified_target(market,"ETH",1793832900,"15m"))
+        self.assertIsNone(verified_target(market,"BTC",1793832900,"5m"))
 
 if __name__=="__main__":
     unittest.main()
