@@ -179,21 +179,6 @@ st.caption(f"Viewing {selected_asset} · {selected_duration} · Polymarket US")
 
 now=int(time.time()); start=now//900*900; remaining=max(0,start+900-now)
 slug=f'btc-updown-15m-{datetime.fromtimestamp(start,timezone.utc):%Y-%m-%d-%H%M}z'
-# Browser-side UTC-aligned countdown. Runs continuously without refreshing Streamlit.
-# Polymarket BTC 15m market slugs follow UTC epoch 900-second boundaries.
-top_left, top_right = st.columns([1, 1], gap="medium")
-with top_left:
-    timer_top_slot=st.empty()
-with top_right:
-    chart_top_slot=st.empty()
-# Live countdown is shown in the left panel; candle chart is on the right.
-# Reserve top-of-dashboard positions; fill after market and indicator data loads.
-lean_col, preflight_col = st.columns([1, 1], gap="medium")
-with lean_col:
-    lean_top_slot=st.empty()
-with preflight_col:
-    preflight_top_slot=st.empty()
-ending_top_slot=st.empty()
 US_GATEWAY='https://gateway.polymarket.us'
 @st.cache_data(ttl=15)
 def us_get(path):
@@ -276,6 +261,22 @@ if selected_asset != "BTC" or selected_duration != "15m":
     render_workspace(st, components, selected_asset, selected_duration, now,
                      us_discover, workspace_full_market, get_json)
     st.stop()
+
+# Browser-side UTC-aligned countdown. Runs continuously without refreshing Streamlit.
+# Polymarket BTC 15m market slugs follow UTC epoch 900-second boundaries.
+top_left, top_right = st.columns([1, 1], gap="medium")
+with top_left:
+    timer_top_slot=st.empty()
+with top_right:
+    chart_top_slot=st.empty()
+# Live countdown is shown in the left panel; candle chart is on the right.
+# Reserve top-of-dashboard positions; fill after market and indicator data loads.
+lean_col, preflight_col = st.columns([1, 1], gap="medium")
+with lean_col:
+    lean_top_slot=st.empty()
+with preflight_col:
+    preflight_top_slot=st.empty()
+ending_top_slot=st.empty()
 
 us_event,market,us_diagnostics=us_discover(slug)
 if not us_event and not market:
