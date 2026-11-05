@@ -1,0 +1,165 @@
+"""Ten-stream shadow collector. Public reads, local SQLite only; never trades."""
+import argparse
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+import sys
+import time
+from urllib.parse import quote
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'BTCandThings_Website'/'BTCandThings_Upload'))
+from market_workspace import ASSETS, LISTED_DURATIONS, DURATIONS, event_slug, verified_target
+from market_candles import load_candles
+from tracker_panels import research_signal
+from collector import Store, get_json, unwrap, iso, epoch
+
+STREAMS = [(asset, duration) for asset in ASSETS for duration in LISTED_DURATIONS[asset]]
+GATEWAY = 'https://gateway.polymarket.us'
+MODEL = 'Multi-asset spot baseline research V1'
+
+
+def market(get, asset, duration, start, now):
+    slug = event_slug(asset, duration, start)
+    event = unwrap(get(GATEWAY+'/v1/events/slug/'+slug), 'event')
+    if not isinstance(event, dict) or event.get('slug') != slug:
+        raise ValueError('Event identity mismatch')
+    linked = event.get('markets')
+    if isinstance(linked, dict):
+        linked = list(linked.values())
+    if not isinstance(linked, list) or len(linked) != 1 or not isinstance(linked[0], dict):
+        raise ValueError('Unique linked contract required')
+    contract = linked[0].get('slug')
+    if not isinstance(contract, str) or not contract:
+        raise ValueError('Missing contract slug')
+    details = unwrap(get(GATEWAY+'/v1/market/slug/'+quote(contract, safe='')), 'market')
+    if not isinstance(details, dict) or details.get('slug') != contract:
+        raise ValueError('Contract identity mismatch')
+    target = verified_target(details, asset, start, duration)
+    if target is None:
+        raise ValueError('Asset, window or official target unverified')
+    return dict(market_slug=slug, asset=asset, duration_seconds=DURATIONS[duration],
+                window_start=iso(start), window_end=iso(start+DURATIONS[duration]),
+                contract_slug=contract, market_type=details['assetPriceTerms']['marketType'],
+                official_price_to_beat=target, reference_source='Polymarket US assetPriceTerms',
+                settlement_status='PENDING', updated_at=iso(now)), details
+
+
+def initialize(store):
+    store.db.execute('''CREATE TABLE IF NOT EXISTS research_snapshots (
+        market_slug TEXT, recorded_at TEXT, model_version TEXT, payload TEXT,
+        PRIMARY KEY(market_slug, recorded_at, model_version))''')
+    store.db.execute('''CREATE TABLE IF NOT EXISTS collector_status (
+        singleton INTEGER PRIMARY KEY CHECK(singleton=1), observed_at REAL, payload TEXT)''')
+    store.db.commit()
+
+
+def collect(store, get=get_json, now=None):
+    fixed_time = now is not None
+    now = time.time() if now is None else now
+    initialize(store)
+    report = dict(observed_at=iso(now), streams={}, assets={}, settlement_adapter='NOT_CONNECTED',
+                  cloud_storage='NOT_CONNECTED', real_trading=False)
+    feeds = {}
+    # Fetch six feeds, not ten: both crypto durations share one asset's bars.
+    for asset, config in ASSETS.items():
+        try:
+            frame, source = load_candles(get, asset, config['pair'], now)
+            feeds[asset] = frame
+            rows = []
+            for bar in frame.itertuples(index=False):
+                rows.append(dict(asset=asset, source_name='Kraken' if config['pair'] else 'Yahoo futures proxy',
+                    source_symbol=config['pair'] or {'GOLD':'GC=F','SILVER':'SI=F'}[asset], interval_seconds=60,
+                    candle_open=bar.time.isoformat(), open_price=float(bar.open), high_price=float(bar.high),
+                    low_price=float(bar.low), close_price=float(bar.close),
+                    volume=float(bar.volume) if bar.volume == bar.volume else None,
+                    completed=True, is_official_settlement_feed=False))
+            report['assets'][asset] = dict(candles_changed=store.put('candle', rows), source=source)
+        except Exception as exc:
+            report['assets'][asset] = {'feed_error': type(exc).__name__}
+    for asset, duration in STREAMS:
+        key = asset+'_'+duration
+        seconds = DURATIONS[duration]
+        start = int(now)//seconds*seconds
+        state = dict(collection_ready=False, predictions_saved=0, market_errors=[], window_end=iso(start+seconds))
+        report['streams'][key] = state
+        # Revisit recent closed contracts and archive their raw evidence. No
+        # official outcome is inferred until a finality/side adapter is reviewed.
+        current = None
+        for boundary in (start-seconds, start):
+            try:
+                row, details = market(get, asset, duration, boundary, now)
+                store.evidence(row['market_slug'], now, details)
+                store.put('market', [row])
+                if boundary == start:
+                    current = row
+            except Exception as exc:
+                state['market_errors'].append({'window_start':iso(boundary), 'error':type(exc).__name__})
+        if asset not in feeds:
+            state['paused_reason'] = 'Asset feed unavailable'
+            continue
+        observed = now if fixed_time else time.time()
+        signal = research_signal(feeds[asset], observed, start+seconds,
+                                 current['official_price_to_beat'] if current else None)
+        if not current or not signal['ready']:
+            state['paused_reason'] = signal.get('reason') or 'Current official target unverified'
+            continue
+        state['collection_ready'] = True
+        snapshot = dict(market_slug=current['market_slug'], recorded_at=iso(observed), model_version=MODEL,
+                        model_role='RESEARCH', predicted_up_probability=signal['probability'],
+                        lean_direction=signal['direction'], source_timestamp=iso(signal['source_time']),
+                        feature_snapshot=dict(asset=asset, duration_seconds=seconds, score=signal['score'],
+                                              swing=signal['swing'], spot=signal['price'], target=current['official_price_to_beat']))
+        with store.db:
+            cursor = store.db.execute('INSERT OR IGNORE INTO research_snapshots VALUES (?,?,?,?)',
+                (snapshot['market_slug'], snapshot['recorded_at'], MODEL, json.dumps(snapshot, allow_nan=False)))
+            state['predictions_saved'] = cursor.rowcount
+    report['collection_ready'] = all(r['collection_ready'] for r in report['streams'].values())
+    report['simulation_ready'] = False  # Official settlement/quotes/fees not integrated.
+    completed = now if fixed_time else time.time()
+    with store.db:
+        store.db.execute('INSERT INTO collector_status VALUES (1,?,?) ON CONFLICT(singleton) DO UPDATE SET observed_at=excluded.observed_at,payload=excluded.payload',
+                         (completed, json.dumps(report, allow_nan=False)))
+    return report
+
+
+def validate(path, now=None):
+    import sqlite3
+    now = time.time() if now is None else now
+    with sqlite3.connect(Path(path).resolve().as_uri()+'?mode=ro', uri=True) as db:
+        record = db.execute('SELECT observed_at,payload FROM collector_status WHERE singleton=1').fetchone()
+        if not record:
+            raise ValueError('No collection pass recorded')
+        report = json.loads(record[1])
+        report['status_age_seconds'] = now-record[0]
+        report['status_fresh'] = 0 <= report['status_age_seconds'] <= 180
+        report['collection_ready'] = (report['collection_ready'] and report['status_fresh']
+                                      and set(report['streams']) == {a+'_'+d for a,d in STREAMS}
+                                      and all(epoch(s['window_end']) > now for s in report['streams'].values()))
+        report['total_prediction_snapshots'] = db.execute('SELECT count(*) FROM research_snapshots').fetchone()[0]
+        return report
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--db', type=Path, required=True)
+    parser.add_argument('--loop', action='store_true')
+    parser.add_argument('--validate', action='store_true')
+    args = parser.parse_args()
+    if args.validate:
+        report = validate(args.db)
+        print(json.dumps(report, indent=2))
+        raise SystemExit(0 if report['collection_ready'] else 1)
+    store = Store(args.db)
+    try:
+        while True:
+            report = collect(store)
+            print(json.dumps(report), flush=True)
+            if not args.loop:
+                raise SystemExit(0 if report['collection_ready'] else 1)
+            time.sleep(60)
+    finally:
+        store.db.close()
+
+
+if __name__ == '__main__':
+    main()
