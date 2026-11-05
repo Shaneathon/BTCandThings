@@ -569,13 +569,22 @@ def signal_tone(direction):
 
 with lean_top_slot.container():
     lean_border, lean_text, lean_arrow = signal_tone(early_lean)
-    st.html(f'''<div class="signal-card {lean_border}">
+    lean_col, position_col = st.columns(2, gap="medium")
+    with lean_col:
+        st.html(f'''<div class="signal-card {lean_border}">
       <div class="card-heading">↗ &nbsp; CURRENT BTC LEAN</div>
       <div class="card-value {lean_text}">{early_lean} {lean_arrow}</div>
       <div class="card-meta">Directional agreement: <b>{abs(early_score)}/5</b><br>
       Swing watch: <b>{'WATCH · potential reversal' if early_swing else 'CLEAR'}</b></div>
     </div>''')
-    st.caption('Completed Kraken 1-minute candles · spot momentum, not verified contract odds.')
+    with position_col:
+        st.html('''<div class="signal-card neutral">
+          <div class="card-heading">POSITION SUGGESTION · RESEARCH MODE</div>
+          <div class="card-value signal-neutral">WAIT / OBSERVE</div>
+          <div class="card-meta">No validated trading edge yet.<br>
+          Continue monitoring the current BTC lean and market conditions.</div>
+        </div>''')
+    st.caption('Completed Kraken 1-minute candles · spot momentum, not verified contract odds. Position suggestion is research-only.')
 
 # The next market has a different, as-yet-unknown US price-to-beat.
 # Therefore only predict the first three minutes of Kraken spot direction, not next contract payout.
