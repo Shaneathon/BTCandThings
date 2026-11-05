@@ -1,17 +1,14 @@
-# Ten-stream installation preparation
+# Prepared ten-stream installation
 
-This package is prepared for a separate `btc-multiasset-research.service` on the
-existing DigitalOcean droplet. No deployment has been performed. It does not
-edit, restart or replace `btc-collector.service` or `btc-challenger.service`.
+The full handoff is [CONNECT_WHEN_READY.md](CONNECT_WHEN_READY.md). This package
+has been tested locally but not deployed to DigitalOcean or production Supabase.
+Existing btc-collector.service and btc-challenger.service are never edited or
+restarted. The independent new unit is btc-multiasset-research.service.
 
-Streams: BTC/ETH/XRP/SOL × 5m/15m and GOLD/SILVER × 15m. No metals 5m contracts
-are invented. Six shared feed requests provide completed 1m candles; each of the
-ten streams records its own verified market metadata and observed-time research
-prediction. Repeated identical observation timestamps are deduplicated.
+## Short setup flow — use after the connected preflight
 
-## Short console flow (after live prerequisites are validated)
-
-One installation block, executed as root in the droplet console:
+After confirming real API responses, additive schema and staging permissions,
+run one block as root in the droplet console:
 
 ```bash
 (
@@ -19,87 +16,79 @@ One installation block, executed as root in the droplet console:
   research_source=$(mktemp -d /tmp/btc-research-source.XXXXXX)
   git -C /root/BTCandThings fetch origin research/ten-stream-setup
   git -C /root/BTCandThings archive FETCH_HEAD | tar -x -C "$research_source"
-  bash "$research_source/deploy/install-research.sh" --start
+  bash "$research_source/deploy/install-research.sh" --start-cloud
 )
 ```
 
-This fetches the separate preparation branch without checking it out, pulling
-into the running checkout, resetting files, or changing production service code.
-Git authentication must already work on the droplet; no token is embedded.
+This does not pull/reset/switch the running checkout. It prepares an immutable
+release, an isolated venv, capacity checks, all packaged collector tests and a
+live ten-stream preflight. Only after preflight passes does it privately ask for
+the Supabase URL and hidden server key, verify research-table read access, save
+root-mode-600 configuration and start the separate service. It refuses to
+overwrite an existing unit or credential file. No credentials belong in chat.
 
-The installer builds an isolated release and venv under `/opt`, installs pandas,
-runs all 15 collector tests, and then performs a live local-data preflight.
-**If any current stream lacks a verified target or fresh sufficient candles,
-service activation is refused.** An existing multiasset unit is never overwritten.
-It will not secretly deploy only eight markets while claiming all ten work.
+The installer prints one exact release-specific validation command. Cloud-enabled
+installation uses `--validate --require-cloud`: stale status, expired windows,
+missing streams, sync errors or a possible upload backlog produce a nonzero exit.
+Repeated runs drain the bounded upload backlog. Individual quote and settlement
+readiness are reported separately; collection success is not simulation readiness.
 
-After the first collection pass, use one validation command (the installer prints
-the exact release-specific command, with no environment activation needed):
-
-```bash
-/opt/btcandthings-research/releases/RELEASE/venv/bin/python \
-  /opt/btcandthings-research/releases/RELEASE/collection/ten_streams.py \
-  --db /var/lib/btcandthings-research/research.sqlite --validate
-```
-
-Alternatively, from a copy of this preparation branch:
+From a copy of this branch, an equivalent command also prints existing service
+states without changing them:
 
 ```bash
-bash deploy/validate-research.sh
+bash deploy/validate-research.sh --require-cloud
 ```
 
-The validation script also prints both existing service states. It never stops
-a process. Read-only validation fails if collection status is older than three
-minutes, if any stream is missing, if a configured market window has rolled over,
-or if any stream was paused. Readiness is per market, not just a running PID.
+Use `--start` for local shadow storage only, or `--prepare` for package installation
+and tests without live requests or systemd changes. Preparation supports
+BTC_RESEARCH_INSTALL_ROOT and BTC_RESEARCH_STATE_ROOT overrides for temporary
+rehearsals. Activation uses the standard /opt and /var/lib paths only.
 
-For install-only staging, `--prepare` runs installation/tests but neither
-contacts live markets nor registers/starts services. `BTC_RESEARCH_INSTALL_ROOT`
-and `BTC_RESEARCH_STATE_ROOT` may point to temporary directories in this mode.
-`--start` requires standard /opt and /var/lib locations and root access.
+## Components
 
-## What this phase does and does not provide
+- Six price feeds shared across ten market streams, exact typed contract checks,
+  completed candles and actual observation-time research snapshots in SQLite.
+- Raw Polymarket BBO evidence (SDK-confirmed route), with side mapping explicitly
+  pending. It is not silently treated as executable UP/DOWN fills.
+- Explicit semantic winner settlement reconciliation with pending-queue rotation,
+  retained evidence and no downgrade of final local outcomes.
+- Opt-in cloud sync to only three dedicated asset_* tables. Natural keys and
+  checkpoints support restarts/retries; target, identity and final-winner
+  conflicts are never silently overwritten.
+- Read-only per-asset website performance wiring, prepared on this branch.
+- Offline simulation calculator requiring reviewed normalized quotes and explicit
+  fees/slippage. It places no orders and is not a portfolio/liquidity simulator.
 
-Local permanent-on-droplet SQLite storage includes candles, checked targets and
-contract metadata, raw contract evidence and observed research snapshots. It is
-not Supabase synchronization. Prediction timestamps are actual observation times;
-source candle timestamps are stored separately. It does not backfill invented
-historical predictions. SQLite transactions support restart and retry.
+Raw quote evidence is not uploaded as mapped quotes. Paper trade reports stay
+local; there is no automatic paper-trade cloud uploader. The original
+collector.py/audit.py retain the separate four-crypto workflow; ten_streams.py
+and its --validate mode handle this ten-stream workflow.
 
-Price sources are Kraken USD spot for crypto, and Yahoo GC=F/SI=F futures proxies
-for metals. Metals can be stale during closures or rate-limited. These are not
-Chainlink or CF Benchmarks settlement feeds. The installer must wait for fresh
-market data or a separately verified alternative source; do not disable the gate.
+## Capacity and remaining live requirements
 
-The report explicitly sets `simulation_ready: false`, `settlement_adapter:
-NOT_CONNECTED` and `cloud_storage: NOT_CONNECTED`. Collecting research inputs
-is not enough to validate simulated profit/loss. Official outcome-side/finality
-mapping, executable quotes, fees, slippage, a reviewed Supabase ingestion adapter,
-server disk capacity/retention policy and API request limits still need completion
-before the full permanent-history/simulation workflow can be declared ready.
-Closed windows are currently revisited one interval back; long-lag settlement
-reconciliation requires the future settlement adapter.
+Installer gate: 1 GiB free disk and 256 MiB available RAM. Runtime pauses new
+collection below 100 MiB free disk. No automatic historical deletion occurs;
+plan retention, cloud backups and monitoring before extended unattended runs.
 
-Systemd runs as an isolated dynamic user with read-only system paths, private
-temporary files and a dedicated state directory. Release files are immutable
-while running. Repeated setup creates an independent version rather than editing
-code underneath a process. Updates/rollbacks require explicit unit selection and
-are deliberately not automatic in the first installer.
+Kraken spot and Yahoo GC=F/SI=F futures are proxy feeds, not official settlement
+sources. Yahoo closures/rate limits and real Polymarket response compatibility
+still require live verification. Missing or stale metals data fails the
+all-ten activation gate; do not disable that gate to claim full readiness.
 
-## Validation completed here
+Supabase SQL remains unapplied. Review proposed_multi_asset_schema.sql and the
+optional scoped-role draft in staging. The current key-based transport does not
+refresh scoped-user JWTs. Server keys can bypass RLS and must remain private.
+No extra credentials are needed for public local shadow collection.
 
-- 15 collection/audit tests passed, including six feed calls for ten streams,
-  metals outage isolation, wrong-asset rejection, duplicate snapshot protection,
-  restart validation and stale-status detection.
-- The actual `--prepare` installer completed in temporary directories, including
-  an isolated venv, dependency installation and its packaged 15-test run.
-- Shell syntax checks passed. No systemd installation/start was executed.
-- PR #8 was fetched via Git and reviewed. Its separate four-crypto candle script
-  is not modified or deployed by this package.
-- Live API checks remain blocked by the session's enforced domain allowlist.
-  Real Polymarket response compatibility and metal source availability remain
-  unverified. Do not call the ten streams live-ready based on fixture tests.
+## Validation
 
-There is no credential configuration step for local shadow collection. Supabase
-credentials will be configured securely on the server when its separately tested
-integration is ready; never paste secrets into chat or commit an .env file.
+24 collector/pipeline tests, 34 website unit tests and 15 Streamlit fixture checks
+pass. A real temporary-directory --prepare run installed dependencies and ran
+its packaged collector tests. Shell syntax passed. HTTP cloud fixtures cover
+end-to-end collection, settlement, retries and simulation but do not validate
+actual PostgreSQL constraints/RLS or production credentials.
+
+No systemd start, production migration, real Supabase upload, DigitalOcean
+connection or live trade was performed. New website history wiring remains on
+this preparation branch, so the already-live site is unchanged.

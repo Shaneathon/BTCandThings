@@ -1,129 +1,91 @@
-# Independent four-crypto research collection
+# BTCandThings research collection
 
-Scope: BTC, ETH, XRP, SOL completed one-minute Kraken USD spot proxy candles
-and strictly checked Polymarket US 15-minute contract metadata. This is a
-separate local-data collector, not a replacement for Pixel Champion or any
-existing Challenger service. It has no trading or Supabase write interface.
-Python 3.10+ standard library only; no package installation required.
+Start with [the connection handoff](../deploy/CONNECT_WHEN_READY.md) and
+[installer instructions](../deploy/README.md). All collectors are independent of
+the existing Champion and Challenger; no real trading code is present.
 
-## Local execution
+## Ten-stream workflow
 
-From the repository root, use the existing isolated checkout (no worktree needed):
+Requires Python 3.10+ and pandas>=2.1,<3. Use an existing isolated checkout;
+no worktree is needed. Store local state outside the repository:
 
-```sh
+```bash
+python3 collection/ten_streams.py --db /tmp/research.sqlite
+python3 collection/ten_streams.py --db /tmp/research.sqlite --loop
+python3 collection/ten_streams.py --db /tmp/research.sqlite --validate
 python3 -m unittest discover -s collection -v
-python3 collection/collector.py --db /tmp/btcandthings-research.sqlite
-# Optional continuous local research run; Ctrl+C stops this collector only:
-python3 collection/collector.py --db /tmp/btcandthings-research.sqlite --loop
 ```
 
-The explicit database path is local SQLite. Put retained research data outside
-the checkout. WAL mode and per-batch transactions support restarts. Candle keys
-match the proposed Supabase table's asset/source/interval/open identity; reruns
-update corrections rather than append duplicates. `candles_changed` counts new
-or changed local rows, not attempted writes. Reported freshness uses candle close
-time. Gaps in each returned batch are counted, not silently filled.
+Ten streams use six asset-specific shared feeds: BTC/ETH/XRP/SOL 5m+15m and
+GOLD/SILVER 15m. Completed candles, typed Polymarket identities/targets, research
+snapshots and raw BBO evidence are retained in SQLite. Times of observation and
+source-candle closes remain separate. Kraken and Yahoo futures are labeled proxy
+sources, never official settlement feeds. Missing/stale/gapped inputs pause the
+affected stream instead of fabricating predictions.
 
-Each pass requests all four assets independently, with 15-second request timeouts
-and at most three attempts for transport errors, 429 and selected 5xx responses.
-Other HTTP errors are not retried. A one-shot pass exits nonzero on missing/stale
-candles or any failed market window. Loop mode reports failures and retries on
-the next pass. JSON logs contain error classes, never environment values or
-credential-bearing response bodies.
+Settlement reconciliation rotates through pending closed contracts and accepts
+only explicit final semantic UP/DOWN winners with matching identity, window and
+target. Numeric sides and ambiguous metadata stay pending. Current/recent-market
+refresh cannot downgrade a locally verified final. Live semantic winner fields
+still need confirmation; the pinned SDK's settlement endpoint only types a
+numeric settlement value, which this collector does not guess a side from.
 
-Only bars closed by the fetch-start time are retained. Kraken returns a limited
-recent history (typically 720 bars); outages beyond that require a separate
-historical backfill source. This implementation does not claim gap-free history.
-Kraken prices are proxies, never official CF Benchmarks settlement prices.
+Raw BBO bestBid/bestAsk capture uses the SDK 2.4.1 documented public route and
+requires the exact contract slug. It records `side_mapping_verified: false` until
+an authoritative per-contract mapping is connected. It is excluded from automatic
+paper fills and cloud quote upload.
 
-## Market verification and limits
+### Opt-in cloud synchronization
 
-The event endpoint and singular full-market endpoint mirror the existing app's
-public discovery paths. The direct event must match the requested slug and link
-exactly one contract. Full contract identity, typed asset symbol, explicit
-UPDOWN/UP_DOWN type, timezone-aware exact window boundaries, and a finite positive
-USD target must all agree. Missing or unfamiliar metadata is rejected, never
-inferred. Current and previous two windows are revisited each pass. Raw full
-contract responses are archived locally with observation times.
+Default collection makes no cloud writes. The optional service environment file
+uses BTC_RESEARCH_SYNC_ENABLED=1 and private BTC_RESEARCH_SUPABASE_URL/KEY values.
+The installer wizard creates it without displaying the key. Per-table access is
+limited in code to asset_market_windows, asset_proxy_candles and
+asset_market_predictions. No legacy btc_* tables or trade endpoints are accepted.
 
-**These endpoint/field assumptions have fixture coverage, not live confirmation.**
-The app supports broader fallback discovery than this collector; a failed direct
-lookup is reported rather than guessed. Supported market-type variants may need
-an adapter after inspecting authoritative real responses.
+Sync sends naturally keyed rows, preserves immutable predictions, updates candle
+corrections, and never overwrites a remote final with pending state. Verified
+winner/identity/target conflicts fail rather than silently overwrite. Failed
+requests receive no checkpoint and retry on the next pass. Batch success does
+not imply an empty backlog; --validate --require-cloud checks both.
 
-`settlement_status` remains PENDING even when identity and target are verified.
-No numeric outcome or proxy price is mapped to UP/DOWN. A separate adapter needs
-verified official finality, outcome-side mapping, evidence, and longer pending
-window reconciliation before outcomes can become VERIFIED. No predictions are
-fabricated for the new assets.
+Standalone synchronization is an explicit write operation, only after staging
+and production authorization:
 
-## Validation and remaining deployment work
-
-Locally passed: eleven collection/audit tests (all assets, completed bars, invalid OHLCV,
-identity/window/target rejection, duplicate correction handling, database restart,
-failure isolation, stale feeds, bounded retries) and 23 existing project tests.
-
-The checkout contains dashboard and historical Champion/Challenger research,
-not the production service sources shown in the conversation. Those production
-files and unit configurations need read-only comparison before deployment.
-Draft PR #8 could not be fetched/reviewed: the configured network proxy is
-unreachable; `gh pr view` also reports a proxy socket denial. No remote PR has
-been created or updated. See PR_DRAFT.md for the prepared description.
-
-Before requesting deployment approval:
-
-1. Restore authorized network access; inspect PR #8 and reconcile this change.
-2. Perform a live read-only smoke run against api.kraken.com and
-   gateway.polymarket.us; verify all four exact contract mappings with real data.
-3. Review/apply the proposed Supabase migration only with explicit approval.
-   Add a separately tested staging ingestion adapter and narrowly scoped backend
-   permissions; existing RLS intentionally grants no public access. Local JSON
-   records align with candle/window fields, but are not a production uploader.
-4. Implement verified settlement reconciliation and validate against known finals.
-5. Approve and prepare an independent service with retention, disk monitoring,
-   backfill policy, network access and failure alerts; keep existing services.
-6. Wire read-only persisted history into the site after ingestion is validated.
-
-Gold/silver, five-minute markets, predictive models, paper trading, and website
-changes are outside this collection increment. No production migration,
-DigitalOcean deployment, service modification or live trade was performed.
-
-## Read-only audit and export
-
-After collecting local data:
-
-```sh
-python3 collection/audit.py --db /tmp/btcandthings-research.sqlite
-python3 collection/audit.py --db /tmp/btcandthings-research.sqlite --out /tmp/research-export.json
+```bash
+python3 collection/cloud_sync.py --db /path/research.sqlite --apply
 ```
 
-The audit opens SQLite read-only and does not create a missing database. It
-reports per-asset candle counts, missing minutes between retained bars,
-freshness, and whether current-window contract metadata is verified.
-`current_market_verified` refers to identity/terms, never a verified settlement.
-The health check requires all four assets, a recent candle, no interior gaps,
-current-window metadata and no invalid records. It does not prove upstream data
-accuracy or coverage before the first retained candle.
+The environment must already contain the private credentials. Never put filled
+.env files in Git or send their contents through chat. TLS verification and
+inherited proxy settings remain enabled; credentialed redirects are refused.
 
-Exports contain `tables.asset_proxy_candles` and `tables.asset_market_windows`
-plus the audit summary. They are deterministic for a fixed observation time and
-source database. The output file must not already exist. Invalid records block
-export; stale or incomplete but valid datasets may be exported with
-`healthy: false` and a nonzero exit status. This supports staging review without
-network writes. Raw contract evidence is kept in SQLite and excluded from the
-export. No uploader, official outcome verification, or database migration is
-performed by this command. Supabase compatibility is field-level preparation,
-not validation against a running PostgreSQL instance.
+### Offline simulation
 
-## Ten-stream preparation extension
+```bash
+python3 collection/simulation.py --db /path/research.sqlite \
+  --quotes /path/reviewed-quotes.json --quantity 10 \
+  --fee-per-share 0.01 --slippage-per-share 0.02 --out /tmp/simulation.json
+```
 
-The original `collector.py`/`audit.py` remain the four-crypto 15m workflow.
-`ten_streams.py` adds a distinct ten-market local shadow workflow using the
-website's asset mappings and research calculations. It requires pandas.
-See [the deployment preparation guide](../deploy/README.md) for tested installer
-and validation instructions, current limitations and remaining live prerequisites.
+Those costs are examples, not a verified fee schedule. Quotes must contain exact
+market_slug/contract_slug, captured_at, source_name=Polymarket US,
+side_mapping_verified=true, and up_ask/down_ask. Only use normalized quotes from a
+reviewed adapter; raw BBO records intentionally do not qualify. Entry quotes must
+arrive at or within 30 seconds after the prediction and before market close.
+One earliest observed prediction per model/market is selected; no hindsight
+selection. Final verified settlement and no future source information are
+required. Missing inputs produce explicit skipped trades. Output is local,
+exclusive-create JSON, not live trading, depth-aware execution or a capital ledger.
 
-Draft PR #8 has now been fetched and reviewed through Git: it adds the separate
-`scripts/collect_four_crypto.py` and is not modified here. Git reads work with
-supported execution permissions; live APIs still fail the network domain policy.
-The older network-block notes above describe the earlier four-crypto increment.
+## Original four-crypto workflow
+
+collector.py and audit.py remain separate standard-library tools for four crypto
+15m streams. audit.py is not the validator for ten_streams.py. It provides
+read-only local audits and schema-shaped exports, refuses overwriting an export,
+and refuses invalid-record export. Use the ten-stream validator above for six
+assets, raw quotes, cloud batch status and full stream coverage.
+
+PR #8's separate scripts/collect_four_crypto.py was reviewed through Git and is
+not modified/deployed here. No production database, service or trading action
+has been taken. Live sources and real staging permissions remain external checks.

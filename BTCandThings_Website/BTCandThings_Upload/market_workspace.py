@@ -70,7 +70,7 @@ def load_spot_candles(get_json, pair):
     return frame.iloc[:-1].dropna(subset=["close"]).tail(120)
 
 
-def render_workspace(st, components, asset, duration, now, discover, full_market, get_json):
+def render_workspace(st, components, asset, duration, now, discover, full_market, get_json, history_loader=None):
     """BTC-style layout with strictly asset/window-local data; no archive writes."""
     from market_candles import load_candles, resample_complete, candle_svg
     from tracker_panels import research_signal, signal_card, countdown_html
@@ -186,9 +186,25 @@ def render_workspace(st, components, asset, duration, now, discover, full_market
         prices[1].metric('Proxy last close', price_label(asset, spot))
         prices[2].metric('Market status', status)
     with performance_tab:
-        st.metric('Verified win rate', 'PENDING')
-        st.caption(f"Independent settled {asset} {duration} history is not connected. Bitcoin results are never reused here.")
-        st.info("Cloud collection and permanent history will be connected separately. This page does not write to production databases.")
+        history = None
+        if history_loader:
+            try:
+                history = history_loader(asset, duration)
+            except Exception as exc:
+                st.caption(f"Cloud history temporarily unavailable ({type(exc).__name__}).")
+        if history and history.get('models'):
+            for model, score in history['models'].items():
+                st.markdown(f"**{model}**")
+                stats = st.columns(3)
+                stats[0].metric('Verified win rate', f"{score['accuracy']:.1%}")
+                stats[1].metric('Scored markets', score['markets'])
+                stats[2].metric('Brier score', f"{score['brier']:.4f}")
+            st.caption(history['cohort'])
+            st.caption('Models may have different market coverage. These are descriptive scores, not a paired promotion test or calibration.')
+        else:
+            st.metric('Verified win rate', 'PENDING')
+            st.caption(f"Independent settled {asset} {duration} history is not available yet. Bitcoin results are never reused here.")
+        st.caption("History is read-only. Collection and cloud synchronization run separately on the server.")
     with advanced_tab:
         st.write(f"**Asset / duration:** {asset} / {duration}")
         st.write(f"**Official target:** {'Verified' if contract else 'Pending'}")

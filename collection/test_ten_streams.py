@@ -8,6 +8,8 @@ NOW = 1800000060
 
 
 def fixture(url, params=None):
+    if url.endswith('/bbo'):
+        return {'marketData':{'marketSlug':url.split('/')[-2], 'bestBid':{'value':.4},'bestAsk':{'value':.5}}}
     if 'kraken' in url:
         return {'error':[], 'result':{params['pair']:[
             [NOW-60*(61-i),100+i,102+i,99+i,101+i,100+i,10,1] for i in range(62)], 'last': NOW}}

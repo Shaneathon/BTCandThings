@@ -258,8 +258,20 @@ if selected_asset != "BTC" or selected_duration != "15m":
             root=root['market']
         return root if isinstance(root,dict) else None
 
+    @st.cache_data(ttl=60, show_spinner=False)
+    def workspace_history(asset, duration):
+        from market_history import reader, load_history
+        try:
+            url = str(st.secrets.get("SUPABASE_URL", "")).strip()
+            key = str(st.secrets.get("SUPABASE_KEY", "")).strip()
+        except Exception:
+            return None
+        if not url or not key:
+            return None
+        return load_history(reader(url, key), asset, duration)
+
     render_workspace(st, components, selected_asset, selected_duration, now,
-                     us_discover, workspace_full_market, get_json)
+                     us_discover, workspace_full_market, get_json, workspace_history)
     st.stop()
 
 # Browser-side UTC-aligned countdown. Runs continuously without refreshing Streamlit.

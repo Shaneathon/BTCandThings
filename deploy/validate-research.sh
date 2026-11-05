@@ -9,4 +9,4 @@ if [[ "$release_root" != /opt/btcandthings-research/releases/* || ! -x "$release
   echo 'Research collector is not installed at the expected location.' >&2; exit 1
 fi
 "$release_root/venv/bin/python" "$release_root/collection/ten_streams.py" \
-  --db /var/lib/btcandthings-research/research.sqlite --validate
+  --db /var/lib/btcandthings-research/research.sqlite --validate "$@"

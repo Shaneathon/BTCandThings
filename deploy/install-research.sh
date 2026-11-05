@@ -6,13 +6,13 @@ source_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 install_root="${BTC_RESEARCH_INSTALL_ROOT:-/opt/btcandthings-research}"
 state_root="${BTC_RESEARCH_STATE_ROOT:-/var/lib/btcandthings-research}"
 mode="${1:---prepare}"
-if [[ "$mode" != --prepare && "$mode" != --start ]]; then
-  echo 'Usage: bash deploy/install-research.sh [--prepare|--start]' >&2; exit 2
+if [[ "$mode" != --prepare && "$mode" != --start && "$mode" != --start-cloud ]]; then
+  echo 'Usage: bash deploy/install-research.sh [--prepare|--start|--start-cloud]' >&2; exit 2
 fi
-if [[ "$mode" == --start && ( "$install_root" != /opt/btcandthings-research || "$state_root" != /var/lib/btcandthings-research ) ]]; then
+if [[ "$mode" != --prepare && ( "$install_root" != /opt/btcandthings-research || "$state_root" != /var/lib/btcandthings-research ) ]]; then
   echo '--start uses the standard /opt and /var/lib paths; overrides are preparation-only.' >&2; exit 2
 fi
-if [[ "$mode" == --start && "$EUID" -ne 0 ]]; then
+if [[ "$mode" != --prepare && "$EUID" -ne 0 ]]; then
   echo '--start requires root to register the separate systemd service.' >&2; exit 2
 fi
 if [[ "$install_root" != /* || "$state_root" != /* || "$install_root" == *' '* || "$state_root" == *' '* ]]; then
@@ -26,9 +26,10 @@ mkdir -p "$release_root/collection" "$state_root" "$release_root/BTCandThings_We
 for file in "$source_root"/collection/*.py; do
   install -m 644 "$file" "$release_root/collection/"
 done
-for name in market_workspace.py market_board.py market_candles.py tracker_panels.py; do
+for name in market_workspace.py market_board.py market_candles.py tracker_panels.py market_history.py; do
   install -m 644 "$source_root/BTCandThings_Website/BTCandThings_Upload/$name" "$release_root/BTCandThings_Website/BTCandThings_Upload/$name"
 done
+python3 "$release_root/collection/preflight.py" "$release_root"
 python3 -m venv "$release_root/venv"
 "$release_root/venv/bin/python" -m pip install --disable-pip-version-check 'pandas>=2.1,<3'
 "$release_root/venv/bin/python" -m unittest discover -s "$release_root/collection" -v
@@ -45,6 +46,9 @@ if [[ -e /etc/systemd/system/btc-multiasset-research.service ]]; then
 fi
 # A failed live preflight leaves all production services unchanged.
 (umask 077; "$release_root/venv/bin/python" "$release_root/collection/ten_streams.py" --db "$state_root/preflight.sqlite")
+if [[ "$mode" == --start-cloud ]]; then
+  "$release_root/venv/bin/python" "$release_root/collection/configure_cloud.py"
+fi
 cat > /etc/systemd/system/btc-multiasset-research.service <<EOF
 [Unit]
 Description=BTCandThings ten-stream local shadow research collector
@@ -55,6 +59,7 @@ Type=simple
 DynamicUser=yes
 StateDirectory=btcandthings-research
 WorkingDirectory=$release_root
+EnvironmentFile=-/etc/btcandthings-research.env
 ExecStart=$release_root/venv/bin/python $release_root/collection/ten_streams.py --db /var/lib/btcandthings-research/research.sqlite --loop
 Restart=on-failure
 RestartSec=30
@@ -69,4 +74,6 @@ EOF
 systemctl daemon-reload
 systemctl enable --now btc-multiasset-research.service
 echo 'Started only btc-multiasset-research.service; existing collectors were untouched.'
-echo "Validate after its first pass: $release_root/venv/bin/python $release_root/collection/ten_streams.py --db /var/lib/btcandthings-research/research.sqlite --validate"
+validation_flags=''
+if [[ "$mode" == --start-cloud ]]; then validation_flags=' --require-cloud'; fi
+echo "Validate after its first pass: $release_root/venv/bin/python $release_root/collection/ten_streams.py --db /var/lib/btcandthings-research/research.sqlite --validate$validation_flags"

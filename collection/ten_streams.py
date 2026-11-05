@@ -48,6 +48,8 @@ def initialize(store):
     store.db.execute('''CREATE TABLE IF NOT EXISTS research_snapshots (
         market_slug TEXT, recorded_at TEXT, model_version TEXT, payload TEXT,
         PRIMARY KEY(market_slug, recorded_at, model_version))''')
+    store.db.execute('''CREATE TABLE IF NOT EXISTS raw_quotes (
+        market_slug TEXT, captured_at TEXT, payload TEXT, PRIMARY KEY(market_slug,captured_at))''')
     store.db.execute('''CREATE TABLE IF NOT EXISTS collector_status (
         singleton INTEGER PRIMARY KEY CHECK(singleton=1), observed_at REAL, payload TEXT)''')
     store.db.commit()
@@ -89,6 +91,11 @@ def collect(store, get=get_json, now=None):
             try:
                 row, details = market(get, asset, duration, boundary, now)
                 store.evidence(row['market_slug'], now, details)
+                prior = store.db.execute("SELECT payload FROM records WHERE kind='market' AND key=?", (row['market_slug'],)).fetchone()
+                if prior:
+                    existing = json.loads(prior[0])
+                    if existing.get('settlement_status') == 'VERIFIED':
+                        row = existing
                 store.put('market', [row])
                 if boundary == start:
                     current = row
@@ -113,7 +120,16 @@ def collect(store, get=get_json, now=None):
             cursor = store.db.execute('INSERT OR IGNORE INTO research_snapshots VALUES (?,?,?,?)',
                 (snapshot['market_slug'], snapshot['recorded_at'], MODEL, json.dumps(snapshot, allow_nan=False)))
             state['predictions_saved'] = cursor.rowcount
+        from quotes import capture
+        try:
+            capture(store, get, current, now if fixed_time else time.time())
+            state['quote_status'] = 'RAW_BBO_SAVED_SIDE_MAPPING_PENDING'
+        except Exception as exc:
+            state['quote_status'] = 'ERROR_' + type(exc).__name__
     report['collection_ready'] = all(r['collection_ready'] for r in report['streams'].values())
+    from settlement import reconcile
+    report['settlements'] = reconcile(store, get, now)
+    report['settlement_adapter'] = 'EXPLICIT_SEMANTIC_WINNER_ONLY'
     report['simulation_ready'] = False  # Official settlement/quotes/fees not integrated.
     completed = now if fixed_time else time.time()
     with store.db:
@@ -135,6 +151,9 @@ def validate(path, now=None):
         report['collection_ready'] = (report['collection_ready'] and report['status_fresh']
                                       and set(report['streams']) == {a+'_'+d for a,d in STREAMS}
                                       and all(epoch(s['window_end']) > now for s in report['streams'].values()))
+        report['verified_outcomes'] = sum(json.loads(r[0]).get('settlement_status') == 'VERIFIED' for r in db.execute("SELECT payload FROM records WHERE kind='market'"))
+        report['cloud_synchronized'] = (report.get('cloud_storage') == 'SYNC_BATCH_OK' and not report.get('cloud_sync',{}).get('more_possible',True))
+        report['raw_quote_snapshots'] = db.execute('SELECT count(*) FROM raw_quotes').fetchone()[0]
         report['total_prediction_snapshots'] = db.execute('SELECT count(*) FROM research_snapshots').fetchone()[0]
         return report
 
@@ -144,15 +163,34 @@ def main():
     parser.add_argument('--db', type=Path, required=True)
     parser.add_argument('--loop', action='store_true')
     parser.add_argument('--validate', action='store_true')
+    parser.add_argument('--require-cloud', action='store_true', help='Validation also fails on cloud errors, disabled sync or possible backlog')
     args = parser.parse_args()
     if args.validate:
         report = validate(args.db)
         print(json.dumps(report, indent=2))
-        raise SystemExit(0 if report['collection_ready'] else 1)
+        raise SystemExit(0 if report['collection_ready'] and (not args.require_cloud or report['cloud_synchronized']) else 1)
     store = Store(args.db)
     try:
         while True:
+            import shutil
+            if shutil.disk_usage(args.db.resolve().parent).free < 100*1024**2:
+                print(json.dumps({'collection_ready':False,'paused_reason':'Less than 100 MiB free disk; no new writes attempted'}),flush=True)
+                if not args.loop:
+                    raise SystemExit(1)
+                time.sleep(60)
+                continue
             report = collect(store)
+            import os
+            if os.environ.get('BTC_RESEARCH_SYNC_ENABLED') == '1':
+                from cloud_sync import Client, sync
+                try:
+                    report['cloud_sync'] = sync(store, Client(os.environ.get('BTC_RESEARCH_SUPABASE_URL',''),os.environ.get('BTC_RESEARCH_SUPABASE_KEY','')))
+                    report['cloud_storage'] = 'SYNC_ERRORS' if report['cloud_sync']['errors'] else 'SYNC_BATCH_OK'
+                except Exception as exc:
+                    report['cloud_storage'] = 'ERROR_' + type(exc).__name__
+            report['quote_capture_ready'] = all(s.get('quote_status') == 'RAW_BBO_SAVED_SIDE_MAPPING_PENDING' for s in report['streams'].values())
+            with store.db:
+                store.db.execute('UPDATE collector_status SET payload=? WHERE singleton=1', (json.dumps(report,allow_nan=False),))
             print(json.dumps(report), flush=True)
             if not args.loop:
                 raise SystemExit(0 if report['collection_ready'] else 1)

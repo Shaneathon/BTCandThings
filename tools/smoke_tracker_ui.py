@@ -66,3 +66,17 @@ app=AppTest.from_string(script).run(timeout=15)
 assert not app.exception
 assert not [m for m in app.metric if m.label.startswith('Forecast: finish')]
 print('PASS mismatched-asset contract pauses forecast')
+
+# Prepared cloud history is independently scoped and renders without writes.
+base=SCRIPT.replace('APP_PATH',repr(APP_PATH)).replace('ASSET_VALUE',repr('ETH')).replace('DURATION_VALUE',repr('5m'))
+call='render_workspace(st,components,asset,duration,now,discover,full_market,get_json)'
+history="lambda *_: {'models':{'research-v1':{'accuracy':.75,'markets':4,'brier':.15}},'cohort':'Fixture cohort only'}"
+app=AppTest.from_string(base.replace(call,call[:-1]+','+history+')')).run(timeout=15)
+assert not app.exception
+assert [m.value for m in app.metric if m.label=='Verified win rate']==['75.0%']
+print('PASS connected asset-specific history panel')
+error_loader="lambda *_: (_ for _ in ()).throw(TimeoutError())"
+app=AppTest.from_string(base.replace(call,call[:-1]+','+error_loader+')')).run(timeout=15)
+assert not app.exception
+assert [m for m in app.metric if m.label.startswith('Forecast: finish')]
+print('PASS cloud history outage preserves live tracker panels')
