@@ -1,0 +1,23 @@
+name: Six-market radar checks
+on:
+  pull_request:
+    paths:
+      - 'BTCandThings_Website/BTCandThings_Upload/market_board.py'
+      - 'BTCandThings_Website/BTCandThings_Upload/app.py'
+      - 'tools/test_market_board.py'
+      - '.github/workflows/six-market-radar-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Syntax and six-market metadata tests
+        run: |
+          python -m py_compile BTCandThings_Website/BTCandThings_Upload/market_board.py BTCandThings_Website/BTCandThings_Upload/app.py
+          python -m unittest discover -s tools -p 'test_market_board.py' -v
