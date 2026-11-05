@@ -1,8 +1,8 @@
-"""Compact 6-asset × 5m/15m market workspace.
+"""Uniform 6-asset × 5m/15m market workspace.
 
 The existing BTC 15m research model stays on its original page. All other
-routes show independently verified US contract metadata and optional spot
-charts. Never infer official settlement or trading probabilities from spot.
+routes show independently verified US contract metadata and asset-local
+spot research estimates. Never label those as verified settlement probabilities.
 """
 from datetime import datetime, timezone
 import html
@@ -71,9 +71,9 @@ def load_spot_candles(get_json, pair):
 
 
 def render_workspace(st, components, asset, duration, now, discover, full_market, get_json):
-    """Uniform candles + research panels; never substitute another asset's model."""
-    from market_candles import (load_candles, resample_complete, indicators,
-                                render_candles, stage_progress)
+    """BTC-style layout with strictly asset/window-local data; no archive writes."""
+    from market_candles import load_candles, resample_complete, candle_svg
+    from tracker_panels import research_signal, signal_card, countdown_html
     start, end = window_for(now, duration)
     item = ASSETS[asset]
     available = duration in LISTED_DURATIONS[asset]
@@ -81,153 +81,130 @@ def render_workspace(st, components, asset, duration, now, discover, full_market
     target, contract = None, None
     diagnostics = []
     status = "Not listed" if not available else "Pending verification"
-
     if available:
         try:
             event, found, diagnostics = discover(slug)
-            if found and found.get("slug"):
+            if event and event.get("slug") != slug:
+                status = "Event identity mismatch"
+            elif found and found.get("slug"):
                 details = full_market(str(found["slug"]))
                 if isinstance(details, dict) and details.get("slug") == str(found["slug"]):
                     target = verified_target(details, asset, start, duration)
-                    contract = details
-                    status = "Target verified" if target is not None else "Target pending"
+                    if target is not None:
+                        contract = details
+                    status = "Target verified" if target is not None else "Asset / window / target pending"
                 else:
                     status = "Contract unverified"
-            elif event:
-                status = "Contract mapping pending"
             else:
-                status = "Event not verified"
+                status = "Contract mapping pending" if event else "Event not verified"
         except Exception as exc:
             status = f"API unavailable ({type(exc).__name__})"
 
     st.markdown(f"### {item['name']} · {duration} tracker")
-    st.caption("Polymarket US · same tracker layout across assets · UTC market windows")
+    st.caption("Polymarket US · asset-specific market and signals · UTC windows")
     if not available:
-        st.warning(f"{item['name']} {duration} Up/Down is not currently listed on Polymarket US. "
-                   "The chart and indicators below are research-only; no contract or price-to-beat is assumed.")
-
-    # Price history is independent of contract discovery. Futures proxies for
-    # metals are explicitly labeled and may be delayed/unavailable.
+        st.warning(f"{item['name']} {duration} is not currently listed. No market or target is assumed.")
     frame = pd.DataFrame()
-    feed_name = "Feed not connected"
-    feed_error = None
+    feed_name, feed_error = "Feed not connected", None
     try:
         frame, feed_name = load_candles(get_json, asset, item["pair"], now)
-        if frame.empty:
-            feed_error = "No completed 1-minute candles returned"
     except Exception as exc:
-        feed_error = f"{type(exc).__name__}: {str(exc)[:100]}"
-    metrics = indicators(frame, now) if not frame.empty else None
-    fresh = bool(metrics and not metrics.get("stale"))
-    spot = float(frame["close"].iloc[-1]) if not frame.empty else None
+        feed_error = type(exc).__name__
+    signal = research_signal(frame, now, end, target)
+    ready = signal['ready'] and available
+    direction = signal.get('direction', 'PENDING') if ready else 'PENDING'
+    spot = float(frame['close'].iloc[-1]) if not frame.empty else None
 
-    # The header and candlestick area share the BTC tracker dark-card style.
+    st.html("""<style>
+    .st-key-workspace_candlestick_panel{background:linear-gradient(110deg,#17263c,#121e30);border:1px solid #334b66;border-radius:14px;padding:10px 14px 8px;height:348px;box-sizing:border-box;overflow:hidden}
+    </style>""")
     left, right = st.columns([1, 1], gap="medium")
     with left:
-        st.markdown("#### Current market")
-        m1, m2 = st.columns(2)
-        m1.metric("Official price to beat", price_label(asset, target))
-        m2.metric("Market status", status)
-        m3, m4 = st.columns(2)
-        m3.metric("Proxy last close", price_label(asset, spot))
-        m4.metric("To target · proxy", (f"{spot-target:+,.5f}" if
-                  target is not None and spot is not None else "PENDING"))
-        st.caption("To-target compares separate feeds; it is NOT an official settlement margin.")
-        components.html(
-            "<div style='background:#151f32;border:1px solid #29384e;border-radius:12px;"
-            "padding:12px 18px;color:#e2e8f0;font:600 18px system-ui'>"
-            "<span style='color:#94a3b8;font-weight:400'>Market closes in </span>"
-            "<span id='remaining'>--:--</span></div>"
-            "<script>const e=" + str(end*1000) +
-            ";function tick(){const s=Math.max(0,Math.ceil((e-Date.now())/1000));"
-            "document.getElementById('remaining').textContent="
-            "String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');}"
-            "tick();setInterval(tick,1000);</script>", height=64)
-        st.caption(f"Window: {datetime.fromtimestamp(start,timezone.utc):%H:%M}–"
-                   f"{datetime.fromtimestamp(end,timezone.utc):%H:%M} UTC")
-        if slug:
-            st.markdown(f"[Open this Polymarket US market](https://polymarket.us/event/{slug})")
-        else:
-            st.markdown("[Browse available Polymarket US markets](https://polymarket.us/hub/crypto-commodities)")
-
+        components.html(countdown_html(asset, duration, start, end, now, target,
+                                       contract is not None, listed=available), height=358, scrolling=False)
     with right:
-        head, interval_col = st.columns([2, 1], vertical_alignment="center")
-        with head:
-            st.markdown("#### Candlestick chart")
-        with interval_col:
-            candle_interval = st.radio("Candle interval", ("1m", "5m"),
-                                       horizontal=True, label_visibility="collapsed",
-                                       key=f"candles_{asset}_{duration}")
-        if not frame.empty:
-            chart_frame = resample_complete(frame, candle_interval, now)
-            if not chart_frame.empty:
-                render_candles(components, chart_frame, asset, candle_interval, target)
+        with st.container(key="workspace_candlestick_panel"):
+            heading, selector = st.columns([2, 1], vertical_alignment="center")
+            with heading:
+                st.markdown(f"**{asset} / USD · completed candles**")
+            with selector:
+                interval = st.radio("Candle interval", ("1m", "5m"), horizontal=True,
+                                    label_visibility="collapsed", key=f"candles_{asset}_{duration}")
+            chart = resample_complete(frame, interval, now) if not frame.empty else frame
+            if chart.empty:
+                st.info("Waiting for complete candles. Other panels remain available.")
             else:
-                st.info("Waiting for complete candles at this interval.")
-        else:
-            st.info("Candle feed pending. Chart will appear automatically when the proxy feed is available.")
-        st.caption(feed_name)
-        if not frame.empty:
-            st.download_button("Export completed proxy candles CSV",
-                               frame.to_csv(index=False).encode("utf-8"),
-                               file_name=f"{asset.lower()}_{duration}_proxy_candles.csv",
-                               mime="text/csv", key=f"proxy_export_{asset}_{duration}")
-            st.caption("Export contains only the available recent completed candles; "
-                       "it is not a permanent historical database.")
-        if feed_error:
-            st.caption("Data feed: " + feed_error[:150])
-        if metrics and metrics.get("stale"):
-            st.warning("Proxy feed is stale. Direction signals are disabled until fresh candles return.")
-        st.caption("Green/red candles are completed proxy bars. Amber line is the separately verified US target, "
-                   "when available. Crypto uses Kraken spot; metals use futures proxies, not official settlement feeds.")
+                components.html(candle_svg(chart, asset, interval, target), height=245, scrolling=False)
+            st.caption(feed_name)
+    if slug:
+        st.markdown(f"[Open {asset} {duration} on Polymarket US](https://polymarket.us/event/{slug}) · {status}")
+    if feed_error:
+        st.warning(f"{asset} candle feed unavailable ({feed_error}). Research signals paused.")
+    elif not signal['ready']:
+        st.caption(signal['reason'])
 
-    st.markdown("#### Market stages")
-    stage_progress(st, duration, now, start, end)
-
-    lean_col, preflight_col = st.columns(2, gap="medium")
+    lean_col, preflight_col = st.columns([1, 1], gap="medium")
     with lean_col:
-        st.markdown("#### Current momentum lean")
-        if fresh:
-            st.metric("Experimental direction", metrics["direction"])
-            st.caption(f"Agreement: {abs(metrics['score'])}/5 net votes · "
-                       f"RSI(14): {metrics['rsi']:.1f} · "
-                       f"3m move: {metrics['momentum3']:+.2%}")
-            st.caption(f"EMA 9: {price_label(asset, metrics['ema9'])} · "
-                       f"EMA 21: {price_label(asset, metrics['ema21'])}")
-        else:
-            st.metric("Experimental direction", "PENDING")
-            st.caption("Requires at least 30 fresh completed 1-minute candles.")
-        st.caption("Heuristic indicator agreement only; not a validated Polymarket prediction.")
+        lean, position = st.columns(2, gap="medium")
+        with lean:
+            detail = (f"Directional agreement: {abs(signal['score'])}/5 · Swing watch: "
+                      + ("WATCH · potential reversal" if signal['swing'] else "CLEAR")) if ready else "Fresh, contiguous asset-specific candles required."
+            st.html(signal_card(f"CURRENT {asset} LEAN", direction, detail))
+        with position:
+            st.html(signal_card("POSITION SUGGESTION · RESEARCH MODE", "WAIT / OBSERVE",
+                                f"Monitor {asset} momentum. No validated trading edge yet."))
+        st.caption(f"{asset} proxy momentum only; not verified contract odds.")
+    preflight = ready and 0 < end-now <= min(180, DURATIONS[duration])
     with preflight_col:
-        st.markdown("#### Next-window preflight")
-        st.metric("Forecast status", "RESEARCH ONLY" if fresh else "PENDING")
-        if fresh:
-            st.caption(f"Current trend context: {metrics['direction']} · "
-                       f"5m proxy move: {metrics['momentum5']:+.2%}.")
-        st.caption("A separately trained next-window forecast and its accuracy history are not connected yet.")
+        st.html(signal_card("NEXT WINDOW PREFLIGHT", direction if preflight else "PENDING",
+                            f"Experimental {asset} opening lean · {abs(signal['score'])}/5 agreement" if preflight
+                            else "Preflight begins with 3 minutes remaining in this market."))
+        st.caption("Next-window proxy direction context, not a prediction of its contract winner.")
+    advice = (f"WATCH {direction} CAUTIOUSLY · reversal risk flagged." if signal.get('swing') else
+              f"WATCH {direction} · experimental momentum only.") if preflight and direction != 'NEUTRAL' else "WAIT / OBSERVE · continue monitoring the current market."
+    st.html('<div class="preflight-advice"><strong>◉ PREFLIGHT SUGGESTION</strong> &nbsp; '+html.escape(advice)+'</div>')
 
-    end_col, perf_col = st.columns(2, gap="medium")
-    with end_col:
-        st.markdown("#### Final above/below target")
-        st.metric("Validated probability", "PENDING")
-        st.caption("Official target verification and independent model calibration are required. "
-                   "No BTC-only probability is copied into this tracker.")
-    with perf_col:
-        st.markdown("#### Prediction performance")
-        st.metric("Verified win rate", "PENDING")
-        st.caption("One independent settled outcome per market; paper-trade P/L will require executable "
-                   "quotes, fees, slippage and fills.")
-
-    with st.expander("Data readiness and diagnostics", expanded=False):
+    st.markdown('#### Final Target Forecast · Research')
+    probability = signal.get('probability') if ready and target is not None else None
+    if probability is None:
+        st.info("Forecast paused until this asset's official target and fresh completed candles are available.")
+    else:
+        above, below, gap = st.columns(3)
+        above.metric('Forecast: finish ABOVE target', f'{probability:.1%}')
+        below.metric('Forecast: finish BELOW target', f'{1-probability:.1%}')
+        gap.metric(f'{asset} proxy − official target', f'{spot-target:+,.5f}')
+        st.progress(float(probability), text=f'ABOVE {probability:.1%} | BELOW {1-probability:.1%}')
+        st.info(f"Baseline research estimate · {asset} candles only. Historical calibration is not connected.")
+        st.caption("Zero-drift lognormal spot model, not a validated probability of official Polymarket settlement. "
+                   "The spot and official reference feeds differ; this does not establish a betting edge.")
+    trade_tab, performance_tab, advanced_tab = st.tabs(["Trading", "Performance", "Advanced · Research & Diagnostics"])
+    with trade_tab:
+        st.markdown('### Trade opportunity advisor')
+        st.html(signal_card("RESEARCH STATUS", "WAIT / OBSERVE", "No executable-price model or real orders are connected."))
+        prices = st.columns(3)
+        prices[0].metric('Official price to beat', price_label(asset, target))
+        prices[1].metric('Proxy last close', price_label(asset, spot))
+        prices[2].metric('Market status', status)
+    with performance_tab:
+        st.metric('Verified win rate', 'PENDING')
+        st.caption(f"Independent settled {asset} {duration} history is not connected. Bitcoin results are never reused here.")
+        st.info("Cloud collection and permanent history will be connected separately. This page does not write to production databases.")
+    with advanced_tab:
         st.write(f"**Asset / duration:** {asset} / {duration}")
-        st.write(f"**Market listing:** {'Listed' if available else 'Not currently listed'}")
-        st.write(f"**Official US target:** {'Verified' if target is not None else 'Pending'}")
+        st.write(f"**Official target:** {'Verified' if contract else 'Pending'}")
         st.write(f"**Completed proxy candles:** {len(frame)}")
         st.write(f"**Proxy feed:** {feed_name}")
-        st.write(f"**Signal freshness:** {'Fresh' if fresh else 'Stale / insufficient'}")
-        st.write("**Independent forecast / settlement archive:** Not connected")
-        st.write("**Paper trading:** Not connected; no orders placed")
+        st.write(f"**Signal status:** {'Fresh' if ready else 'Paused'}")
+        if ready:
+            st.caption(f"RSI(14): {signal['rsi']:.1f} · EMA9: {signal['ema9']:.5f} · "
+                       f"EMA21: {signal['ema21']:.5f} · 3m move: {signal['change3']:+.2%}")
+            st.caption(f"Latest completed candle close: {datetime.fromtimestamp(signal['source_time'], timezone.utc):%Y-%m-%d %H:%M:%S} UTC")
         if slug:
             st.write(f"**Event slug:** {slug}")
         if diagnostics:
             st.caption("Discovery notes: " + "; ".join(str(d)[:130] for d in diagnostics[:4]))
+        if not frame.empty:
+            st.download_button("Export completed proxy candles CSV", frame.to_csv(index=False).encode('utf-8'),
+                               file_name=f"{asset.lower()}_{duration}_proxy_candles.csv", mime='text/csv',
+                               key=f"proxy_export_{asset}_{duration}")
+        st.caption("Research only. No orders placed. No permanent archive or cloud writes from this workspace.")

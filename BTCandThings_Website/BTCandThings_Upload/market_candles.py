@@ -23,7 +23,8 @@ def clean_ohlc(frame, now):
     for key in ("open", "high", "low", "close", "volume"):
         frame[key] = pd.to_numeric(frame[key], errors="coerce")
     frame = frame.dropna(subset=["time", "open", "high", "low", "close"])
-    frame = frame[(frame[["open", "high", "low", "close"]] > 0).all(axis=1)]
+    prices = frame[["open", "high", "low", "close"]]
+    frame = frame[((prices > 0) & (prices < float("inf"))).all(axis=1)]
     frame = frame[(frame["high"] >= frame[["open", "close", "low"]].max(axis=1)) &
                   (frame["low"] <= frame[["open", "close", "high"]].min(axis=1))]
     cutoff = pd.Timestamp.fromtimestamp(now - 60, tz="UTC")

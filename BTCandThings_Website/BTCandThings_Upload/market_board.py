@@ -35,11 +35,12 @@ def typed_reference(market, allowed_symbols, start, seconds=900):
     if str(asset.get("symbol", "")).lower() not in allowed_symbols:
         return None
     kind = str(terms.get("marketType", "")).upper()
-    if "UPDOWN" not in kind and "UP_DOWN" not in kind:
+    if kind not in ("UPDOWN", "UP_DOWN", "ASSET_PRICE_MARKET_TYPE_UP_DOWN"):
         return None
     def epoch(value):
         try:
-            return int(datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp())
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            return parsed.timestamp() if parsed.tzinfo is not None else None
         except (ValueError, TypeError, OverflowError):
             return None
     if epoch(terms.get("windowStart")) != start or epoch(terms.get("windowEnd")) != start+seconds:
