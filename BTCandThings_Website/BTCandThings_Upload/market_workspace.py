@@ -167,6 +167,13 @@ def render_workspace(st, components, asset, duration, now, discover, full_market
         else:
             st.info("Candle feed pending. Chart will appear automatically when the proxy feed is available.")
         st.caption(feed_name)
+        if not frame.empty:
+            st.download_button("Export completed proxy candles CSV",
+                               frame.to_csv(index=False).encode("utf-8"),
+                               file_name=f"{asset.lower()}_{duration}_proxy_candles.csv",
+                               mime="text/csv", key=f"proxy_export_{asset}_{duration}")
+            st.caption("Export contains only the available recent completed candles; "
+                       "it is not a permanent historical database.")
         if feed_error:
             st.caption("Data feed: " + feed_error[:150])
         if metrics and metrics.get("stale"):
