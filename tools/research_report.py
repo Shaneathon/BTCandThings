@@ -104,6 +104,16 @@ def evaluate(markets, predictions, forecasts=None):
     model_breakdown = {name: {"markets": len(a), "accuracy": round(sum(x["correct"] for x in a)/len(a), 4),
                               "brier": round(sum((x["p"]-x["y"])**2 for x in a)/len(a), 4)}
                        for name, a in sorted(groups.items())}
+    stage_breakdown = {}
+    for name, lower, upper in (("0-5m", 0, 300), ("5-10m", 300, 600),
+                               ("10-15m", 600, 900)):
+        subset = [x for x in samples if x["elapsed_s"] is not None
+                  and lower <= x["elapsed_s"] < upper]
+        stage_breakdown[name] = {
+            "markets": len(subset),
+            "accuracy": round(sum(x["correct"] for x in subset)/len(subset), 4) if subset else None,
+            "brier": round(sum((x["p"]-x["y"])**2 for x in subset)/len(subset), 4) if subset else None}
+
     calibration = [{"p_range": f"{i*20}-{(i+1)*20}%", "markets": len(a),
                     "mean_predicted_up": round(sum(x["p"] for x in a)/len(a), 4),
                     "observed_up": round(sum(x["y"] for x in a)/len(a), 4)}
@@ -141,6 +151,7 @@ def evaluate(markets, predictions, forecasts=None):
         "brier": round(brier, 4) if n else None,
         "constant_50pct_brier": 0.25,
         "first_predictions_at_or_after_5m_or_bad_timing": late,
+        "by_first_prediction_stage": stage_breakdown,
         "by_model_version": model_breakdown,
         "calibration_bins": calibration,
         "lean_forecast_horizons": horizon,
