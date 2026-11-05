@@ -44,6 +44,64 @@ h1 {font-size:1.55rem !important;} h2 {font-size:1.2rem !important;} h3 {font-si
 .modern-title {font-size:clamp(22px,2.5vw,32px);font-weight:800;letter-spacing:-.04em;color:#f8fafc;margin-top:3px;}
 .modern-sub {color:#94a3b8;font-size:12px;margin-top:4px;}
 @media(max-width:700px){.block-container{padding:.65rem .65rem 2rem !important;}.modern-masthead{padding:13px 14px;}}
+
+/* Compact dashboard layout */
+.block-container {
+    max-width: 1700px !important;
+    padding: .5rem 1rem 1.5rem !important;
+}
+[data-testid="stVerticalBlock"] {
+    gap: .35rem !important;
+}
+[data-testid="stHorizontalBlock"] {
+    gap: .65rem !important;
+    align-items: stretch !important;
+}
+.signal-card {
+    min-height: 105px !important;
+    padding: 10px 14px !important;
+    margin: 2px 0 5px !important;
+    border-radius: 9px !important;
+}
+.signal-card .card-heading {
+    font-size: 11px !important;
+}
+.signal-card .card-value {
+    font-size: 25px !important;
+    margin: 5px 0 3px !important;
+    line-height: 1.15 !important;
+}
+.signal-card .card-meta {
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+}
+[data-testid="stMetric"] {
+    padding: 7px 10px !important;
+    border-radius: 8px !important;
+}
+[data-testid="stMetricValue"] {
+    font-size: 1.15rem !important;
+}
+.modern-masthead {
+    padding: 10px 14px !important;
+    margin-bottom: 7px !important;
+    border-radius: 10px !important;
+}
+.modern-title {
+    font-size: 22px !important;
+}
+.retro-section {
+    padding: 5px 0 !important;
+    margin: 7px 0 !important;
+}
+@media(max-width:700px) {
+    .signal-card {
+        min-height: 95px !important;
+    }
+    .signal-card .card-value {
+        font-size: 21px !important;
+    }
+}
 </style>""")
 st.html("""<div class="modern-masthead"><div class="modern-kicker">BTC AND THINGS · TRADING INTELLIGENCE · POLYMARKET US</div><div class="modern-title">Bitcoin Trade Tracker</div><div class="modern-sub">15-minute markets · live countdown · automatic 60-second market refresh</div></div>""")
 # The live countdown uses its own JavaScript clock and does not need a rerun.
