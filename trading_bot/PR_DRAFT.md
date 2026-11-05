@@ -1,6 +1,6 @@
-# Add independent TBot paper engine and dashboard
+# Add independent PBot paper engine and dashboard
 
-Prepare tbot.shaneathon.com as a separate bot terminal. Add a persistent paper
+Prepare pbot.shaneathon.com as a separate bot terminal. Add a persistent paper
 portfolio for ten market streams, asset/model/stage-specific history gates,
 modeled edge after costs, fresh mapped depth-aware quotes, worst-case risk
 reservation, settlement-only exits, kill switch, restart idempotence and

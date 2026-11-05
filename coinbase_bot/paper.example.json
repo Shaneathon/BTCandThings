@@ -1,0 +1,13 @@
+{
+  "initial_cash": "1000",
+  "max_position_cost": "50",
+  "max_exposure": "200",
+  "max_daily_loss": "100",
+  "max_drawdown": "0.20",
+  "fee_rate": "0.006",
+  "slippage_rate": "0.0005",
+  "maximum_spread_fraction": "0.003",
+  "stop_loss_fraction": "0.02",
+  "take_profit_fraction": "0.04",
+  "cooldown_seconds": 300
+}

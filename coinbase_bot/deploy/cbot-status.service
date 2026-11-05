@@ -1,0 +1,18 @@
+[Unit]
+Description=CBot authenticated read-only paper status
+After=cbot-paper.service
+[Service]
+User=cbot
+Group=cbot
+WorkingDirectory=/opt/cbot
+EnvironmentFile=/etc/cbot.env
+ExecStart=/opt/cbot/venv/bin/python -m coinbase_bot.server --ledger /var/lib/cbot/paper.sqlite --port 8766
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+UMask=0077
+[Install]
+WantedBy=multi-user.target

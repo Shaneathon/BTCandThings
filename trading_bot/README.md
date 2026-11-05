@@ -1,7 +1,7 @@
-# TBot — independent ten-market paper terminal
+# PBot — independent ten-market paper terminal
 
-Target: **tbot.shaneathon.com**, separate from btc.shaneathon.com. This is the
-first bot-development release, on branch `bot/paper-trading-terminal`. It has not
+Target: **pbot.shaneathon.com**, separate from btc.shaneathon.com. This is the
+first bot-development release, on branch `bot/pbot-cbot-terminals`. It has not
 been deployed or connected to any live account. No existing tracker, production
 service or database is changed by this increment.
 
@@ -73,7 +73,7 @@ Paper engine, once real collector data and mapped quotes are available:
 
 ```bash
 python3 -m trading_bot.runner \
-  --collector-db /path/to/research.sqlite --ledger /path/to/tbot-paper.sqlite \
+  --collector-db /path/to/research.sqlite --ledger /path/to/pbot-paper.sqlite \
   --quotes /path/to/reviewed-quotes.json --config trading_bot/paper.example.json \
   --kill-file /path/to/STOP --loop
 ```
@@ -103,7 +103,7 @@ was contacted during this development.
 ## Deployment preparation
 
 The three service templates in deploy/ run a distinct paper engine, status API
-and dashboard as a dedicated tbot user, using /opt/tbot and /var/lib/tbot. They
+and dashboard as a dedicated pbot user, using /opt/pbot and /var/lib/pbot. They
 are templates only; no user or systemd unit was created or started here.
 The Nginx template adds a separate hostname and never replaces the BTC host.
 
@@ -114,7 +114,7 @@ protected service identity; do not chmod credentials/databases world-readable,
 run the bot as root, or change existing Champion/Challenger permissions to make
 access work. The prepared quote adapter still needs verified mappings/depth.
 
-DNS and TLS for tbot.shaneathon.com require the actual hosting endpoint and
+DNS and TLS for pbot.shaneathon.com require the actual hosting endpoint and
 account access. No DNS record, certificate, host route or deployment has been
 created. The dashboard can alternatively be hosted as a separate Streamlit app,
 with a privately configured HTTPS status endpoint; it must not assume that
@@ -135,6 +135,6 @@ liquidity execution or production readiness.
 
 ## Resume phrase
 
-> Continue TBot from bot/paper-trading-terminal for tbot.shaneathon.com. Connect
+> Continue PBot from bot/pbot-cbot-terminals for pbot.shaneathon.com. Connect
 > the ten-market paper engine to the prepared collector and verified quotes,
 > preserve the existing BTC tracker and collectors, and keep real orders disabled.

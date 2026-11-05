@@ -1,0 +1,18 @@
+[Unit]
+Description=PBot authenticated read-only paper status
+After=pbot-paper.service
+[Service]
+User=pbot
+Group=pbot
+WorkingDirectory=/opt/pbot
+EnvironmentFile=/etc/pbot.env
+ExecStart=/opt/pbot/venv/bin/python -m trading_bot.server --ledger /var/lib/pbot/paper.sqlite --port 8765
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+UMask=0077
+[Install]
+WantedBy=multi-user.target

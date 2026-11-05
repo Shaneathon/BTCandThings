@@ -1,0 +1,18 @@
+[Unit]
+Description=CBot independent Coinbase paper dashboard
+After=cbot-status.service
+[Service]
+User=cbot
+Group=cbot
+WorkingDirectory=/opt/cbot
+EnvironmentFile=/etc/cbot.env
+ExecStart=/opt/cbot/venv/bin/streamlit run coinbase_bot/app.py --server.address=127.0.0.1 --server.port=8503 --server.headless=true
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+UMask=0077
+[Install]
+WantedBy=multi-user.target

@@ -1,11 +1,11 @@
-name: TBot paper checks
+name: PBot paper checks
 on:
   push:
-    branches: ['bot/paper-trading-terminal']
+    branches: ['bot/pbot-cbot-terminals']
   pull_request:
     paths:
       - 'trading_bot/**'
-      - '.github/workflows/tbot-checks.yml'
+      - '.github/workflows/pbot-checks.yml'
   workflow_dispatch:
 permissions:
   contents: read

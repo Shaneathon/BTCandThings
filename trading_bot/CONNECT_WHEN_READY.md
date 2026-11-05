@@ -1,11 +1,11 @@
-# Connect BTCandThings data and TBot paper trading
+# Connect BTCandThings data and PBot paper trading
 
 Resume with:
 
-> I'm ready to connect BTCandThings collection and TBot paper trading. Use
-> bot/paper-trading-terminal, deploy/CONNECT_WHEN_READY.md and
+> I'm ready to connect BTCandThings collection and PBot paper trading. Use
+> bot/pbot-cbot-terminals, deploy/CONNECT_WHEN_READY.md and
 > trading_bot/CONNECT_WHEN_READY.md. Keep both existing collectors running,
-> preserve btc.shaneathon.com, use tbot.shaneathon.com for the separate bot app,
+> preserve btc.shaneathon.com, use pbot.shaneathon.com for the separate bot app,
 > and keep real orders disabled.
 
 The bot branch includes the data-preparation branch's code plus the independent
@@ -26,7 +26,7 @@ new bot and cloud-history preparation have not been deployed from this branch.
 5. Privately generate the status token and configure the local read-only API and
    separate Streamlit dashboard. Use templates in trading_bot/deploy/, not edits
    to the current BTC website or production virtual host.
-6. Create the actual DNS record for tbot.shaneathon.com using the chosen hosting
+6. Create the actual DNS record for pbot.shaneathon.com using the chosen hosting
    endpoint, verify domain routing, then enable TLS and confirm the live site.
    No DNS destination, certificate or new hostname is claimed configured yet.
 7. Verify cash, open worst-case risk, ledger persistence across restart, kill

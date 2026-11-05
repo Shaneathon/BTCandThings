@@ -48,9 +48,9 @@ def main():
     parser.add_argument('--ledger',type=Path,required=True)
     parser.add_argument('--port',type=int,default=8765)
     args=parser.parse_args()
-    token=os.environ.get('TBOT_READ_TOKEN','')
+    token=os.environ.get('PBOT_READ_TOKEN','')
     if len(token)<32:
-        parser.error('Set a private TBOT_READ_TOKEN of at least 32 characters')
+        parser.error('Set a private PBOT_READ_TOKEN of at least 32 characters')
     server=ThreadingHTTPServer(('127.0.0.1',args.port),partial(Handler,ledger=args.ledger,token=token))
     try:
         server.serve_forever()

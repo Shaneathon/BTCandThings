@@ -9,7 +9,7 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def read_status(url,token):
+def read_status(url,token,expected_venue="Polymarket US"):
     parsed=urlsplit(url)
     loopback=parsed.scheme=='http' and parsed.hostname in ('127.0.0.1','localhost')
     if ((parsed.scheme!='https' and not loopback) or not parsed.hostname or parsed.username or parsed.password
@@ -21,6 +21,6 @@ def read_status(url,token):
         if len(raw)>4_000_000:
             raise ValueError('Oversized status response')
         result=json.loads(raw)
-    if result.get('account',{}).get('mode')!='PAPER' or result['account'].get('live_orders_enabled') is not False:
+    if result.get('account',{}).get('venue')!=expected_venue or result.get('account',{}).get('mode')!='PAPER' or result['account'].get('live_orders_enabled') is not False:
         raise ValueError('Unexpected trading mode')
     return result

@@ -1,0 +1,18 @@
+[Unit]
+Description=PBot ten-market paper engine (no live execution)
+After=network-online.target
+[Service]
+User=pbot
+Group=pbot
+WorkingDirectory=/opt/pbot
+ExecStart=/opt/pbot/venv/bin/python -m trading_bot.runner --collector-db /var/lib/btcandthings-research/research.sqlite --ledger /var/lib/pbot/paper.sqlite --quotes /var/lib/pbot/mapped-quotes.json --config /etc/pbot-paper.json --kill-file /var/lib/pbot/STOP --loop
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/pbot
+UMask=0077
+[Install]
+WantedBy=multi-user.target

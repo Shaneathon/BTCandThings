@@ -108,6 +108,8 @@ def historical_score(markets,predictions,current,model,phase,now,max_source_age=
 class PaperBot:
     def __init__(self,path,config=None):
         self.config=(config or Config()).validate()
+        from trading_bot.ledger_guard import check_existing
+        check_existing(path,json.dumps(asdict(self.config),sort_keys=True))
         self.db=sqlite3.connect(path,timeout=15)
         self.db.execute('PRAGMA journal_mode=WAL')
         self.db.executescript('''
@@ -131,7 +133,7 @@ class PaperBot:
         cash,high,halted=self.db.execute('SELECT cash,high_water,halted FROM account WHERE id=1').fetchone()
         positions=[json.loads(p[0]) for p in self.db.execute('SELECT payload FROM positions ORDER BY market_slug')]
         opened=[p for p in positions if p['state']=='PAPER_OPEN']
-        return dict(mode='PAPER',cash=cash,open_exposure=str(sum((amount(p['cost']) for p in opened),Decimal(0))),
+        return dict(mode='PAPER',venue='Polymarket US',cash=cash,open_exposure=str(sum((amount(p['cost']) for p in opened),Decimal(0))),
                     high_water=high,halted_reason=halted,positions=positions,
                     realized_pnl=str(sum((Decimal(p['pnl']) for p in positions if p['state']=='PAPER_CLOSED'),Decimal(0))),
                     live_orders_enabled=False)

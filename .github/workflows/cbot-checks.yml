@@ -1,0 +1,25 @@
+name: CBot Coinbase paper checks
+on:
+  push:
+    branches: ['bot/pbot-cbot-terminals']
+  pull_request:
+    paths:
+      - 'coinbase_bot/**'
+      - 'trading_bot/ledger_guard.py'
+      - 'trading_bot/status_client.py'
+      - 'trading_bot/server.py'
+      - '.github/workflows/cbot-checks.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  paper-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r coinbase_bot/requirements.txt
+      - run: python -m unittest discover -s coinbase_bot/tests -v
+      - run: python coinbase_bot/smoke_ui.py

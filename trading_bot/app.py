@@ -1,4 +1,4 @@
-"""Independent tbot.shaneathon.com frontend. Read-only; no order submission."""
+"""Independent pbot.shaneathon.com frontend. Read-only; no order submission."""
 import os
 from pathlib import Path
 import sys
@@ -8,7 +8,7 @@ import streamlit as st
 from trading_bot.core import STREAMS
 from trading_bot.status_client import read_status
 
-st.set_page_config(page_title='TBot · Paper Trading',page_icon='◈',layout='wide')
+st.set_page_config(page_title='PBot · Paper Trading',page_icon='◈',layout='wide')
 st.html('''<style>
 .stApp{background:#09121e;color:#e5edf7}.block-container{max-width:1500px;padding-top:1.5rem}
 h1,h2,h3{letter-spacing:-.03em}.hero{padding:25px;border:1px solid #29445a;border-radius:18px;background:linear-gradient(120deg,#123342,#111d31);margin-bottom:20px}
@@ -17,10 +17,10 @@ h1,h2,h3{letter-spacing:-.03em}.hero{padding:25px;border:1px solid #29445a;borde
 [data-testid=stMetric]{background:#132235;padding:18px;border:1px solid #29445a;border-radius:14px}[data-testid=stMetricValue]{color:#f2f8ff}
 [data-testid=stTabs] button{font-weight:700}
 </style>''')
-st.html('<div class="hero"><span class="badge">PAPER ONLY</span><div class="kicker">TBOT · INDEPENDENT TRADING TERMINAL</div><div class="title">Ten markets. One paper portfolio.</div><div class="subtitle">BTC · ETH · XRP · SOL · Gold · Silver — separate from the BTCandThings tracker</div></div>')
+st.html('<div class="hero"><span class="badge">PAPER ONLY</span><div class="kicker">PBOT · INDEPENDENT TRADING TERMINAL</div><div class="title">Ten markets. One paper portfolio.</div><div class="subtitle">BTC · ETH · XRP · SOL · Gold · Silver — separate from the BTCandThings tracker</div></div>')
 with st.sidebar:
-    st.markdown('### TBot control room')
-    st.caption('Target hostname: tbot.shaneathon.com')
+    st.markdown('### PBot control room')
+    st.caption('Target hostname: pbot.shaneathon.com')
     st.success('Paper trading mode')
     st.warning('Live submission is disabled in this release.')
     st.caption('This dashboard is read-only. Strategy and risk configuration live on the paper engine server.')
@@ -43,7 +43,7 @@ def status(url,token):
 
 
 def content():
-    url,token=setting('TBOT_STATUS_URL'),setting('TBOT_READ_TOKEN')
+    url,token=setting('PBOT_STATUS_URL'),setting('PBOT_READ_TOKEN')
     data={}
     if not url or not token:
         st.info('SETUP · Paper engine not connected yet. No trades or performance results are being invented.')

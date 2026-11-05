@@ -1,0 +1,18 @@
+[Unit]
+Description=CBot Coinbase spot paper engine (no real orders)
+After=network-online.target
+[Service]
+User=cbot
+Group=cbot
+WorkingDirectory=/opt/cbot
+ExecStart=/opt/cbot/venv/bin/python -m coinbase_bot.runner --ledger /var/lib/cbot/paper.sqlite --config /etc/cbot-paper.json --kill-file /var/lib/cbot/STOP --loop
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/cbot
+UMask=0077
+[Install]
+WantedBy=multi-user.target
