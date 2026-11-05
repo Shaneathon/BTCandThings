@@ -50,7 +50,9 @@ h1 {font-size:1.55rem !important;} h2 {font-size:1.2rem !important;} h3 {font-si
     background: linear-gradient(110deg,#17263c,#121e30) !important;
     border: 1px solid #334b66 !important;
     border-radius: 14px !important;
-    padding: 12px 16px 10px !important;
+    padding: 10px 14px 8px !important;
+    height: 348px !important;
+    min-height: 348px !important;
     box-shadow: none !important;
     box-sizing: border-box !important;
 }
@@ -433,7 +435,7 @@ with chart_top_slot.container(key="btc_candlestick_panel"):
         def chart_y(v):
             return (chart_high - float(v)) / chart_span * 100.0
         chart_parts = ["""<style>
-        .btc-chart{position:relative;height:300px;background:#151f32;border:none;
+        .btc-chart{position:relative;height:215px;background:#151f32;border:none;
             border-radius:12px;overflow:hidden;margin:4px 0 8px}
         .btc-plot{position:absolute;left:8px;right:84px;top:12px;bottom:28px}
         .btc-grid{position:absolute;left:0;right:0;border-top:1px solid #29384e;height:0}
