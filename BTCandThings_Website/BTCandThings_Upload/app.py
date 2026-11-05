@@ -45,6 +45,16 @@ h1 {font-size:1.55rem !important;} h2 {font-size:1.2rem !important;} h3 {font-si
 .modern-sub {color:#94a3b8;font-size:12px;margin-top:4px;}
 @media(max-width:700px){.block-container{padding:.65rem .65rem 2rem !important;}.modern-masthead{padding:13px 14px;}}
 
+/* One unified card for Kraken chart header, interval selector, plot, and caption. */
+.st-key-btc_candlestick_panel {
+    background: linear-gradient(110deg,#17263c,#121e30) !important;
+    border: 1px solid #334b66 !important;
+    border-radius: 14px !important;
+    padding: 12px 16px 10px !important;
+    box-shadow: none !important;
+    box-sizing: border-box !important;
+}
+
 /* Compact dashboard layout */
 .block-container {
     max-width: 1700px !important;
@@ -391,7 +401,7 @@ verified_reference=reference is not None  # Typed US Retail API field; official 
 
 # Lightweight, server-rendered SVG candlesticks avoid Plotly's dynamically loaded frontend module.
 # Kraken candles are NOT the official Polymarket US BRTI settlement reference.
-with chart_top_slot.container():
+with chart_top_slot.container(key="btc_candlestick_panel"):
     chart_header, chart_interval_col = st.columns([2, 1], vertical_alignment="center")
     with chart_header:
         st.markdown("**BTC / USD · Kraken candles**")
@@ -423,7 +433,7 @@ with chart_top_slot.container():
         def chart_y(v):
             return (chart_high - float(v)) / chart_span * 100.0
         chart_parts = ["""<style>
-        .btc-chart{position:relative;height:300px;background:#151f32;border:1px solid #29384e;
+        .btc-chart{position:relative;height:300px;background:#151f32;border:none;
             border-radius:12px;overflow:hidden;margin:4px 0 8px}
         .btc-plot{position:absolute;left:8px;right:84px;top:12px;bottom:28px}
         .btc-grid{position:absolute;left:0;right:0;border-top:1px solid #29384e;height:0}
