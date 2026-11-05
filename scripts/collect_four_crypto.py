@@ -60,7 +60,7 @@ def collect(db):
         try:
             candles = fetch(pair)
             rows = []
-            for candle in candles:
+            for candle in candles[:-1]:
                 start = int(candle[0])
                 # Kraken's last OHLC row is the uncommitted candle.
                 # Also guard against any candle not yet complete by wall clock.
