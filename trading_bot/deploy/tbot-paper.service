@@ -1,0 +1,18 @@
+[Unit]
+Description=TBot ten-market paper engine (no live execution)
+After=network-online.target
+[Service]
+User=tbot
+Group=tbot
+WorkingDirectory=/opt/tbot
+ExecStart=/opt/tbot/venv/bin/python -m trading_bot.runner --collector-db /var/lib/btcandthings-research/research.sqlite --ledger /var/lib/tbot/paper.sqlite --quotes /var/lib/tbot/mapped-quotes.json --config /etc/tbot-paper.json --kill-file /var/lib/tbot/STOP --loop
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/tbot
+UMask=0077
+[Install]
+WantedBy=multi-user.target

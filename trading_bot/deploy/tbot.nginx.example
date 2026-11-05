@@ -1,0 +1,15 @@
+# Separate virtual-host TEMPLATE, not installed. Add actual TLS configuration
+# only after DNS/hostname ownership validation. Never replace the BTC site block.
+server {
+    listen 80;
+    server_name tbot.shaneathon.com;
+    location / {
+        proxy_pass http://127.0.0.1:8502;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 3600;
+    }
+}
+# Status API remains loopback-only; this host does not expose its /status port.

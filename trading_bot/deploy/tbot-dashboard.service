@@ -1,0 +1,18 @@
+[Unit]
+Description=TBot independent paper dashboard
+After=tbot-status.service
+[Service]
+User=tbot
+Group=tbot
+WorkingDirectory=/opt/tbot
+EnvironmentFile=/etc/tbot.env
+ExecStart=/opt/tbot/venv/bin/streamlit run trading_bot/app.py --server.address=127.0.0.1 --server.port=8502 --server.headless=true
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+UMask=0077
+[Install]
+WantedBy=multi-user.target

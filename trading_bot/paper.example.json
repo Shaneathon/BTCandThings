@@ -1,0 +1,20 @@
+{
+  "initial_cash": "1000",
+  "max_trade_cost": "10",
+  "max_exposure": "100",
+  "max_open_positions": 10,
+  "max_daily_loss": "100",
+  "max_drawdown": "0.10",
+  "minimum_edge": "0.05",
+  "maximum_spread": "0.10",
+  "minimum_settled_markets": 30,
+  "maximum_brier": 0.25,
+  "max_prediction_age": 90,
+  "max_quote_age": 15,
+  "max_source_age": 120,
+  "minimum_seconds_remaining": 30,
+  "fee_per_share": "0.01",
+  "slippage_per_share": "0.01",
+  "model_version": "Multi-asset spot baseline research V1",
+  "require_lean_alignment": true
+}
