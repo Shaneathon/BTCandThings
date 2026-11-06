@@ -5,13 +5,15 @@ response. Raw bids/asks are not automatically promoted to simulation fills.
 """
 import json
 import math
+import time
 from urllib.parse import quote
 from collector import iso
 
 
-def capture(store,get,market,observed):
+def capture(store,get,market,observed=None):
     contract=market['contract_slug']
     response=get('https://gateway.polymarket.us/v1/markets/'+quote(contract,safe='')+'/bbo')
+    observed=time.time() if observed is None else observed
     md=response.get('marketData') if isinstance(response,dict) else None
     if not isinstance(md,dict) or md.get('marketSlug')!=contract:
         raise ValueError('BBO contract identity unverified')

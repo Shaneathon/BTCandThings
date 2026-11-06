@@ -65,7 +65,8 @@ def collect(store, get=get_json, now=None):
     # Fetch six feeds, not ten: both crypto durations share one asset's bars.
     for asset, config in ASSETS.items():
         try:
-            frame, source = load_candles(get, asset, config['pair'], now)
+            feed_observed = now if fixed_time else time.time()
+            frame, source = load_candles(get, asset, config['pair'], feed_observed)
             feeds[asset] = frame
             rows = []
             for bar in frame.itertuples(index=False):
@@ -78,19 +79,22 @@ def collect(store, get=get_json, now=None):
             report['assets'][asset] = dict(candles_changed=store.put('candle', rows), source=source)
         except Exception as exc:
             report['assets'][asset] = {'feed_error': type(exc).__name__}
+            if getattr(exc, 'code', None) is not None:
+                report['assets'][asset]['http_status'] = exc.code
     for asset, duration in STREAMS:
         key = asset+'_'+duration
         seconds = DURATIONS[duration]
-        start = int(now)//seconds*seconds
+        stream_observed = now if fixed_time else time.time()
+        start = int(stream_observed)//seconds*seconds
         state = dict(collection_ready=False, predictions_saved=0, market_errors=[], window_end=iso(start+seconds))
         report['streams'][key] = state
         # Revisit recent closed contracts and archive their raw evidence. No
         # official outcome is inferred until a finality/side adapter is reviewed.
         current = None
-        for boundary in (start-seconds, start):
+        for boundary in (start, start-seconds):
             try:
-                row, details = market(get, asset, duration, boundary, now)
-                store.evidence(row['market_slug'], now, details)
+                row, details = market(get, asset, duration, boundary, stream_observed)
+                store.evidence(row['market_slug'], stream_observed, details)
                 prior = store.db.execute("SELECT payload FROM records WHERE kind='market' AND key=?", (row['market_slug'],)).fetchone()
                 if prior:
                     existing = json.loads(prior[0])
@@ -101,6 +105,29 @@ def collect(store, get=get_json, now=None):
                     current = row
             except Exception as exc:
                 state['market_errors'].append({'window_start':iso(boundary), 'error':type(exc).__name__})
+        observed = now if fixed_time else time.time()
+        # A boundary can pass during HTTP I/O. Refresh the exact current
+        # contract once; never re-label an old target with a new window.
+        if not fixed_time and observed >= start+seconds:
+            start = int(observed)//seconds*seconds
+            state['window_end'] = iso(start+seconds)
+            current = None
+            try:
+                row, details = market(get, asset, duration, start, observed)
+                store.evidence(row['market_slug'], observed, details)
+                store.put('market', [row])
+                current = row
+            except Exception as exc:
+                state['market_errors'].append({'window_start':iso(start), 'error':type(exc).__name__})
+            observed = time.time()
+        # Preserve quote observations even when the spot/futures feed is down.
+        if current is not None and observed < start+seconds:
+            from quotes import capture
+            try:
+                capture(store, get, current, now if fixed_time else None)
+                state['quote_status'] = 'RAW_BBO_SAVED_SIDE_MAPPING_PENDING'
+            except Exception as exc:
+                state['quote_status'] = 'ERROR_' + type(exc).__name__
         if asset not in feeds:
             state['paused_reason'] = 'Asset feed unavailable'
             continue
@@ -120,15 +147,9 @@ def collect(store, get=get_json, now=None):
             cursor = store.db.execute('INSERT OR IGNORE INTO research_snapshots VALUES (?,?,?,?)',
                 (snapshot['market_slug'], snapshot['recorded_at'], MODEL, json.dumps(snapshot, allow_nan=False)))
             state['predictions_saved'] = cursor.rowcount
-        from quotes import capture
-        try:
-            capture(store, get, current, now if fixed_time else time.time())
-            state['quote_status'] = 'RAW_BBO_SAVED_SIDE_MAPPING_PENDING'
-        except Exception as exc:
-            state['quote_status'] = 'ERROR_' + type(exc).__name__
     report['collection_ready'] = all(r['collection_ready'] for r in report['streams'].values())
     from settlement import reconcile
-    report['settlements'] = reconcile(store, get, now)
+    report['settlements'] = reconcile(store, get, now if fixed_time else time.time())
     report['settlement_adapter'] = 'EXPLICIT_SEMANTIC_WINNER_ONLY'
     report['simulation_ready'] = False  # Official settlement/quotes/fees not integrated.
     completed = now if fixed_time else time.time()

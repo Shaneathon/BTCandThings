@@ -1,6 +1,8 @@
 import tempfile
 from pathlib import Path
 import unittest
+from unittest.mock import patch
+from urllib.error import HTTPError
 from ten_streams import STREAMS, collect, validate
 from collector import Store, iso
 
@@ -30,6 +32,45 @@ def fixture(url, params=None):
 
 
 class TenStreamTests(unittest.TestCase):
+    def test_clock_rollover_before_stream_processing_uses_current_market(self):
+        boundary=NOW//300*300+300
+        clock={'calls':0}
+        def current_time():
+            clock['calls']+=1
+            return boundary-1 if clock['calls']==1 else boundary+2
+        store=Store(':memory:')
+        with patch('test_ten_streams.NOW',boundary),patch('ten_streams.time.time',side_effect=current_time):
+            result=collect(store,fixture)
+        self.assertTrue(result['streams']['BTC_5m']['collection_ready'],result)
+        self.assertEqual(result['streams']['BTC_5m']['window_end'],iso(boundary+300))
+        store.db.close()
+
+    def test_boundary_during_market_io_reloads_target_without_relabeling(self):
+        boundary=NOW//300*300+300
+        clock={'time':boundary-1,'rolled':False}
+        def get(url,params=None):
+            response=fixture(url,params)
+            if '/events/' in url and 'btc-updown-5m' in url and not clock['rolled']:
+                clock.update(time=boundary+2,rolled=True)
+            return response
+        store=Store(':memory:')
+        with patch('test_ten_streams.NOW',boundary),patch('ten_streams.time.time',side_effect=lambda:clock['time']):
+            result=collect(store,get)
+        self.assertEqual(result['streams']['BTC_5m']['window_end'],iso(boundary+300))
+        self.assertTrue(result['streams']['BTC_5m']['collection_ready'],result)
+        store.db.close()
+
+    def test_metals_http_status_is_reported_and_quotes_still_archived(self):
+        def get(url,params=None):
+            if 'yahoo' in url: raise HTTPError(url,429,'rate limited',{},None)
+            return fixture(url,params)
+        store=Store(':memory:')
+        result=collect(store,get,NOW)
+        self.assertEqual(result['assets']['GOLD']['http_status'],429)
+        self.assertEqual(result['assets']['SILVER']['http_status'],429)
+        self.assertEqual(store.db.execute('SELECT count(*) FROM raw_quotes').fetchone()[0],10)
+        store.db.close()
+
     def test_ten_streams_share_six_feeds_and_save_real_observation_times(self):
         calls=[]
         def get(url, params=None):
