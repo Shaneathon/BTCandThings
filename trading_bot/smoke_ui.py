@@ -46,3 +46,20 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     assert not app.exception
     assert app.error
     print('PASS PBot API outage: explicit unavailable state without fabricated account data')
+
+# The directional experiment must never present its assumed prices as real fills.
+import tempfile
+from trading_bot.dual_sandbox import Sandbox, SandboxConfig, MODELS, run_cycle
+from trading_bot.tests.test_dual_sandbox import fixture as dual_fixture, NOW as DUAL_NOW
+with tempfile.TemporaryDirectory() as temporary:
+    bots={name:Sandbox(Path(temporary)/(name+'.sqlite'),SandboxConfig(model_version=model)) for name,model in MODELS.items()}
+    dual=run_cycle(bots,dual_fixture(),DUAL_NOW)
+    for bot in bots.values(): bot.close()
+st.cache_data.clear()
+with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status','PBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}), patch('trading_bot.status_client.read_status',return_value=dual):
+    app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
+    assert not app.exception,[e.message for e in app.exception]
+    assert any('Hypothetical fixed prices' in w.value for w in app.warning)
+    assert len([m for m in app.metric if m.label=='Hypothetical realized P/L'])==2
+    assert any('Automatic paper-trade reviews' in e.label for e in app.expander)
+    print('PASS PBot dual directional sandbox: separate wallets, assumed-price warning, automatic reviews')

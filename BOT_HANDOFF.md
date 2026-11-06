@@ -3,6 +3,29 @@
 Repository: Shaneathon/BTCandThings. Current preparation branch:
 `tracker/coinbase-research`.
 
+## November 6 session priorities and authorization
+
+Coin and PBot are deployed on the user's DigitalOcean droplet, with HTTPS
+health checks and visual confirmation. PBot was observation-only. BTC Champion,
+Challenger, multiasset research and Coinbase collectors remain running.
+The Bitcoin audit found Challenger B promising near expiry on 95 matched
+markets; Champion production calculations have not been changed.
+
+Immediate priority: start two independent forward **paper-only** portfolios,
+Champion V13.5 versus Challenger B. User explicitly authorizes paper experiment
+tweaks without approval each time. Preserve a frozen baseline, version changes,
+and don't label every loss an entry mistake. No real trading is authorized.
+`deploy/start-pbot-sandbox.sh` prepares/installs a **hypothetical directional**
+experiment with fixed 50c reference prices and explicit assumed costs; it does
+not solve verified quote-side mapping or enable realistic executable fills.
+Deployment still requires the user to run the published command on the droplet.
+
+After the paper comparison, continue CBot and Betting Lab; the user requested a
+server-side password-protected portal at shaneathon.com after those projects.
+Only the portal needs password protection; direct dashboard access stays as is.
+Expanded continuous market data/context collection was added last. Minimize
+manual steps. Never stop existing collectors or expose credentials.
+
 | App | Target | Source | Scope |
 | --- | --- | --- | --- |
 | BTCandThings | btc.shaneathon.com | BTCandThings_Website/BTCandThings_Upload | Existing ten-market tracker |

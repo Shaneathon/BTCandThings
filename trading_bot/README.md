@@ -102,6 +102,43 @@ was contacted during this development.
 
 ## Deployment preparation
 
+### Forward Champion versus Challenger B directional sandbox
+
+`deploy/start-pbot-sandbox.sh --prepare` rehearses an isolated release;
+`--apply` updates only an existing observation-mode PBot. It backs up the
+three PBot units, starts a separate root data-export timer, and restarts the
+PBot engine/API/dashboard. It never restarts the collectors or Coinbase stack.
+Immediate PBot startup failures restore the prior observation units.
+
+This experiment uses separate `champion-directional-v1.sqlite` and
+`challenger-b-directional-v1.sqlite` virtual wallets under `/var/lib/pbot`,
+with $1,000 each, $10 maximum entry cost and one open BTC 15m position each.
+The entry window is 90–30 seconds before expiry. Both model signals must be
+present, nonfuture and at most 90 seconds old, and the export no older than
+45 seconds. The entry is recorded at actual observation time; closed markets
+are never retrospectively entered. An entry needs at least 55% model confidence.
+Official verified settlements, including contract, target and window checks,
+close positions exactly once. A $100 daily loss budget and 10% drawdown halt
+remain active; `/var/lib/pbot/STOP-SANDBOX` pauses entries, not settlements.
+
+**Prices are hypothetical:** 50c reference, plus 1c slippage and 1c fee per
+share. There is no assertion of real order-book liquidity, UP/Yes mapping,
+executable fills or realistic profitability. These assumptions are prominently
+shown on the dashboard. Actual-quote fills and live orders remain disabled.
+This lets the user compare forward directions while quote integration remains
+unfinished. It must not be presented as a realistic trade simulation.
+
+The root exporter reads public prediction records via GET using the existing
+private collector environment and reads the research DB read-only. It exports
+only public BTC metadata/predictions to a separate atomic root-owned 0640 file
+readable by pbot. The engine/API/dashboard receive no Supabase credentials.
+Signal observations are archived for later entry-timing analysis. Settled
+losses receive automated descriptive classifications; normal losses are not
+automatically treated as strategy mistakes. This version does not optimize
+rules or self-modify. New changes must preserve a frozen baseline and use a
+separately versioned experiment/ledger. The user has authorized autonomous
+paper-only experimentation; real-money activation is not authorized.
+
 `deploy/install-pbot.sh --prepare` rehearses an independent installation.
 `--apply` installs **observation mode only**: a separate virtual ledger,
 authenticated loopback status API on 8765, and dashboard on 8502. Paper entries

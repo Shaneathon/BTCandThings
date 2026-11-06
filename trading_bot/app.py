@@ -55,6 +55,41 @@ def content():
                 st.warning('Paper engine status is stale. Displayed positions may be out of date.')
         except Exception as exc:
             st.error(f'Paper status unavailable ({type(exc).__name__}). No account credentials are displayed.')
+    if data.get('operation_mode') == 'DIRECTIONAL_SANDBOX':
+        st.warning('DIRECTIONAL SANDBOX · Hypothetical fixed prices, not executable market fills. Real trading is disabled.')
+        st.caption(data.get('price_assumption',''))
+        st.caption(f"Forward BTC 15m comparison · input {data.get('input_status')} · "
+                   f"shared signal markets {data.get('common_signal_markets',0)}. Separate virtual wallets; no historical entries are backfilled.")
+        for column,(name,report) in zip(st.columns(2),data.get('portfolios',{}).items()):
+            with column:
+                st.markdown('### '+name)
+                account=report['account']
+                st.metric('Virtual cash',f"${float(account['cash']):,.2f}")
+                st.metric('Hypothetical realized P/L',f"${float(account['realized_pnl']):,.2f}")
+                positions=account.get('positions',[])
+                closed=[p for p in positions if p['state']=='PAPER_CLOSED']
+                st.metric('Settled experiments',account.get('settled_experiments_total',len(closed)))
+                st.caption(f"Model: {report['configuration']['model_version']}")
+                if account.get('halted_reason'): st.error(account['halted_reason'])
+                if positions:
+                    st.dataframe(positions,hide_index=True,width='stretch')
+                    st.caption('Shows the latest 100 entries; the complete history remains in each separate ledger.')
+                else: st.info('Waiting for both fresh predictions in the final 90–30 seconds of a BTC 15m window.')
+                if report.get('decisions'): st.dataframe(report['decisions'],hide_index=True,width='stretch')
+        with st.expander('Experiment rules and limitations'):
+            st.write('Each wallet starts with $1,000 virtual cash, at most $10 per entry and one open position. '
+                     'Assumed entry: 50¢ plus 1¢ slippage and 1¢ fee per share. '
+                     'Each model requires at least 55% confidence under this fixed-cost assumption. '
+                     'Both signals must be available for the same market. Only verified official outcomes settle positions. '
+                     'This experiment tests directions under artificial prices; it does not demonstrate trading profitability. '
+                     'A 10% drawdown halt and $100 daily loss budget apply. New tweaks need a separate experiment version.')
+            st.code('touch /var/lib/pbot/STOP-SANDBOX',language='bash')
+            st.caption('Pauses new hypothetical entries while verified settlements continue. Executable-quote fills remain disabled.')
+        with st.expander('Automatic paper-trade reviews'):
+            st.caption('Reviews update as verified settlements arrive. The baseline stays frozen; new tweaks use separate versions. '
+                       'This release classifies losses and archives signals; it does not automatically optimize the strategy.')
+            st.json(data.get('automatic_reviews',{}))
+        return
     account=data.get('account',{})
     if data.get('operation_mode') == 'OBSERVE_ONLY':
         st.warning('OBSERVATION ONLY · Paper entries are paused while quote mapping is verified. Live trading is disabled.')
