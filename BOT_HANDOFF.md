@@ -3,7 +3,51 @@
 Repository: Shaneathon/BTCandThings. Current preparation branch:
 `tracker/coinbase-research`.
 
-## November 6 session priorities and authorization
+## Current confirmed status — November 6, 2026
+
+This section supersedes historical preparation notes below. Last server evidence:
+2026-11-06 23:47:54 UTC (5:47 PM Central). Do not infer current runtime health
+forever from this timestamp; recheck before deploying or reporting live status.
+
+- btc.shaneathon.com, coin.shaneathon.com, pbot.shaneathon.com and
+  cbot.shaneathon.com have HTTPS and user visual confirmation.
+- bets.shaneathon.com works; it is hosted separately on OpenAI Sites/Cloudflare,
+  with code accessible from its original ChatGPT app conversation, not this repo.
+- shaneathon.com portal works with server-side password protection. Username
+  is Shaneathon; password is private and never belongs in chat/Git. Portal
+  protection does not restrict direct access to individual dashboards.
+- All 14 monitored services were active in the latest health output. Original
+  btc-collector and btc-challenger remained running and Champion unchanged.
+- PBot preserves Champion/B BTC15m control ledgers and has ten additional
+  independent research wallets. Eight crypto streams monitor fresh predictions;
+  GOLD_15m and SILVER_15m are paused. ALL Polymarket entries currently use
+  hypothetical 50c reference prices plus assumed costs, not executable fills.
+- CBot runs paper-only on BTC/ETH/XRP/SOL USD spot products using Coin's feed.
+  It uses sampled bid/ask prices and assumed fees/slippage, not actual orders.
+- Independent Coinbase raw recorder is capturing public trades/heartbeats;
+  Level-2 disconnected in the probe (1006), is excluded, and is not fixed.
+- DigitalOcean automated daily backups were enabled by user and confirmed in
+  screenshot. First completed provider backup is not yet evidenced.
+- Maintenance deployment is confirmed: seven server tests passed, first local
+  set successfully backed up and integrity-checked **18 databases** at
+  23:47:52 UTC. No backup failure recorded. Hourly SQLite snapshots, daily
+  Supabase public-data exports and five-minute health timers are enabled.
+- First cloud export was still pending in latest output; completion needs a
+  follow-up check. That was the only warning. Gold/silver were paused notices.
+- Root disk had 40.46 GiB free and memory 954 MiB available in that output.
+- Private health report: https://shaneathon.com/health.html. Alerts are local
+  journal/report only; no email/SMS/webhook notifications are configured.
+- **Real trading is disabled and not authorized.** User authorizes autonomous
+  versioned paper experiments, but a self-optimizing promotion controller has
+  not been implemented. Keep baselines frozen and never rewrite results.
+
+Next checks: first cloud export completion; first completed DigitalOcean backup.
+Remaining development: verified Polymarket mapping/quote-realistic fills, metals
+feeds, validated Level-2/replay, autonomous experiment review/promotion, optional
+external notifications, full restore rehearsal. Betting Lab accordion change
+must be confirmed in its original app conversation. Keep manual steps minimal.
+
+## Historical November 6 implementation notes (superseded above)
 
 Coin and PBot are deployed on the user's DigitalOcean droplet, with HTTPS
 health checks and visual confirmation. PBot was observation-only. BTC Champion,
