@@ -32,6 +32,15 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     print('PASS PBot connected fixture: virtual wallet, ten positions, decision journal, no trade controls')
 import streamlit as st
 st.cache_data.clear()
+paused = dict(report, operation_mode='OBSERVE_ONLY', paper_entries_enabled=False,
+              input_status='FRESH', input_markets=10, input_predictions=100)
+with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status','PBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}), patch('trading_bot.status_client.read_status',return_value=paused):
+    app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
+    assert not app.exception
+    assert any('OBSERVATION ONLY' in w.value for w in app.warning)
+    assert any('100 prediction snapshots' in c.value for c in app.caption)
+    print('PASS PBot observation mode: entry pause and research provenance visible')
+st.cache_data.clear()
 with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status','PBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}), patch('trading_bot.status_client.read_status',side_effect=TimeoutError()):
     app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
     assert not app.exception

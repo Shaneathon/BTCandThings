@@ -56,6 +56,12 @@ def content():
         except Exception as exc:
             st.error(f'Paper status unavailable ({type(exc).__name__}). No account credentials are displayed.')
     account=data.get('account',{})
+    if data.get('operation_mode') == 'OBSERVE_ONLY':
+        st.warning('OBSERVATION ONLY · Paper entries are paused while quote mapping is verified. Live trading is disabled.')
+        st.caption(f"Research input: {data.get('input_status', 'UNKNOWN')} · "
+                   f"{data.get('input_markets', 0)} archived markets · "
+                   f"{data.get('input_predictions', 0)} prediction snapshots. "
+                   "The displayed balance is virtual money.")
     positions=account.get('positions',[])
     opened=[p for p in positions if p['state']=='PAPER_OPEN']
     columns=st.columns(4)

@@ -102,6 +102,21 @@ was contacted during this development.
 
 ## Deployment preparation
 
+`deploy/install-pbot.sh --prepare` rehearses an independent installation.
+`--apply` installs **observation mode only**: a separate virtual ledger,
+authenticated loopback status API on 8765, and dashboard on 8502. Paper entries
+are hard-disabled in `trading_bot.monitor`, regardless of files or configuration.
+The normal paper runner is not started. Quotes are not assumed to be mapped.
+
+A dedicated root oneshot/timer reads only public research records from the
+collector SQLite database and atomically exports a snapshot every 60 seconds.
+The pbot user can read that separate root-owned snapshot, but receives no
+collector credentials, database permissions or write access. Stale snapshots
+are explicitly marked and excluded after 180 seconds. Existing collectors
+are neither restarted nor reconfigured. Enabling paper fills will require a
+separate implementation/update after quote mapping and execution checks pass.
+DNS, Nginx and HTTPS are configured separately after service health checks.
+
 The three service templates in deploy/ run a distinct paper engine, status API
 and dashboard as a dedicated pbot user, using /opt/pbot and /var/lib/pbot. They
 are templates only; no user or systemd unit was created or started here.
