@@ -1,5 +1,6 @@
 """Conservative official settlement reconciliation. Never use proxy winners."""
 import json
+import re
 from decimal import Decimal, InvalidOperation
 from urllib.parse import quote
 from collector import epoch, iso, unwrap
@@ -13,7 +14,7 @@ def winner(details):
 
 No ordering of Yes/No or numeric sides is used. Reconcile separately checks
 contract identity, asset, window and unchanged official target.
-Ties remain pending until the contract's tie rule is explicitly supported.
+Ties require the contract's explicit greater-than-or-equal-to UP rule.
 """
     states = [str(details[k]).upper() for k in ('state', 'status') if details.get(k) is not None]
     if not states or any(s not in FINAL for s in states):
@@ -31,11 +32,15 @@ Ties remain pending until the contract's tie rule is explicitly supported.
             if target['currency'] != 'USD' or final['currency'] != 'USD':
                 return None
             target, final = Decimal(str(target['value'])), Decimal(str(final['value']))
-            if not all(v.is_finite() and v > 0 for v in (target, final)) or final == target:
+            if not all(v.is_finite() and v > 0 for v in (target, final)):
+                return None
+            if final == target and not re.search(
+                r'this market will settle to up if .+? is greater than or equal to .+?\. otherwise, this market will settle to down\.',
+                ' '.join(str(details.get('description', '')).lower().split())):
                 return None
         except (KeyError, TypeError, InvalidOperation, ValueError):
             return None
-        results.add('UP' if final > target else 'DOWN')
+        results.add('UP' if final >= target else 'DOWN')
     return next(iter(results)) if len(results) == 1 else None
 
 

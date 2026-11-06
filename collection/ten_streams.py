@@ -138,7 +138,9 @@ def collect(store, get=get_json, now=None):
                 if boundary == start:
                     current = row
             except Exception as exc:
-                state['market_errors'].append({'window_start':iso(boundary), 'error':type(exc).__name__})
+                state['market_errors'].append({'window_start':iso(boundary), 'error':type(exc).__name__,
+                    'reason':str(exc)[:200] if type(exc) is ValueError else 'Request failed',
+                    'http_status':getattr(exc,'code',None)})
         observed = now if fixed_time else time.time()
         # A boundary can pass during HTTP I/O. Refresh the exact current
         # contract once; never re-label an old target with a new window.
@@ -152,7 +154,9 @@ def collect(store, get=get_json, now=None):
                 store.put('market', [row])
                 current = row
             except Exception as exc:
-                state['market_errors'].append({'window_start':iso(start), 'error':type(exc).__name__})
+                state['market_errors'].append({'window_start':iso(start), 'error':type(exc).__name__,
+                    'reason':str(exc)[:200] if type(exc) is ValueError else 'Request failed',
+                    'http_status':getattr(exc,'code',None)})
             observed = time.time()
         state['metadata_ready'] = current is not None and observed < start+seconds
         if current is not None and observed < start+seconds:

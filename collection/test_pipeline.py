@@ -128,6 +128,22 @@ class PipelineTests(unittest.TestCase):
         row=record('1','2');row['assetPriceTerms']['settlementPrice']['currency']='EUR'
         self.assertIsNone(winner(row))
 
+    def test_tie_requires_explicit_contract_rule(self):
+        row={'status':'MARKET_STATUS_RESOLVED','closed':True,
+             'assetPriceTerms':{'marketType':'ASSET_PRICE_MARKET_TYPE_UP_DOWN',
+                 'priceToBeat':{'value':'2221.84','currency':'USD'},
+                 'settlementPrice':{'value':'2221.84','currency':'USD'}}}
+        self.assertIsNone(winner(row))
+        row['description']=('This market will settle to Up if the Ethereum price at 2:30AM ET '
+            'on Nov 6, 2026 is greater than or equal to the price at 2:15AM ET on Nov 6, 2026. '
+            'Otherwise, this market will settle to Down.')
+        self.assertEqual(winner(row),'UP')
+        row['winningSide']='DOWN'
+        self.assertIsNone(winner(row))
+        del row['winningSide']
+        row['description']=row['description'].replace('greater than or equal to','greater than')
+        self.assertIsNone(winner(row))
+
     def test_typed_prices_reconcile_but_foreign_terms_never_verify(self):
         def resolved(url,params=None):
             response=fixture(url,params)
