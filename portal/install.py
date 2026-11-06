@@ -37,6 +37,23 @@ class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs): return None
 
 
+def read_credentials():
+    # TextIOWrapper opened with r+ tries to seek when switching direction;
+    # terminals are nonseekable. Keep independent read and write handles.
+    with open('/dev/tty','w') as terminal, open('/dev/tty','r') as terminal_input:
+        if not terminal.isatty() or not terminal_input.isatty():
+            raise SystemExit('An interactive console is required to keep the password private.')
+        terminal.write('Portal username [shane]: ');terminal.flush()
+        username=terminal_input.readline().strip() or 'shane'
+        if not re.fullmatch(r'[A-Za-z0-9_.-]{1,64}',username):
+            raise SystemExit('Use letters, numbers, dots, underscores or dashes for the username.')
+        password=getpass.getpass('Portal password (hidden; at least 12 characters): ',stream=terminal)
+        confirmation=getpass.getpass('Repeat portal password: ',stream=terminal)
+        if len(password)<12 or password!=confirmation:
+            raise SystemExit('Password needs at least 12 characters and both entries must match. No files changed.')
+    return username,password
+
+
 def main():
     if os.geteuid()!=0: raise SystemExit('Run as root in the DigitalOcean console.')
     for command in ('nginx','openssl','certbot'):
@@ -59,15 +76,7 @@ def main():
     match=re.search(r'^\s*user\s+([\w-]+)(?:\s+([\w-]+))?\s*;',settings,re.MULTILINE)
     if not match: raise SystemExit('Cannot determine Nginx worker identity; no files changed.')
     worker_gid=grp.getgrnam(match[2]).gr_gid if match[2] else pwd.getpwnam(match[1]).pw_gid
-    with open('/dev/tty','r+') as terminal:
-        if not terminal.isatty(): raise SystemExit('An interactive console is required to keep the password private.')
-        terminal.write('Portal username [shane]: ');terminal.flush()
-        username=terminal.readline().strip() or 'shane'
-        if not re.fullmatch(r'[A-Za-z0-9_.-]{1,64}',username): raise SystemExit('Use letters, numbers, dots, underscores or dashes for the username.')
-        password=getpass.getpass('Portal password (hidden; at least 12 characters): ',stream=terminal)
-        confirmation=getpass.getpass('Repeat portal password: ',stream=terminal)
-        if len(password)<12 or password!=confirmation:
-            raise SystemExit('Password needs at least 12 characters and both entries must match. No files changed.')
+    username,password=read_credentials()
     hashed=subprocess.run(['openssl','passwd','-6','-stdin'],input=password+'\n',text=True,
                           capture_output=True,check=True).stdout.strip()
     if not hashed.startswith('$6$'): raise SystemExit('Password hash generation failed.')
