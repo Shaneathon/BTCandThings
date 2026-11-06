@@ -86,6 +86,22 @@ for a recorder-only update, not yet confirmed deployed. Existing REST book
 collection remains; full streamed Level-2 and tradable-book validation remain
 unfinished. Do not describe current raw capture as a validated book.
 
+Later recorder-only update was confirmed deployed at
+`/opt/coinbase-recorder/releases/20261106T215517-37030`: CAPTURING_RAW, 91 trade
+messages, 10 heartbeats, no reconnects in that session, Level-2 excluded.
+User enabled DigitalOcean daily backups; screenshot confirms enabled, window
+08:00–12:00 UTC (02:00–06:00 Central on this date), first completion not yet
+verified. Do not claim a completed provider backup from an enabled schedule.
+
+Current task: consistent app/database backups and health checks, prepared in
+`operations/` and `deploy/install-maintenance.sh`. Seven tests and installer
+rehearsal pass. Not yet confirmed deployed. Hourly private SQLite snapshots
+with integrity checks and bounded retention; daily GET-only Supabase public
+data exports; health checks every five minutes and protected /health.html.
+No application services are stopped/restarted. No credential values in
+archives/logs. External push notifications and full disaster restore tests
+are not configured. Managed backups supplement these local snapshots.
+
 | App | Target | Source | Scope |
 | --- | --- | --- | --- |
 | BTCandThings | btc.shaneathon.com | BTCandThings_Website/BTCandThings_Upload | Existing ten-market tracker |
