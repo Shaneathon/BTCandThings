@@ -13,6 +13,19 @@ from coinbase_bot.market_data import PRODUCTS,BASE,get_json,positive,timestamp,m
 APP_ID=1129271630
 
 
+_last_request=None
+
+def paced_get_json(url,params=None):
+    """Identify public requests through the existing client, at <=4 starts/sec."""
+    global _last_request
+    now=time.monotonic()
+    if _last_request is not None:
+        delay=.25-(now-_last_request)
+        if delay>0: time.sleep(delay)
+    _last_request=time.monotonic()
+    return get_json(url,params)
+
+
 class Store:
     def __init__(self,path):
         if str(path)!=':memory:' and Path(path).exists() and Path(path).stat().st_size:
@@ -122,7 +135,7 @@ def indicators(rows,now):
                 observed_candle_close=recent[-1]['start']+60)
 
 
-def collect(store,get=get_json,now=None):
+def collect(store,get=paced_get_json,now=None):
     fixed=now is not None
     started=time.time() if now is None else now
     report=dict(mode='RESEARCH_TRACKER',venue='Coinbase Advanced',observed_at=started,products={},orders_enabled=False)

@@ -17,6 +17,29 @@ def fixture(url,params=None):
 
 
 class TrackerTests(unittest.TestCase):
+    def test_public_request_starts_are_paced(self):
+        from unittest.mock import patch
+        from coinbase_tracker.collector import paced_get_json
+        with patch('coinbase_tracker.collector._last_request',100),patch('coinbase_tracker.collector.time.monotonic',side_effect=[100.1,100.25]),patch('coinbase_tracker.collector.time.sleep') as wait,patch('coinbase_tracker.collector.get_json',return_value={}) as request:
+            paced_get_json('https://api.coinbase.com/example')
+        self.assertAlmostEqual(wait.call_args.args[0],.15)
+        request.assert_called_once()
+
+    def test_seed_is_private_consistent_and_exclusive(self):
+        from coinbase_tracker.storage import seed
+        with tempfile.TemporaryDirectory() as tmp:
+            source=Path(tmp)/'source.sqlite'
+            target=Path(tmp)/'target.sqlite'
+            store=Store(source)
+            collect(store,fixture,NOW)
+            store.close()
+            seed(source,target)
+            self.assertEqual(target.stat().st_mode & 0o777,0o600)
+            self.assertEqual(snapshot(source),snapshot(target))
+            before=target.read_bytes()
+            with self.assertRaises(FileExistsError): seed(source,target)
+            self.assertEqual(before,target.read_bytes())
+
     def test_all_four_products_and_component_archival(self):
         store=Store(':memory:')
         result=collect(store,fixture,NOW)

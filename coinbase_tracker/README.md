@@ -90,7 +90,7 @@ read-only account-data integration remain future work.
 
 ## Validation
 
-Nine tracker tests pass, covering all four source archives, restart/deduplication,
+Eleven tracker tests pass, covering all four source archives, restart/deduplication,
 partial outages, incorrect books, gaps, conflicting trades, no foreign-wallet
 writes, real observation timestamps and the read-only feed into CBot. Three
 Streamlit fixture scenarios cover setup, independent asset selection with
@@ -102,3 +102,22 @@ transport/reader changes. Tests contain synthetic data, not trading results.
 > Continue from tracker/coinbase-research and BOT_HANDOFF.md. Connect
 > coin.shaneathon.com for BTC/ETH/XRP/SOL research data, feed CBot read-only,
 > preserve the existing tracker and both bots, and keep real trading disabled.
+
+
+## Independent droplet installer
+
+`bash deploy/install-coin.sh --prepare` packages an isolated release and runs
+11 tests plus three dashboard scenarios without installing services.
+`--apply` requires root, checks for conflicting users, units, credentials and
+ports, then checks actual public feeds before starting `coin-collector`,
+`coin-status` and `coin-dashboard`. Set `COIN_SEED_DB` to preserve a genuine
+Coinbase preflight database using an exclusive, consistent SQLite backup.
+Existing BTC collectors and bot services are not changed. The private API and
+UI bind to loopback; DNS, HTTPS and public proxy setup are separate steps.
+The read token is generated privately in `/etc/coin.env`; no exchange keys
+are needed. Data remains in `/var/lib/coin/research.sqlite`; off-server backup,
+retention and Coinbase-specific cloud uploads still need configuration.
+
+On November 6, the operator's droplet preflight reported metadata, candles,
+book and trades healthy for BTC-USD, ETH-USD, XRP-USD and SOL-USD. This is an
+initial source check, not proof of sustained collection or deployment.

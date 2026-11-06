@@ -13,6 +13,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
+ReadWritePaths=/var/lib/coin
 UMask=0077
 [Install]
 WantedBy=multi-user.target
