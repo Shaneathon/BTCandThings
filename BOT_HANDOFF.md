@@ -26,6 +26,13 @@ Only the portal needs password protection; direct dashboard access stays as is.
 Expanded continuous market data/context collection was added last. Minimize
 manual steps. Never stop existing collectors or expose credentials.
 
+CBot installation is prepared in `deploy/install-cbot.sh`, with optional next
+step `deploy/publish-cbot.sh` for DNS-checked Nginx/Certbot publication. It uses
+Coin's local authenticated read-only feed, separate CBot wallet/token/user and
+ports 8503/8766. Eleven bot tests plus three dashboard fixture scenarios pass;
+installer rehearsal passed without service changes. Actual CBot deployment
+must still be confirmed from the user's droplet output. No live orders.
+
 | App | Target | Source | Scope |
 | --- | --- | --- | --- |
 | BTCandThings | btc.shaneathon.com | BTCandThings_Website/BTCandThings_Upload | Existing ten-market tracker |

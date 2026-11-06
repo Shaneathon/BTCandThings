@@ -79,6 +79,29 @@ intentional new experiments use separate ledger files.
 
 ## Hosting and connection requirements
 
+`deploy/install-cbot.sh --prepare` rehearses the isolated installer and checks.
+`--apply` creates only CBot's user, units and persistent paper wallet. It tests
+the existing Coin tracker first, then configures a private copy of its read-only
+API token for the engine; no exchange trading keys are used. Engine/API/UI have
+separate environment files so the public dashboard receives no Coin feed token.
+The runner uses `--tracker-url http://127.0.0.1:8767/status`, avoiding duplicate
+Coinbase requests. Existing collectors, Coin and PBot are not reconfigured.
+
+The paper wallet starts with $1,000, up to $50 per position and the stricter
+remaining exposure/loss budgets. Example costs are 0.6% fee and 0.05% slippage
+per side, not a verified user fee tier. Simulated stop/take-profit/trend exits
+are checked about once per minute using fresh sampled books; they do not
+guarantee execution prices or model intraminute paths. Data outages fail closed
+for fills. Decisions/skips are retained in `decision_journal` for later review.
+Strategy profitability has not been established; real submission stays disabled.
+
+After adding the cbot A record, `deploy/publish-cbot.sh` checks that DNS points
+exclusively at the current droplet, checks CBot health, creates only its new
+Nginx host, validates before graceful reload, and uses existing Certbot account
+configuration for HTTPS. It refuses existing host files rather than replacing
+them. If DNS has not propagated, services remain installed and publication
+can be retried separately. Existing btc/coin/pbot hosts are untouched.
+
 Prepared templates in deploy/ use /opt/cbot, a dedicated cbot identity and
 /var/lib/cbot. PBot uses /opt/pbot and /var/lib/pbot with separate credentials.
 CBot API/dashboard ports are 8766/8503; PBot uses 8765/8502. Deployment must copy

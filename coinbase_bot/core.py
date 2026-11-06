@@ -47,6 +47,7 @@ class PaperBot:
           CREATE TABLE IF NOT EXISTS trades (trade_id TEXT PRIMARY KEY,payload TEXT);
           CREATE TABLE IF NOT EXISTS processed (product_id TEXT PRIMARY KEY,candle_end REAL,last_exit REAL);
           CREATE TABLE IF NOT EXISTS bot_snapshot (id INTEGER PRIMARY KEY,observed_at REAL,payload TEXT);
+          CREATE TABLE IF NOT EXISTS decision_journal (product_id TEXT,observed_at REAL,payload TEXT,PRIMARY KEY(product_id,observed_at));
         ''')
         value=json.dumps(asdict(self.config),sort_keys=True)
         with self.db:
@@ -162,6 +163,8 @@ class PaperBot:
             if (high-equity)/high>=positive(cfg.max_drawdown): halted='MAX_REALIZED_DRAWDOWN'
             self.db.execute('UPDATE account SET cash=?,high_water=?,halted=? WHERE id=1',(str(cash),str(high),halted))
             closed=[json.loads(r[0]) for r in self.db.execute('SELECT payload FROM trades')]
+            self.db.executemany('INSERT OR IGNORE INTO decision_journal VALUES (?,?,?)',
+                               [(d['product_id'],now,json.dumps(d)) for d in decisions])
             chart_data={p:[json.loads(row[0]) for row in self.db.execute('SELECT payload FROM market_candles WHERE product_id=? ORDER BY start DESC LIMIT 60',(p,))][::-1] for p in PRODUCTS}
             result=dict(observed_at=now,configuration=asdict(cfg),decisions=decisions,market_candles=chart_data,
                         account=dict(mode='PAPER',venue='Coinbase Advanced',cash=str(cash),open_exposure=str(exposure),positions=list(positions.values()),

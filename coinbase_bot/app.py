@@ -77,6 +77,9 @@ def render():
         else: st.info('No paper crypto holdings yet.')
         if account.get('trades'): st.dataframe(account['trades'],hide_index=True,width='stretch')
         st.caption('No leverage or shorting. Paper buys use ask plus slippage; sells use bid minus slippage. Fees apply on both sides.')
+        st.caption('Fills use sampled public quotes and assumed costs, not confirmed exchange executions. '
+                   'Checks run about once a minute; stop-loss exits are simulated at an observed bid, not guaranteed prices. '
+                   'All decisions and skips are retained in the separate paper ledger for review.')
     with journal:
         if data.get('decisions'): st.dataframe(data['decisions'],hide_index=True,width='stretch')
         else: st.info('Waiting for Coinbase data and paper decisions.')
