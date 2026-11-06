@@ -194,7 +194,7 @@ def collect(store, get=get_json, now=None):
     report['collection_ready'] = all(r['collection_ready'] for r in report['streams'].values())
     from settlement import reconcile
     report['settlements'] = reconcile(store, get, now if fixed_time else time.time())
-    report['settlement_adapter'] = 'EXPLICIT_SEMANTIC_WINNER_ONLY'
+    report['settlement_adapter'] = 'FINAL_SEMANTIC_OR_OFFICIAL_TYPED_PRICES'
     report['simulation_ready'] = False  # Official settlement/quotes/fees not integrated.
     completed = now if fixed_time else time.time()
     with store.db:

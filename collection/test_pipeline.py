@@ -98,6 +98,47 @@ class PipelineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             capture(self.store,lambda url:{'marketData':{'marketSlug':'wrong','bestBid':.4,'bestAsk':.5}},market,NOW)
 
+    def test_missing_bbo_is_unavailable_not_type_error(self):
+        from quotes import capture
+        market=json.loads(self.store.db.execute("SELECT payload FROM records WHERE kind='market' LIMIT 1").fetchone()[0])
+        for missing in (None, {}, {'value':None}, {'value':''}):
+            response={'marketData':{'marketSlug':market['contract_slug'],'bestBid':missing,'bestAsk':.5}}
+            with self.subTest(missing=missing), self.assertRaisesRegex(ValueError, 'bestBid unavailable'):
+                capture(self.store,lambda url:response,market,NOW)
+
+    def test_live_resolved_status_still_requires_semantic_winner(self):
+        self.assertIsNone(winner({'status':'MARKET_STATUS_RESOLVED','outcomePrices':['1','0']}))
+        self.assertEqual(winner({'status':'MARKET_STATUS_RESOLVED','winningSide':'DOWN'}),'DOWN')
+        self.assertIsNone(winner({'status':'MARKET_STATUS_RESOLVED','winningSide':1}))
+
+    def test_official_typed_prices_live_schema_and_conflicts(self):
+        def record(target, final):
+            return {'status':'MARKET_STATUS_RESOLVED','closed':True,
+                    'outcomes':'["Yes","No"]','outcomePrices':'["1","0"]',
+                    'assetPriceTerms':{'marketType':'ASSET_PRICE_MARKET_TYPE_UP_DOWN',
+                        'priceToBeat':{'value':target,'currency':'USD'},
+                        'settlementPrice':{'value':final,'currency':'USD'}}}
+        self.assertEqual(winner(record('75282.21','75612.66')),'UP')
+        self.assertEqual(winner(record('2221.84','2220.38')),'DOWN')
+        for value in ('2221.84','NaN','Infinity','-1','bad'):
+            self.assertIsNone(winner(record('2221.84',value)))
+        for field,value in [('closed',False),('status','OPEN'),('winningSide','DOWN')]:
+            row=record('75282.21','75612.66');row[field]=value
+            self.assertIsNone(winner(row))
+        row=record('1','2');row['assetPriceTerms']['settlementPrice']['currency']='EUR'
+        self.assertIsNone(winner(row))
+
+    def test_typed_prices_reconcile_but_foreign_terms_never_verify(self):
+        def resolved(url,params=None):
+            response=fixture(url,params)
+            row=response.get('market')
+            if row:
+                row.update(status='MARKET_STATUS_RESOLVED',closed=True)
+                row['assetPriceTerms']['settlementPrice']={'value':'999999','currency':'USD'}
+            return response
+        result=reconcile(self.store,resolved,NOW+301,limit=2)
+        self.assertEqual(result['verified'],2)
+
     def test_finality_and_semantic_side_required(self):
         for record in [{'state':'OPEN','winningSide':'UP'}, {'state':'SETTLED','winningSide':1},
                        {'state':'SETTLED','winningSide':'1'},

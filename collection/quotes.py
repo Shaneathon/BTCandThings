@@ -20,7 +20,13 @@ def capture(store,get,market,observed=None):
     values=[]
     for key in ('bestBid','bestAsk'):
         value=md.get(key)
-        number=float(value.get('value') if isinstance(value,dict) else value)
+        raw=value.get('value') if isinstance(value,dict) else value
+        if raw is None or raw == '':
+            raise ValueError('BBO '+key+' unavailable; no executable price')
+        try:
+            number=float(raw)
+        except (TypeError,ValueError) as exc:
+            raise ValueError('Invalid BBO '+key+' price') from exc
         if not math.isfinite(number) or not 0<=number<=1:
             raise ValueError('Invalid BBO price')
         values.append(number)
