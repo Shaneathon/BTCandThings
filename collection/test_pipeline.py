@@ -45,6 +45,38 @@ class PipelineTests(unittest.TestCase):
     def tearDown(self):
         self.store.db.close()
 
+    def test_candle_uploads_are_batched_and_failed_batches_retry_without_checkpoints(self):
+        cloud=FakeCloud()
+        def flaky(method,table,*args):
+            if table=='asset_proxy_candles': raise TimeoutError()
+            return cloud(method,table,*args)
+        first=sync(self.store,flaky,limit=1000)
+        self.assertGreater(first['errors'],100)
+        self.assertEqual(self.store.db.execute("SELECT count(*) FROM cloud_checkpoints WHERE table_name='asset_proxy_candles'").fetchone()[0],0)
+        second=sync(self.store,cloud,limit=1000)
+        self.assertEqual(second['errors'],0)
+        posts=[c for c in cloud.calls if c[0]=='POST' and c[1]=='asset_proxy_candles']
+        self.assertTrue(all(len(c[3])<=100 for c in posts))
+        count=self.store.db.execute("SELECT count(*) FROM records WHERE kind='candle'").fetchone()[0]
+        self.assertEqual(len(cloud.tables['asset_proxy_candles']),count)
+        self.assertLess(len(posts),count/10)
+
+    def test_database_seed_is_consistent_private_and_never_overwrites(self):
+        from storage import seed
+        with tempfile.TemporaryDirectory() as tmp:
+            source=Path(tmp)/'source.sqlite'
+            destination=Path(tmp)/'destination.sqlite'
+            original=Store(source)
+            collect(original,fixture,NOW)
+            seed(source,destination)
+            self.assertEqual(destination.stat().st_mode & 0o777,0o600)
+            with __import__('sqlite3').connect(destination) as copy:
+                self.assertEqual(copy.execute('SELECT count(*) FROM research_snapshots').fetchone()[0],10)
+            before=destination.read_bytes()
+            with self.assertRaises(FileExistsError): seed(source,destination)
+            self.assertEqual(before,destination.read_bytes())
+            original.db.close()
+
     def test_secure_configuration_is_exclusive_and_checks_tables_read_only(self):
         import os
         from configure_cloud import configure

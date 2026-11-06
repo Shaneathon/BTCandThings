@@ -61,8 +61,26 @@ def sync(store, send, limit=500):
     blocked_markets=set()
     rows=[(kind,json.loads(payload)) for kind,payload in store.db.execute('SELECT kind,payload FROM records ORDER BY CASE kind WHEN \'market\' THEN 0 ELSE 1 END,key')]
     rows += [('prediction',json.loads(payload)) for (payload,) in store.db.execute('SELECT payload FROM research_snapshots ORDER BY recorded_at,market_slug')]
+    pending=[]
+    def flush():
+        if not pending: return
+        kind,table,fields=pending[0][:3]
+        mode='ignore' if kind=='prediction' else 'merge'
+        try:
+            send('POST',table,{'on_conflict':fields},[item[5] for item in pending],f'resolution={mode}-duplicates,return=minimal')
+            with store.db:
+                store.db.executemany('INSERT INTO cloud_checkpoints VALUES (?,?,?) ON CONFLICT(table_name,row_key) DO UPDATE SET digest=excluded.digest',
+                                     [(item[1],item[3],item[4]) for item in pending])
+            report['sent']+=len(pending)
+        except Exception as exc:
+            report['errors']+=len(pending)
+            name=type(exc).__name__+('_'+str(exc.code) if getattr(exc,'code',None) else '')
+            report.setdefault('error_types',{})[name]=report.setdefault('error_types',{}).get(name,0)+len(pending)
+        pending.clear()
     for kind,row in rows:
-        if report['sent']+report['errors']>=limit:
+        if pending and pending[0][0]!=kind: flush()
+        if report['sent']+report['errors']+len(pending)>=limit:
+            flush()
             break
         if kind not in TABLES:
             report['errors']+=1
@@ -108,9 +126,9 @@ def sync(store, send, limit=500):
                     else:
                         raise ValueError('Remote market requires manual reconciliation')
             else:
-                # Immutable predictions, correctable candles, all naturally keyed.
-                mode='ignore' if kind=='prediction' else 'merge'
-                send('POST',table,{'on_conflict':fields},[row],f'resolution={mode}-duplicates,return=minimal')
+                pending.append((kind,table,fields,key,digest,row))
+                if len(pending)>=100 or report['sent']+report['errors']+len(pending)>=limit: flush()
+                continue
             with store.db:
                 store.db.execute('INSERT INTO cloud_checkpoints VALUES (?,?,?) ON CONFLICT(table_name,row_key) DO UPDATE SET digest=excluded.digest',(table,key,digest))
             report['sent']+=1
@@ -118,6 +136,7 @@ def sync(store, send, limit=500):
             if kind=='market':
                 blocked_markets.add(row['market_slug'])
             report['errors']+=1
+    flush()
     report['more_possible'] = report['sent']+report['errors'] >= limit
     return report
 

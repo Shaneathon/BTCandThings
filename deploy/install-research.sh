@@ -48,12 +48,18 @@ collection_flags=()
 if [[ "$mode" == --start-recording || "$mode" == --start-cloud-recording ]]; then
   collection_flags+=(--record-available)
 fi
+if [[ ! -e "$state_root/preflight.sqlite" && -n "${BTC_RESEARCH_SEED_DB:-}" ]]; then
+  "$release_root/venv/bin/python" "$release_root/collection/storage.py" "$BTC_RESEARCH_SEED_DB" "$state_root/preflight.sqlite"
+fi
 # A failed live preflight leaves all production services unchanged.
 (umask 077; "$release_root/venv/bin/python" "$release_root/collection/ten_streams.py" --db "$state_root/preflight.sqlite" "${collection_flags[@]}")
 if [[ "$mode" == --start-cloud || "$mode" == --start-cloud-recording ]]; then
   config_flags=()
   if [[ "${BTC_RESEARCH_REUSE_COLLECTOR_ENV:-0}" == 1 ]]; then config_flags+=(--from-environment); fi
   "$release_root/venv/bin/python" "$release_root/collection/configure_cloud.py" "${config_flags[@]}"
+fi
+if [[ ! -e "$state_root/research.sqlite" ]]; then
+  "$release_root/venv/bin/python" "$release_root/collection/storage.py" "$state_root/preflight.sqlite" "$state_root/research.sqlite"
 fi
 cat > /etc/systemd/system/btc-multiasset-research.service <<EOF
 [Unit]

@@ -118,3 +118,12 @@ collector configuration. It never displays either value and still exclusively
 creates its separate root-mode-600 environment file. Role/read/write access must
 be verified; a readable legacy table alone does not establish research-table
 write permission. The existing collector's config is not edited.
+
+Cloud candle/prediction uploads are grouped into batches of up to 100 rows.
+A failed batch receives no checkpoints and retries by natural keys. Metadata
+identity/finality checks remain per market. Optional BTC_RESEARCH_SEED_DB seeds a
+new preflight database using SQLite's consistent backup API. A successful
+preflight is then copied into an absent research.sqlite before activation,
+preserving real observations and rate-limit cooldowns. No existing database is
+overwritten. This path and batched failure/recovery bring the local suite to
+31 passing tests; a complete temporary --prepare rehearsal also passed.
