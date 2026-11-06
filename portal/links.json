@@ -1,0 +1,8 @@
+[
+  {"name":"BTCandThings","description":"Polymarket market tracker","url":"https://btc.shaneathon.com","category":"Markets"},
+  {"name":"Coinbase Tracker","description":"BTC · ETH · XRP · SOL market data","url":"https://coin.shaneathon.com","category":"Markets"},
+  {"name":"PBot","description":"Champion and Challenger paper experiments","url":"https://pbot.shaneathon.com","category":"Paper trading"},
+  {"name":"CBot","description":"Coinbase spot paper portfolio","url":"https://cbot.shaneathon.com","category":"Paper trading"},
+  {"name":"Betting Lab","description":"Sports research and suggestions","url":"https://bets.shaneathon.com","category":"Research"},
+  {"name":"DFS","description":"DFS workspace","url":"https://dfs.shaneathon.com","category":"Research"}
+]

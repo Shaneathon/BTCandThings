@@ -30,8 +30,26 @@ CBot installation is prepared in `deploy/install-cbot.sh`, with optional next
 step `deploy/publish-cbot.sh` for DNS-checked Nginx/Certbot publication. It uses
 Coin's local authenticated read-only feed, separate CBot wallet/token/user and
 ports 8503/8766. Eleven bot tests plus three dashboard fixture scenarios pass;
-installer rehearsal passed without service changes. Actual CBot deployment
-must still be confirmed from the user's droplet output. No live orders.
+installer rehearsal passed without service changes. CBot was subsequently
+deployed at `/opt/cbot/releases/20261106T191021-33085`, recorded a simulated SOL
+buy, passed HTTPS health checks, and was visually confirmed by the user.
+PBot dual sandbox deployment at `/opt/pbot/releases/20261106T185718-32563`
+was confirmed with two fresh prediction feeds and separate $1,000 virtual wallets.
+No live orders.
+
+Betting Lab is separately hosted at OpenAI Sites/Cloudflare Workers, original
+URL `https://shane-betting-lab.oaken-sage-8204.chatgpt.site`. Its bets.shaneathon.com
+custom domain initially had routing/TLS delays, then the user confirmed it
+working. The requested compact suggestion-reasons accordion must be edited in
+the original Betting Lab chat; this repository does not contain that app's code.
+
+Current task is the protected apex portal, prepared in `portal/`. Root DNS
+currently has four Squarespace A addresses (198.49.23.145, 198.49.23.144,
+198.185.159.144, 198.185.159.145). Replace only apex A records with the droplet
+165.22.162.116; preserve all subdomain/email records. No apex host exists in
+the droplet's Nginx sites-enabled output. `portal/install.py` prompts privately
+for credentials and checks 401/200 behavior after HTTPS activation. Deployment
+is not yet confirmed. After portal completion, expand data collection last.
 
 | App | Target | Source | Scope |
 | --- | --- | --- | --- |
