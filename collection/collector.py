@@ -38,7 +38,7 @@ def get_json(url, params=None):
                     raise ValueError('Oversized response')
                 return json.loads(data)
         except HTTPError as exc:
-            if exc.code not in (429, 500, 502, 503, 504) or attempt == 2:
+            if exc.code not in (500, 502, 503, 504) or attempt == 2:
                 raise
         except (URLError, TimeoutError):
             if attempt == 2:

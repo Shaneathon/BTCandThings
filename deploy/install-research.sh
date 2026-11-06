@@ -6,8 +6,8 @@ source_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 install_root="${BTC_RESEARCH_INSTALL_ROOT:-/opt/btcandthings-research}"
 state_root="${BTC_RESEARCH_STATE_ROOT:-/var/lib/btcandthings-research}"
 mode="${1:---prepare}"
-if [[ "$mode" != --prepare && "$mode" != --start && "$mode" != --start-cloud ]]; then
-  echo 'Usage: bash deploy/install-research.sh [--prepare|--start|--start-cloud]' >&2; exit 2
+if [[ "$mode" != --prepare && "$mode" != --start && "$mode" != --start-cloud && "$mode" != --start-recording && "$mode" != --start-cloud-recording ]]; then
+  echo 'Usage: bash deploy/install-research.sh [--prepare|--start|--start-cloud|--start-recording|--start-cloud-recording]' >&2; exit 2
 fi
 if [[ "$mode" != --prepare && ( "$install_root" != /opt/btcandthings-research || "$state_root" != /var/lib/btcandthings-research ) ]]; then
   echo '--start uses the standard /opt and /var/lib paths; overrides are preparation-only.' >&2; exit 2
@@ -44,10 +44,16 @@ fi
 if [[ -e /etc/systemd/system/btc-multiasset-research.service ]]; then
   echo 'An existing unit requires review; refusing to overwrite it.' >&2; exit 1
 fi
+collection_flags=()
+if [[ "$mode" == --start-recording || "$mode" == --start-cloud-recording ]]; then
+  collection_flags+=(--record-available)
+fi
 # A failed live preflight leaves all production services unchanged.
-(umask 077; "$release_root/venv/bin/python" "$release_root/collection/ten_streams.py" --db "$state_root/preflight.sqlite")
-if [[ "$mode" == --start-cloud ]]; then
-  "$release_root/venv/bin/python" "$release_root/collection/configure_cloud.py"
+(umask 077; "$release_root/venv/bin/python" "$release_root/collection/ten_streams.py" --db "$state_root/preflight.sqlite" "${collection_flags[@]}")
+if [[ "$mode" == --start-cloud || "$mode" == --start-cloud-recording ]]; then
+  config_flags=()
+  if [[ "${BTC_RESEARCH_REUSE_COLLECTOR_ENV:-0}" == 1 ]]; then config_flags+=(--from-environment); fi
+  "$release_root/venv/bin/python" "$release_root/collection/configure_cloud.py" "${config_flags[@]}"
 fi
 cat > /etc/systemd/system/btc-multiasset-research.service <<EOF
 [Unit]
@@ -60,7 +66,7 @@ DynamicUser=yes
 StateDirectory=btcandthings-research
 WorkingDirectory=$release_root
 EnvironmentFile=-/etc/btcandthings-research.env
-ExecStart=$release_root/venv/bin/python $release_root/collection/ten_streams.py --db /var/lib/btcandthings-research/research.sqlite --loop
+ExecStart=$release_root/venv/bin/python $release_root/collection/ten_streams.py --db /var/lib/btcandthings-research/research.sqlite --loop ${collection_flags[*]}
 Restart=on-failure
 RestartSec=30
 NoNewPrivileges=yes
@@ -75,5 +81,6 @@ systemctl daemon-reload
 systemctl enable --now btc-multiasset-research.service
 echo 'Started only btc-multiasset-research.service; existing collectors were untouched.'
 validation_flags=''
-if [[ "$mode" == --start-cloud ]]; then validation_flags=' --require-cloud'; fi
+if [[ "$mode" == --start-cloud || "$mode" == --start-cloud-recording ]]; then validation_flags=' --require-cloud'; fi
+if [[ "$mode" == --start-recording || "$mode" == --start-cloud-recording ]]; then validation_flags+=' --record-available'; fi
 echo "Validate after its first pass: $release_root/venv/bin/python $release_root/collection/ten_streams.py --db /var/lib/btcandthings-research/research.sqlite --validate$validation_flags"

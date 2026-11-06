@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
-from ten_streams import STREAMS, collect, validate
+from ten_streams import STREAMS, collect, validate, cooldown_until
 from collector import Store, iso
 
 NOW = 1800000060
@@ -32,6 +32,26 @@ def fixture(url, params=None):
 
 
 class TenStreamTests(unittest.TestCase):
+    def test_rate_limit_cooldown_persists_and_recording_readiness_stays_explicit(self):
+        store=Store(':memory:')
+        def limited(url,params=None):
+            if 'yahoo' in url: raise HTTPError(url,429,'rate limited',{'Retry-After':'1800'},None)
+            return fixture(url,params)
+        first=collect(store,limited,NOW)
+        self.assertTrue(first['recording_ready'])
+        self.assertFalse(first['collection_ready'])
+        self.assertEqual(first['coverage_mode'],'AVAILABLE_DATA_WITH_REPORTED_GAPS')
+        calls=[]
+        def get(url,params=None):
+            calls.append(url)
+            return fixture(url,params)
+        second=collect(store,get,NOW+1)
+        self.assertFalse(any('yahoo' in url for url in calls))
+        self.assertEqual(second['assets']['GOLD']['feed_error'],'RATE_LIMIT_COOLDOWN')
+        self.assertEqual(second['assets']['GOLD']['retry_after'],iso(NOW+1800))
+        self.assertEqual(cooldown_until(HTTPError('url',429,'limited',{'Retry-After':'Wed, 01 Jan 2031 00:00:00 GMT'},None),NOW),1924992000)
+        store.db.close()
+
     def test_clock_rollover_before_stream_processing_uses_current_market(self):
         boundary=NOW//300*300+300
         clock={'calls':0}

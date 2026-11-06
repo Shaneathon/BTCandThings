@@ -92,3 +92,29 @@ actual PostgreSQL constraints/RLS or production credentials.
 No systemd start, production migration, real Supabase upload, DigitalOcean
 connection or live trade was performed. New website history wiring remains on
 this preparation branch, so the already-live site is unchanged.
+
+## Explicit available-data recording mode
+
+Live preflight confirmed valid metadata for all ten streams and working crypto
+prices, but Yahoo returned 429 for both metals and a current BTC 5m BBO returned
+404. These are reported missing observations, not permission to substitute feeds.
+
+`--start-recording` and `--start-cloud-recording` now select the explicit
+`--record-available` mode. Activation still requires all ten exact current market
+identities/targets, but does not pretend every price/book is available. Full
+`collection_ready` stays false where necessary; `recording_ready` is a separate
+metadata-coverage and freshness measure. Strict original modes remain available.
+No trade execution is enabled. Validation can use --record-available alongside
+--require-cloud and reports the complete coverage gaps.
+
+HTTP 429 is no longer retried immediately. Price-feed cooldowns persist in SQLite,
+honor numeric/HTTP-date Retry-After, and default to 15 minutes when absent.
+Existing saved 429 evidence seeds the initial cooldown on upgrade. Do not run
+repeated manual probes against the rate-limited source or rotate hosts/IPs.
+
+For an authorized server setup, BTC_RESEARCH_REUSE_COLLECTOR_ENV=1 lets the private
+wizard reuse SUPABASE_URL/KEY already loaded into its process from the existing
+collector configuration. It never displays either value and still exclusively
+creates its separate root-mode-600 environment file. Role/read/write access must
+be verified; a readable legacy table alone does not establish research-table
+write permission. The existing collector's config is not edited.

@@ -28,9 +28,15 @@ def configure(path, url, key, client_factory=Client):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--path',type=Path,default=Path('/etc/btcandthings-research.env'))
+    parser.add_argument('--from-environment',action='store_true',help='Reuse existing server SUPABASE_URL/KEY without printing them')
     args=parser.parse_args()
-    url=input('Supabase project HTTPS URL: ').strip()
-    key=getpass.getpass('Server-only Supabase key (hidden): ').strip()
+    if args.from_environment:
+        url=os.environ.get('SUPABASE_URL','').strip()
+        key=os.environ.get('SUPABASE_KEY','').strip()
+        if not url or not key: parser.error('Existing collector credentials are missing; no file saved')
+    else:
+        url=input('Supabase project HTTPS URL: ').strip()
+        key=getpass.getpass('Server-only Supabase key (hidden): ').strip()
     try:
         configure(args.path,url,key)
     except Exception as exc:

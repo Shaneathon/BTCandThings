@@ -44,6 +44,22 @@ def market(get, asset, duration, start, now):
                 settlement_status='PENDING', updated_at=iso(now)), details
 
 
+def cooldown_until(error, observed):
+    from email.utils import parsedate_to_datetime
+    raw = (error.headers or {}).get('Retry-After')
+    if raw:
+        try:
+            return min(observed+max(0,int(raw)),253402300799)
+        except (ValueError,TypeError,OverflowError):
+            try:
+                stamp=parsedate_to_datetime(raw)
+                if stamp.tzinfo is None: stamp=stamp.replace(tzinfo=timezone.utc)
+                return max(observed,stamp.timestamp())
+            except (ValueError,TypeError,OverflowError):
+                pass
+    return observed+900
+
+
 def initialize(store):
     store.db.execute('''CREATE TABLE IF NOT EXISTS research_snapshots (
         market_slug TEXT, recorded_at TEXT, model_version TEXT, payload TEXT,
@@ -52,6 +68,13 @@ def initialize(store):
         market_slug TEXT, captured_at TEXT, payload TEXT, PRIMARY KEY(market_slug,captured_at))''')
     store.db.execute('''CREATE TABLE IF NOT EXISTS collector_status (
         singleton INTEGER PRIMARY KEY CHECK(singleton=1), observed_at REAL, payload TEXT)''')
+    store.db.execute('CREATE TABLE IF NOT EXISTS feed_cooldowns (asset TEXT PRIMARY KEY,retry_until REAL,http_status INTEGER)')
+    previous=store.db.execute('SELECT payload FROM collector_status WHERE singleton=1').fetchone()
+    if previous:
+        old=json.loads(previous[0])
+        for asset,state in old.get('assets',{}).items():
+            if state.get('http_status')==429:
+                store.db.execute('INSERT OR IGNORE INTO feed_cooldowns VALUES (?,?,429)',(asset,epoch(old['observed_at'])+900))
     store.db.commit()
 
 
@@ -64,6 +87,11 @@ def collect(store, get=get_json, now=None):
     feeds = {}
     # Fetch six feeds, not ten: both crypto durations share one asset's bars.
     for asset, config in ASSETS.items():
+        feed_observed = now if fixed_time else time.time()
+        cooldown=store.db.execute('SELECT retry_until,http_status FROM feed_cooldowns WHERE asset=?',(asset,)).fetchone()
+        if cooldown and cooldown[0]>feed_observed:
+            report['assets'][asset]={'feed_error':'RATE_LIMIT_COOLDOWN','http_status':cooldown[1],'retry_after':iso(cooldown[0])}
+            continue
         try:
             feed_observed = now if fixed_time else time.time()
             frame, source = load_candles(get, asset, config['pair'], feed_observed)
@@ -81,6 +109,11 @@ def collect(store, get=get_json, now=None):
             report['assets'][asset] = {'feed_error': type(exc).__name__}
             if getattr(exc, 'code', None) is not None:
                 report['assets'][asset]['http_status'] = exc.code
+                if exc.code==429:
+                    retry=cooldown_until(exc,now if fixed_time else time.time())
+                    with store.db:
+                        store.db.execute('INSERT INTO feed_cooldowns VALUES (?,?,429) ON CONFLICT(asset) DO UPDATE SET retry_until=excluded.retry_until,http_status=excluded.http_status',(asset,retry))
+                    report['assets'][asset]['retry_after']=iso(retry)
     for asset, duration in STREAMS:
         key = asset+'_'+duration
         seconds = DURATIONS[duration]
@@ -120,6 +153,7 @@ def collect(store, get=get_json, now=None):
             except Exception as exc:
                 state['market_errors'].append({'window_start':iso(start), 'error':type(exc).__name__})
             observed = time.time()
+        state['metadata_ready'] = current is not None and observed < start+seconds
         # Preserve quote observations even when the spot/futures feed is down.
         if current is not None and observed < start+seconds:
             from quotes import capture
@@ -128,6 +162,7 @@ def collect(store, get=get_json, now=None):
                 state['quote_status'] = 'RAW_BBO_SAVED_SIDE_MAPPING_PENDING'
             except Exception as exc:
                 state['quote_status'] = 'ERROR_' + type(exc).__name__
+                if getattr(exc,'code',None) is not None: state['quote_http_status']=exc.code
         if asset not in feeds:
             state['paused_reason'] = 'Asset feed unavailable'
             continue
@@ -147,6 +182,8 @@ def collect(store, get=get_json, now=None):
             cursor = store.db.execute('INSERT OR IGNORE INTO research_snapshots VALUES (?,?,?,?)',
                 (snapshot['market_slug'], snapshot['recorded_at'], MODEL, json.dumps(snapshot, allow_nan=False)))
             state['predictions_saved'] = cursor.rowcount
+    report['recording_ready'] = all(s.get('metadata_ready',False) for s in report['streams'].values())
+    report['coverage_mode'] = 'ALL_FEEDS' if all(r['collection_ready'] for r in report['streams'].values()) else 'AVAILABLE_DATA_WITH_REPORTED_GAPS'
     report['collection_ready'] = all(r['collection_ready'] for r in report['streams'].values())
     from settlement import reconcile
     report['settlements'] = reconcile(store, get, now if fixed_time else time.time())
@@ -173,6 +210,9 @@ def validate(path, now=None):
                                       and set(report['streams']) == {a+'_'+d for a,d in STREAMS}
                                       and all(epoch(s['window_end']) > now for s in report['streams'].values()))
         report['verified_outcomes'] = sum(json.loads(r[0]).get('settlement_status') == 'VERIFIED' for r in db.execute("SELECT payload FROM records WHERE kind='market'"))
+        report['recording_ready'] = (report.get('recording_ready',False) and report['status_fresh']
+            and set(report['streams']) == {a+'_'+d for a,d in STREAMS}
+            and all(epoch(s['window_end'])>now for s in report['streams'].values()))
         report['cloud_synchronized'] = (report.get('cloud_storage') == 'SYNC_BATCH_OK' and not report.get('cloud_sync',{}).get('more_possible',True))
         report['raw_quote_snapshots'] = db.execute('SELECT count(*) FROM raw_quotes').fetchone()[0]
         report['total_prediction_snapshots'] = db.execute('SELECT count(*) FROM research_snapshots').fetchone()[0]
@@ -183,13 +223,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--db', type=Path, required=True)
     parser.add_argument('--loop', action='store_true')
+    parser.add_argument('--record-available',action='store_true',help='Record all ten verified market subscriptions while reporting unavailable prices/quotes; not full readiness')
     parser.add_argument('--validate', action='store_true')
     parser.add_argument('--require-cloud', action='store_true', help='Validation also fails on cloud errors, disabled sync or possible backlog')
     args = parser.parse_args()
     if args.validate:
         report = validate(args.db)
         print(json.dumps(report, indent=2))
-        raise SystemExit(0 if report['collection_ready'] and (not args.require_cloud or report['cloud_synchronized']) else 1)
+        raise SystemExit(0 if (report['recording_ready'] if args.record_available else report['collection_ready']) and (not args.require_cloud or report['cloud_synchronized']) else 1)
     store = Store(args.db)
     try:
         while True:
@@ -214,7 +255,7 @@ def main():
                 store.db.execute('UPDATE collector_status SET payload=? WHERE singleton=1', (json.dumps(report,allow_nan=False),))
             print(json.dumps(report), flush=True)
             if not args.loop:
-                raise SystemExit(0 if report['collection_ready'] else 1)
+                raise SystemExit(0 if (report['recording_ready'] if args.record_available else report['collection_ready']) else 1)
             time.sleep(60)
     finally:
         store.db.close()

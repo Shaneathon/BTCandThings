@@ -30,6 +30,12 @@ def fixture_get(url, params=None):
 
 
 class CollectionTests(unittest.TestCase):
+    def test_429_is_not_retried_in_a_tight_loop(self):
+        with patch('collector.urlopen',side_effect=HTTPError('url',429,'limited',{},None)) as request,patch('collector.time.sleep') as sleep:
+            with self.assertRaises(HTTPError): get_json('https://example.com')
+            self.assertEqual(request.call_count,1)
+            sleep.assert_not_called()
+
     def test_bounded_network_retries(self):
         with patch('collector.urlopen', side_effect=URLError('offline')) as request, patch('collector.time.sleep'):
             with self.assertRaises(URLError):
