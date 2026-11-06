@@ -32,8 +32,10 @@ forever from this timestamp; recheck before deploying or reporting live status.
   set successfully backed up and integrity-checked **18 databases** at
   23:47:52 UTC. No backup failure recorded. Hourly SQLite snapshots, daily
   Supabase public-data exports and five-minute health timers are enabled.
-- First cloud export was still pending in latest output; completion needs a
-  follow-up check. That was the only warning. Gold/silver were paused notices.
+- First cloud export subsequently completed successfully at 23:48:07 UTC:
+  402 btc_markets rows, 24,226 btc_predictions rows and 5,205 Challenger rows.
+  Its earlier pending-export warning should clear at the next health run.
+  These are private local exports of cloud rows, not a full Supabase schema/PITR backup.
 - Root disk had 40.46 GiB free and memory 954 MiB available in that output.
 - Private health report: https://shaneathon.com/health.html. Alerts are local
   journal/report only; no email/SMS/webhook notifications are configured.
@@ -41,7 +43,8 @@ forever from this timestamp; recheck before deploying or reporting live status.
   versioned paper experiments, but a self-optimizing promotion controller has
   not been implemented. Keep baselines frozen and never rewrite results.
 
-Next checks: first cloud export completion; first completed DigitalOcean backup.
+Next check: first completed DigitalOcean backup. Local database snapshots and
+first cloud-data export are confirmed successful.
 Remaining development: verified Polymarket mapping/quote-realistic fills, metals
 feeds, validated Level-2/replay, autonomous experiment review/promotion, optional
 external notifications, full restore rehearsal. Betting Lab accordion change
