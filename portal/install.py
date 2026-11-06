@@ -68,6 +68,8 @@ def main():
     except socket.gaierror:
         raise SystemExit('Apex DNS is not ready. No portal changes made.')
     if addresses!={address}:
+        print('Expected droplet address:',address)
+        print('Current system DNS answers:',', '.join(sorted(addresses)))
         raise SystemExit('Apex DNS must point exclusively to this droplet. No portal changes made.')
     inspected=subprocess.run(['nginx','-T'],capture_output=True,text=True,check=True).stdout
     for names in re.findall(r'^\s*server_name\s+([^;]+);',inspected,re.MULTILINE):
