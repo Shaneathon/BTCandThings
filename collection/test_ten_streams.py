@@ -32,6 +32,38 @@ def fixture(url, params=None):
 
 
 class TenStreamTests(unittest.TestCase):
+    def test_quote_budget_honors_retry_after_and_rotates_unattempted_streams(self):
+        store=Store(':memory:')
+        calls=[]
+        def get(url,params=None):
+            if url.endswith('/bbo'):
+                calls.append(url)
+                if len(calls)==3: raise HTTPError(url,429,'limited',{'Retry-After':'120'},None)
+            return fixture(url,params)
+        first=collect(store,get,NOW)
+        self.assertEqual(len(calls),3)
+        self.assertTrue(first['recording_ready'])
+        self.assertEqual(first['streams']['ETH_15m']['quote_status'],'RATE_LIMIT_COOLDOWN')
+        collect(store,get,NOW+30)
+        self.assertEqual(len(calls),3)
+        collect(store,get,NOW+121)
+        self.assertIn('eth-updown-15m',calls[3])
+        self.assertEqual(len(calls),13)
+        store.db.close()
+
+    def test_quote_requests_are_paced_in_real_clock_mode(self):
+        from quotes import initialize_budget,capture_managed
+        store=Store(':memory:')
+        initialize_budget(store)
+        store.db.execute('INSERT INTO quote_budget VALUES (1,?,0)',(NOW-.5,))
+        store.db.commit()
+        row={'asset':'BTC','duration_seconds':300,'window_end':iso(NOW+100)}
+        with patch('quotes.time.time',side_effect=[NOW,NOW+1]),patch('quotes.time.sleep') as wait,patch('quotes.capture',return_value={}) as captured:
+            capture_managed(store,lambda *args:None,row)
+        wait.assert_called_once_with(1.0)
+        captured.assert_called_once()
+        store.db.close()
+
     def test_rate_limit_cooldown_persists_and_recording_readiness_stays_explicit(self):
         store=Store(':memory:')
         def limited(url,params=None):
@@ -59,7 +91,7 @@ class TenStreamTests(unittest.TestCase):
             clock['calls']+=1
             return boundary-1 if clock['calls']==1 else boundary+2
         store=Store(':memory:')
-        with patch('test_ten_streams.NOW',boundary),patch('ten_streams.time.time',side_effect=current_time):
+        with patch('test_ten_streams.NOW',boundary),patch('ten_streams.time.time',side_effect=current_time),patch('quotes.time.sleep'):
             result=collect(store,fixture)
         self.assertTrue(result['streams']['BTC_5m']['collection_ready'],result)
         self.assertEqual(result['streams']['BTC_5m']['window_end'],iso(boundary+300))
@@ -74,7 +106,7 @@ class TenStreamTests(unittest.TestCase):
                 clock.update(time=boundary+2,rolled=True)
             return response
         store=Store(':memory:')
-        with patch('test_ten_streams.NOW',boundary),patch('ten_streams.time.time',side_effect=lambda:clock['time']):
+        with patch('test_ten_streams.NOW',boundary),patch('ten_streams.time.time',side_effect=lambda:clock['time']),patch('quotes.time.sleep'):
             result=collect(store,get)
         self.assertEqual(result['streams']['BTC_5m']['window_end'],iso(boundary+300))
         self.assertTrue(result['streams']['BTC_5m']['collection_ready'],result)

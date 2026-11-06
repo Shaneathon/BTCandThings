@@ -114,6 +114,7 @@ def collect(store, get=get_json, now=None):
                     with store.db:
                         store.db.execute('INSERT INTO feed_cooldowns VALUES (?,?,429) ON CONFLICT(asset) DO UPDATE SET retry_until=excluded.retry_until,http_status=excluded.http_status',(asset,retry))
                     report['assets'][asset]['retry_after']=iso(retry)
+    quote_queue=[]
     for asset, duration in STREAMS:
         key = asset+'_'+duration
         seconds = DURATIONS[duration]
@@ -154,15 +155,8 @@ def collect(store, get=get_json, now=None):
                 state['market_errors'].append({'window_start':iso(start), 'error':type(exc).__name__})
             observed = time.time()
         state['metadata_ready'] = current is not None and observed < start+seconds
-        # Preserve quote observations even when the spot/futures feed is down.
         if current is not None and observed < start+seconds:
-            from quotes import capture
-            try:
-                capture(store, get, current, now if fixed_time else None)
-                state['quote_status'] = 'RAW_BBO_SAVED_SIDE_MAPPING_PENDING'
-            except Exception as exc:
-                state['quote_status'] = 'ERROR_' + type(exc).__name__
-                if getattr(exc,'code',None) is not None: state['quote_http_status']=exc.code
+            quote_queue.append((key,current))
         if asset not in feeds:
             state['paused_reason'] = 'Asset feed unavailable'
             continue
@@ -182,6 +176,19 @@ def collect(store, get=get_json, now=None):
             cursor = store.db.execute('INSERT OR IGNORE INTO research_snapshots VALUES (?,?,?,?)',
                 (snapshot['market_slug'], snapshot['recorded_at'], MODEL, json.dumps(snapshot, allow_nan=False)))
             state['predictions_saved'] = cursor.rowcount
+    # Prices/predictions are collected first. Quote I/O cannot delay those
+    # observations; least-recently-attempted streams get the next request slot.
+    from quotes import initialize_budget,last_attempt,capture_managed,QuoteCooldown
+    initialize_budget(store)
+    for key,current in sorted(quote_queue,key=lambda entry:last_attempt(store,entry[1])):
+        state=report['streams'][key]
+        try:
+            capture_managed(store,get,current,now if fixed_time else None)
+            state['quote_status']='RAW_BBO_SAVED_SIDE_MAPPING_PENDING'
+        except Exception as exc:
+            state['quote_status']='RATE_LIMIT_COOLDOWN' if isinstance(exc,QuoteCooldown) else 'ERROR_'+type(exc).__name__
+            if getattr(exc,'code',None) is not None: state['quote_http_status']=exc.code
+            if getattr(exc,'retry_until',None) is not None: state['quote_retry_after']=iso(exc.retry_until)
     report['recording_ready'] = all(s.get('metadata_ready',False) for s in report['streams'].values())
     report['coverage_mode'] = 'ALL_FEEDS' if all(r['collection_ready'] for r in report['streams'].values()) else 'AVAILABLE_DATA_WITH_REPORTED_GAPS'
     report['collection_ready'] = all(r['collection_ready'] for r in report['streams'].values())

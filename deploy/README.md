@@ -127,3 +127,23 @@ preflight is then copied into an absent research.sqlite before activation,
 preserving real observations and rate-limit cooldowns. No existing database is
 overwritten. This path and batched failure/recovery bring the local suite to
 31 passing tests; a complete temporary --prepare rehearsal also passed.
+
+### Immutable research-service updates
+
+The live collector confirmed successful cloud batches, with quote 429 responses
+remaining. Quotes are now queued after prediction capture, spaced at least 1.5
+seconds apart in real-clock mode, and globally cooled down on 429 according to
+Retry-After (60 seconds if absent). Least-recently-attempted streams are rotated
+first so paused requests do not permanently favor the first few markets. A 404
+is still unavailable data, not a substituted contract. No extra manual BBO probes
+are needed during cooldown.
+
+`bash deploy/update-research.sh --apply` prepares/tests a new immutable release
+while the old service runs, preserves the current unit privately, switches only
+its release paths and restarts only btc-multiasset-research.service. The database,
+cloud checkpoints, environment file and recording-mode flag remain unchanged.
+Immediate restart failure restores the prior research unit. `--plan` prepares and
+renders the change without modifying a unit or restarting a process. Deferred
+functional failure still needs the printed validation/log check; a PID alone
+is not full readiness. The original Champion/Challenger units are never addressed.
+36 local collector tests now pass, including pacing, cooldown and unit rendering.
