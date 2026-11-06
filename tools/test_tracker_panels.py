@@ -24,6 +24,15 @@ class TrackerTests(unittest.TestCase):
         self.assertLess(falling['probability'], .5)
         self.assertAlmostEqual(research_signal(candles(10),3600,3900,1100)['probability'],rising['probability'])
 
+    def test_same_momentum_different_contract_target_and_expiry(self):
+        # A shared asset feed legitimately has the same momentum, while the
+        # separately verified contract windows can have opposite forecasts.
+        short = research_signal(candles(), 3600, 3900, 110)
+        long = research_signal(candles(), 3600, 4500, 120)
+        self.assertEqual(short['direction'], long['direction'])
+        self.assertGreater(short['probability'], .5)
+        self.assertLess(long['probability'], .5)
+
     def test_paused_for_stale_gapped_future_closed_and_insufficient(self):
         gapped = candles().drop(index=[10])
         for frame, now, end in [(candles(),4000,4500), (gapped,3600,3900),

@@ -149,14 +149,22 @@ def render_workspace(st, components, asset, duration, now, discover, full_market
         with lean:
             detail = (f"Directional agreement: {abs(signal['score'])}/5 · Swing watch: "
                       + ("WATCH · potential reversal" if signal['swing'] else "CLEAR")) if ready else "Fresh, contiguous asset-specific candles required."
-            st.html(signal_card(f"CURRENT {asset} LEAN", direction, detail))
+            st.html(signal_card(f"CURRENT {asset} {duration} MOMENTUM LEAN", direction, detail))
         with position:
             st.html(signal_card("POSITION SUGGESTION · RESEARCH MODE", "WAIT / OBSERVE",
-                                f"Monitor {asset} momentum. No validated trading edge yet."))
-        st.caption(f"{asset} proxy momentum only; not verified contract odds.")
+                                f"{asset} {duration} · {status}. No validated trading edge yet."))
+        st.caption(f"{asset} {duration} · proxy momentum from {feed_name}. "
+                   "This uses recent one-minute candles; the same asset can have the same momentum "
+                   "in its 5m and 15m views. Contract forecasts use each window’s own target and expiry.")
+        if ready:
+            observed = datetime.fromtimestamp(signal['source_time'], timezone.utc)
+            st.caption(f"Signal candle closed {observed:%Y-%m-%d %H:%M:%S} UTC · "
+                       f"{asset} spot {price_label(asset, signal['price'])} · "
+                       f"RSI {signal['rsi']:.1f} · 3m change {signal['change3']:+.3%}")
+        st.caption(f"Selected market: {slug or 'not listed'} · {status}")
     preflight = ready and 0 < end-now <= min(180, DURATIONS[duration])
     with preflight_col:
-        st.html(signal_card("NEXT WINDOW PREFLIGHT", direction if preflight else "PENDING",
+        st.html(signal_card(f"NEXT {asset} {duration} WINDOW PREFLIGHT", direction if preflight else "PENDING",
                             f"Experimental {asset} opening lean · {abs(signal['score'])}/5 agreement" if preflight
                             else "Preflight begins with 3 minutes remaining in this market."))
         st.caption("Next-window proxy direction context, not a prediction of its contract winner.")
