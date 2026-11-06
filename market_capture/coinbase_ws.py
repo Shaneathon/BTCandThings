@@ -130,6 +130,9 @@ async def collect(folder):
                 failures=min(failures+1,8)
                 archive.status.update(state='DISCONNECTED_OR_CHANNEL_UNAVAILABLE',error=type(error).__name__,
                     reconnects=archive.status['reconnects']+1,gap_opened_at=datetime.now(timezone.utc).isoformat())
+                frame=getattr(error,'rcvd',None)
+                if frame is not None:
+                    archive.status.update(close_code=frame.code,close_reason=frame.reason)
                 archive.save_status()
                 await asyncio.sleep(min(300,2**failures)+random.random())
     finally:
