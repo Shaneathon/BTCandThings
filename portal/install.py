@@ -6,6 +6,7 @@ arguments, logs, HTML, Git, or command history. Existing app hosts untouched.
 import base64
 import getpass
 import grp
+import http.client
 import json
 import os
 from pathlib import Path
@@ -17,7 +18,7 @@ import subprocess
 import sys
 import time
 from urllib.error import HTTPError
-from urllib.request import Request, urlopen, build_opener, HTTPRedirectHandler
+from urllib.request import Request, urlopen, build_opener, HTTPRedirectHandler, HTTPSHandler, ProxyHandler
 
 HOST='shaneathon.com'
 SITE=Path('/etc/nginx/sites-available')/HOST
@@ -35,6 +36,28 @@ def exclusive(path,content,mode=0o644):
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs): return None
+
+
+class LocalHTTPSConnection(http.client.HTTPSConnection):
+    """Reach this droplet's Nginx without trusting a stale recursive answer.
+
+Normal CA verification and the real portal hostname/SNI are retained.
+This neither changes system DNS nor changes public ACME validation.
+"""
+    def connect(self):
+        if self.host!=HOST or self.port!=443:
+            raise ValueError('Only this portal host may use local validation')
+        connection=socket.create_connection(('127.0.0.1',443),self.timeout)
+        try:
+            self.sock=self._context.wrap_socket(connection,server_hostname=HOST)
+        except Exception:
+            connection.close()
+            raise
+
+
+class LocalHTTPSHandler(HTTPSHandler):
+    def https_open(self,request):
+        return self.do_open(LocalHTTPSConnection,request,context=self._context)
 
 
 def read_credentials():
@@ -70,7 +93,17 @@ def main():
     if addresses!={address}:
         print('Expected droplet address:',address)
         print('Current system DNS answers:',', '.join(sorted(addresses)))
-        raise SystemExit('Apex DNS must point exclusively to this droplet. No portal changes made.')
+        from check_dns import query
+        for server in ('nsa1.squarespacedns.com','nsa2.squarespacedns.com'):
+            try:
+                ipv4,ipv6=query(server,1),query(server,28)
+            except (OSError,ValueError,IndexError) as error:
+                raise SystemExit('Authoritative DNS check failed: '+type(error).__name__+'. No portal changes made.') from None
+            if (not ipv4['authoritative'] or ipv4['rcode']!=0
+                    or {item['address'] for item in ipv4['answers']}!={address}
+                    or not ipv6['authoritative'] or ipv6['rcode']!=0 or ipv6['answers']):
+                raise SystemExit('Authoritative DNS does not exclusively point here. No portal changes made.')
+        print('Both authoritative Squarespace servers point here; recursive cache is stale. Continuing without changing system DNS.')
     inspected=subprocess.run(['nginx','-T'],capture_output=True,text=True,check=True).stdout
     for names in re.findall(r'^\s*server_name\s+([^;]+);',inspected,re.MULTILINE):
         if HOST in names.split(): raise SystemExit('An existing apex Nginx host needs review; no files changed.')
@@ -134,7 +167,7 @@ def main():
         SITE.write_text(http)
         raise SystemExit('HTTPS configuration failed validation. HTTP still serves no portal content; no reload performed.')
     subprocess.run(['systemctl','reload','nginx'],check=True)
-    opener=build_opener(NoRedirect())
+    opener=build_opener(ProxyHandler({}),NoRedirect(),LocalHTTPSHandler())
     for resource in ('/','/portal.css'):
         for attempt in range(10):
             try:

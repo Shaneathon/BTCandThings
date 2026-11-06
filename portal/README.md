@@ -30,6 +30,13 @@ After HTTPS setup, the installer verifies unauthenticated HTML/CSS and a wrong
 password return 401 and the correct login returns 200. Existing paths cause a
 safe refusal: inspect partial installations before retrying, do not erase hashes.
 
+If the recursive resolver is stale, both authoritative Squarespace servers
+must independently return the droplet's IPv4 and no IPv6 before setup proceeds.
+Public ACME validation still occurs normally. Post-install portal checks connect
+to local Nginx while retaining the real hostname, TLS SNI and CA verification;
+no system resolver or hosts-file settings are changed. Users may still see the
+old site until their own recursive caches expire.
+
 Future private link edits belong in `/etc/shaneathon-portal-links.json` on the
 server, not in public repository commits. Regenerate the static files as root
 and retain their root/Nginx group ownership and restrictive file permissions.
