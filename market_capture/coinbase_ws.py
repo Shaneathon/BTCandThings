@@ -20,6 +20,13 @@ URL='wss://advanced-trade-ws.coinbase.com'
 PRODUCTS=['BTC-USD','ETH-USD','XRP-USD','SOL-USD']
 
 
+def subscriptions(include_level2=False):
+    messages=[dict(type='subscribe',channel='heartbeats'),
+              dict(type='subscribe',channel='market_trades',product_ids=PRODUCTS)]
+    if include_level2: messages.append(dict(type='subscribe',channel='level2',product_ids=PRODUCTS))
+    return messages
+
+
 class CapturePaused(ValueError): pass
 
 
@@ -36,6 +43,9 @@ class Archive:
 
     def save_status(self):
         self.status['updated_at']=datetime.now(timezone.utc).isoformat()
+        if self.stream: self.stream.flush()
+        day=datetime.now(timezone.utc).strftime('%Y%m%d')
+        self.status['archive_bytes_today']=sum(p.stat().st_size for p in self.folder.glob(day+'-*.jsonl.gz'))
         lifecycle=(self.status['state'],self.status.get('connection_id'))
         if lifecycle!=self.last_lifecycle:
             fd=os.open(self.folder/'lifecycle.jsonl',os.O_WRONLY|os.O_APPEND|os.O_CREAT,0o600)
@@ -90,9 +100,11 @@ class Archive:
             self.stream=None
 
 
-async def collect(folder):
+async def collect(folder,include_level2=False):
     from websockets.asyncio.client import connect
     archive=Archive(folder)
+    archive.status.update(configured_channels=['heartbeats','market_trades']+(['level2'] if include_level2 else []),
+                          level2_status='EXPERIMENTAL' if include_level2 else 'NOT_CAPTURED_CHANNEL_UNAVAILABLE_IN_PROBE')
     failures=0
     try:
         while True:
@@ -104,8 +116,8 @@ async def collect(folder):
                 async with connect(URL,open_timeout=15,ping_interval=20,ping_timeout=20,
                                    max_size=4*1024**2,max_queue=8) as socket:
                     connected_at=time.time()
-                    for channel in ('heartbeats','market_trades','level2'):
-                        await socket.send(json.dumps(dict(type='subscribe',channel=channel,product_ids=PRODUCTS)))
+                    for message in subscriptions(include_level2):
+                        await socket.send(json.dumps(message))
                     last_status=0
                     while True:
                         wire=await asyncio.wait_for(socket.recv(),timeout=45)
@@ -142,5 +154,6 @@ async def collect(folder):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--state',type=Path,required=True)
+    parser.add_argument('--include-level2',action='store_true',help='Explicit diagnostic-only opt-in; unavailable on the current droplet probe')
     args=parser.parse_args()
-    asyncio.run(collect(args.state))
+    asyncio.run(collect(args.state,args.include_level2))

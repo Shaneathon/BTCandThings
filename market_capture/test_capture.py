@@ -3,10 +3,18 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from market_capture.coinbase_ws import Archive,CapturePaused
+from market_capture.coinbase_ws import Archive,CapturePaused,subscriptions,PRODUCTS
 
 
 class CaptureTests(unittest.TestCase):
+    def test_default_subscriptions_keep_unavailable_level2_out_of_working_feed(self):
+        requests=subscriptions()
+        self.assertEqual([r['channel'] for r in requests],['heartbeats','market_trades'])
+        self.assertNotIn('product_ids',requests[0])
+        self.assertEqual(requests[1]['product_ids'],PRODUCTS)
+        self.assertTrue(all('jwt' not in r and r['type']=='subscribe' for r in requests))
+        self.assertEqual(subscriptions(True)[-1]['channel'],'level2')
+
     def test_raw_messages_preserve_wire_and_connection_identity(self):
         with tempfile.TemporaryDirectory() as temporary:
             archive=Archive(temporary,minimum_free=0)

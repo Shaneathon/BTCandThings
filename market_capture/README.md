@@ -1,5 +1,13 @@
 # Public Coinbase raw recorder
 
+Live droplet probe on November 6 confirmed public heartbeats/trades and a
+Level-2 close with code 1006. Code 1006 alone does not establish the cause.
+Defaults therefore subscribe only to the two working channels, with no product
+list on heartbeats. `--include-level2` is an explicit diagnostic opt-in, not an
+automatically enabled data source. Existing REST book capture remains active.
+Use `deploy/update-market-capture.sh --apply` for the tested recorder-only fix;
+raw archives are preserved. No trading keys or DNS changes are involved.
+
 An independent, unauthenticated WebSocket recorder for BTC-USD/ETH-USD/XRP-USD/
 SOL-USD heartbeat, trade and Level-2 messages. No trading credentials or order
 imports. Actual channel support must be confirmed on the droplet; a rejected

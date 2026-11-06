@@ -75,6 +75,17 @@ logs. No trading keys. Its actual public channel availability must be checked
 on the droplet. Raw capture is not a validated tradable book. Existing CBot
 already paper-trades all four spot products. No real trading is authorized.
 
+Subsequent droplet output confirmed the all-market update at
+`/opt/pbot/releases/20261106T214907-36567`: eight crypto streams MONITORING,
+gold/silver PAUSED_NO_FRESH_PREDICTION, original control ledgers preserved.
+The raw recorder was installed, received trades, then disconnected. Isolated
+public probes confirmed heartbeats and market_trades work; level2 immediately
+closed with code 1006, cause unknown. Recorder defaults have been changed to
+the two working channels; `deploy/update-market-capture.sh --apply` is prepared
+for a recorder-only update, not yet confirmed deployed. Existing REST book
+collection remains; full streamed Level-2 and tradable-book validation remain
+unfinished. Do not describe current raw capture as a validated book.
+
 | App | Target | Source | Scope |
 | --- | --- | --- | --- |
 | BTCandThings | btc.shaneathon.com | BTCandThings_Website/BTCandThings_Upload | Existing ten-market tracker |
