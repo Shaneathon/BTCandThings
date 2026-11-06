@@ -30,6 +30,27 @@ class BitcoinReviewTests(unittest.TestCase):
         self.assertEqual(sum(b['markets'] for b in report['calibration']),6)
         self.assertEqual(report['markets'],6)
 
+    def test_historical_version_does_not_empty_current_pairwise_comparison(self):
+        def market(slug, day):
+            return dict(market_slug='btc-updown-15m-'+slug,
+                        window_start=f'2026-11-{day}T00:00:00Z',
+                        window_end=f'2026-11-{day}T00:15:00Z',
+                        settlement_status='VERIFIED',official_winner='UP')
+        old,current=market('old','05'),market('current','06')
+        def prediction(m, day, model, p):
+            return dict(market_slug=m['market_slug'],recorded_at=f'2026-11-{day}T00:10:00Z',
+                        model_version=model,predicted_up_probability=p)
+        report=review([old,current],{'Champion':[prediction(old,'05','old',.5),
+                                                 prediction(current,'06','current',.6)],
+                                    'Challenger':[prediction(current,'06','A',.8)]})
+        horizon=report['horizons']['300']
+        self.assertEqual(horizon['common_markets'],0)
+        self.assertEqual(len(horizon['pairwise']),1)
+        pair=horizon['pairwise'][0]
+        self.assertEqual(pair['champion'],'Champion: current')
+        self.assertEqual(pair['markets'],1)
+        self.assertAlmostEqual(pair['all']['challenger_minus_champion_brier'],-.12)
+
 
 if __name__=='__main__':
     unittest.main()

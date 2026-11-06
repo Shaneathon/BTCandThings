@@ -135,12 +135,27 @@ def review(markets, sources, duration=900):
         common = set.intersection(*(set(v) for v in selected.values())) if selected else set()
         def scored(chosen, cohort):
             return sorted([(verified[s][1],chosen[s][1],verified[s][2]) for s in cohort])
-        entry = dict(common_markets=len(common), models={})
+        entry = dict(common_markets=len(common), models={}, pairwise=[])
         for model, chosen in selected.items():
             paired = scored(chosen, common)
             split = len(paired)//2
             entry['models'][model] = dict(own_coverage=stats(scored(chosen,set(chosen))),
                                           paired=stats(paired), later_half=stats(paired[split:]))
+        for champion, champion_rows in selected.items():
+            if not champion.startswith('Champion: '):
+                continue
+            for challenger, challenger_rows in selected.items():
+                if not challenger.startswith('Challenger: '):
+                    continue
+                shared = sorted(set(champion_rows) & set(challenger_rows), key=lambda s:(verified[s][1],s))
+                if not shared:
+                    continue
+                pair = dict(champion=champion, challenger=challenger, markets=len(shared))
+                for label, subset in [('all', shared), ('later_half', shared[len(shared)//2:])]:
+                    c, d = stats(scored(champion_rows, subset)), stats(scored(challenger_rows, subset))
+                    pair[label] = dict(champion=c, challenger=d,
+                                       challenger_minus_champion_brier=round(d['brier']-c['brier'],6))
+                entry['pairwise'].append(pair)
         report['horizons'][str(horizon)] = entry
     report['limits'] = ['Only verified BTC outcomes matching this duration; different sources are scored separately.',
         'One observation per market/model/checkpoint, at most 90 seconds old.',
@@ -155,6 +170,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--research-db',type=Path)
+    parser.add_argument('--compact',action='store_true')
     args = parser.parse_args()
     cutoff = datetime.now(timezone.utc).isoformat()
     markets = fetch('btc_markets','market_slug,window_start,window_end,settlement_status,official_winner',
@@ -183,11 +199,25 @@ def main():
     for horizon,entry in report['horizons'].items():
         print('\nHORIZON',horizon,'seconds | common markets:',entry['common_markets'])
         for model,result in entry['models'].items():
+            if args.compact:
+                data=result['own_coverage']
+                print(model,json.dumps({k:v for k,v in data.items() if k in ('markets','accuracy','brier','log_loss')}))
+                continue
             print(model)
             for cohort in ('own_coverage','paired','later_half'):
                 data=result[cohort]
                 print(' ',cohort,json.dumps({k:v for k,v in data.items() if k!='calibration'}))
             print('  own_coverage calibration:',json.dumps(result['own_coverage'].get('calibration',[])))
+        for pair in entry['pairwise']:
+            print('PAIRED:',pair['champion'],'vs',pair['challenger'])
+            for label in ('all','later_half'):
+                cohort=pair[label]
+                print(' ',label,json.dumps(dict(markets=cohort['champion']['markets'],
+                      champion_accuracy=cohort['champion']['accuracy'],
+                      challenger_accuracy=cohort['challenger']['accuracy'],
+                      champion_brier=cohort['champion']['brier'],
+                      challenger_brier=cohort['challenger']['brier'],
+                      challenger_minus_champion_brier=cohort['challenger_minus_champion_brier'])))
     print('\nLIMITS:',json.dumps(report['limits']))
     for duration,local in report.get('separate_btc_research',{}).items():
         print('\nSEPARATE BTC RESEARCH:',duration,'seconds | verified markets:',local['verified_btc_markets'])
