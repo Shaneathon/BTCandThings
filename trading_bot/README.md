@@ -102,6 +102,24 @@ was contacted during this development.
 
 ## Deployment preparation
 
+### Additional all-market directional experiments
+
+After the dual sandbox is installed, `deploy/expand-pbot-markets.sh --plan`
+rehearses a release and `--apply` updates only PBot units. It preserves both
+original Bitcoin control configurations and ledger history, and adds separate
+market-local research wallets for all ten listed
+streams. They use `Multi-asset spot baseline research V1`, not fabricated
+Champion/Challenger outputs for other assets. Gold/silver slots remain paused
+when metadata or fresh forecasts are missing. No unsupported metals 5m slots
+are created. A shared STOP-SANDBOX file pauses entries in all experiments.
+
+The exporter reads recent local research snapshots read-only. A legacy BTC
+prediction endpoint outage no longer blocks independent local research feeds
+in all-market mode. Each new wallet is independently versioned and uses the
+same explicitly hypothetical 50c/cost model as described below. This does not
+finish quote mapping, make liquidity real, or turn twelve experiment wallets
+into one combined funded portfolio. Live and executable-quote fills stay off.
+
 ### Forward Champion versus Challenger B directional sandbox
 
 `deploy/start-pbot-sandbox.sh --prepare` rehearses an isolated release;

@@ -1,0 +1,128 @@
+[
+  {
+    "name": "coinbase-sdk-readme",
+    "url": "https://raw.githubusercontent.com/coinbase/coinbase-advanced-py/master/README.md",
+    "bytes": 26179,
+    "status": "READ",
+    "sha256": "cd4591a9fe5ee10180775d5fa350056043c468b31294da94058ab6d3d88b8b46",
+    "retrieved_date": "2026-11-06"
+  },
+  {
+    "name": "polymarket-us-sdk-readme",
+    "url": "https://raw.githubusercontent.com/Polymarket/polymarket-us-python/main/README.md",
+    "bytes": 17412,
+    "status": "READ",
+    "sha256": "124c1e5f624726064f43215f9cbfb3d8d10d1b77531f612a9033a6ce2d39b151",
+    "retrieved_date": "2026-11-06"
+  },
+  {
+    "name": "polymarket-us-sdk-markets",
+    "url": "https://raw.githubusercontent.com/Polymarket/polymarket-us-python/main/polymarket_us/resources/markets.py",
+    "bytes": 2539,
+    "status": "READ",
+    "sha256": "4d968adf1037cd06c943947b90f44bfcd09db58c1f4034a2381ed7ef3e070570",
+    "retrieved_date": "2026-11-06"
+  },
+  {
+    "name": "coinbase-sdk-websocket",
+    "url": "https://raw.githubusercontent.com/coinbase/coinbase-advanced-py/master/coinbase/websocket/websocket_base.py",
+    "bytes": 19019,
+    "status": "READ",
+    "sha256": "e1cfda00d4ba99bb5c0706df1988bd1d5bed034e7ef1fd629993b1ad5e0b731f",
+    "retrieved_date": "2026-11-06"
+  },
+  {
+    "name": "coinbase-sdk-public",
+    "url": "https://raw.githubusercontent.com/coinbase/coinbase-advanced-py/master/coinbase/rest/public.py",
+    "bytes": 6515,
+    "status": "READ",
+    "sha256": "9dc48922861c0a81f2c89110d72c52dccee5c3eff830a435e152bab0c1db6e21",
+    "retrieved_date": "2026-11-06"
+  },
+  {
+    "name": "coinbase-sdk-market-trades",
+    "url": "https://raw.githubusercontent.com/coinbase/coinbase-advanced-py/master/coinbase/rest/market_trades.py",
+    "status": "UNAVAILABLE",
+    "error": "HTTPError"
+  },
+  {
+    "name": "prediction-calibration",
+    "url": "https://raw.githubusercontent.com/scikit-learn/scikit-learn/main/doc/modules/calibration.rst",
+    "bytes": 19452,
+    "status": "READ",
+    "sha256": "486e92440c8ffbc509130929f33c57f2dba05cfebdfab90082ede587cc2924a0",
+    "retrieved_date": "2026-11-06"
+  },
+  {
+    "name": "time-series-validation",
+    "url": "https://raw.githubusercontent.com/scikit-learn/scikit-learn/main/doc/modules/cross_validation.rst",
+    "bytes": 42081,
+    "status": "READ",
+    "sha256": "06f22c6b86b0aa6dc18195b89b9c51295f6f2e5a78007af55b8c649c6dc091f5",
+    "retrieved_date": "2026-11-06"
+  },
+  {
+    "name": "backtest-bias",
+    "url": "https://raw.githubusercontent.com/freqtrade/freqtrade/develop/docs/lookahead-analysis.md",
+    "bytes": 7801,
+    "status": "READ",
+    "sha256": "49c0cc7f34f5aa071827366d0fe28af765a2fe7a91f823548d33687bf5b633b9",
+    "retrieved_date": "2026-11-06"
+  },
+  {
+    "name": "backtest-realism",
+    "url": "https://raw.githubusercontent.com/freqtrade/freqtrade/develop/docs/backtesting.md",
+    "bytes": 57906,
+    "status": "READ",
+    "sha256": "dc74cad035e679e4f361fe4c7cff4c8dd2dd62f534c39f7b5b012d307dee7fd9",
+    "retrieved_date": "2026-11-06"
+  },
+  {
+    "name": "hft-simulation",
+    "url": "https://raw.githubusercontent.com/nkaz001/hftbacktest/master/README.rst",
+    "bytes": 14468,
+    "status": "READ",
+    "sha256": "b42c9f012bd71d2e1ecb000eb5c5af3e1d24817258b4a812beffbb953a752e42",
+    "retrieved_date": "2026-11-06"
+  },
+  {
+    "name": "avellaneda-implementation",
+    "url": "https://raw.githubusercontent.com/fedecaccia/avellaneda-stoikov/master/README.md",
+    "bytes": 901,
+    "status": "READ",
+    "sha256": "94266bd0263456655c7dfb163a11ffe0910eee0c69d9d34559e1422527f9ae89",
+    "retrieved_date": "2026-11-06"
+  },
+  {
+    "name": "polymarket-us-types",
+    "url": "https://raw.githubusercontent.com/Polymarket/polymarket-us-python/6fde8f2b6ea88198a199b38f7b6d8951d015a06a/polymarket_us/types/markets.py",
+    "bytes": 4114,
+    "status": "READ",
+    "sha256": "16b3ac826c63297f5ce37ee81a0446ae19bb4f06d161fa9121f7c1efea5d41a8",
+    "retrieved_date": "2026-11-06"
+  },
+  {
+    "name": "polymarket-us-ws-auth",
+    "url": "https://raw.githubusercontent.com/Polymarket/polymarket-us-python/6fde8f2b6ea88198a199b38f7b6d8951d015a06a/polymarket_us/websocket/base.py",
+    "bytes": 5973,
+    "status": "READ",
+    "sha256": "74d6a569290614fe21fce1cb233a405cd01c0480290473b7ce2b4cfde0b43602",
+    "retrieved_date": "2026-11-06"
+  },
+  {
+    "name": "coinbase-ws-channels",
+    "url": "https://raw.githubusercontent.com/coinbase/coinbase-advanced-py/master/coinbase/websocket/channels.py",
+    "bytes": 18108,
+    "status": "READ",
+    "sha256": "2c159292a034f71b08a2f2ffd67c490dbfb546cab8588fa837329c7b43c77cb9",
+    "retrieved_date": "2026-11-06"
+  },
+  {
+    "name": "coinbase-ws-response",
+    "url": "https://raw.githubusercontent.com/coinbase/coinbase-advanced-py/master/coinbase/websocket/types/websocket_response.py",
+    "bytes": 3379,
+    "status": "READ",
+    "sha256": "f1d64f286fabce624bc08f530e13ce46c717389920df0af7886160b76568bcdd",
+    "retrieved_date": "2026-11-06"
+  }
+]

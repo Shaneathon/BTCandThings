@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "experiments": [
+    {
+      "id": "PM-00",
+      "venue": "Polymarket US",
+      "name": "Frozen Champion vs B directional baseline",
+      "status": "running_fixed_price",
+      "requires": "Existing BTC 15m live signals",
+      "controls": "Current directional experiment; not executable P/L",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    },
+    {
+      "id": "PM-01",
+      "venue": "Polymarket US",
+      "name": "Research baseline on all supported streams",
+      "status": "prepared_directional",
+      "requires": "Fresh typed metadata and market-local predictions",
+      "controls": "Separate wallets; metals paused when no valid signal",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    },
+    {
+      "id": "PM-02",
+      "venue": "Polymarket US",
+      "name": "B with observed-quote value filter",
+      "status": "research_only",
+      "requires": "Verified side mapping, fresh full book, fee assumptions, availability timestamps",
+      "controls": "Never reuse fixed-price ledger",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    },
+    {
+      "id": "PM-03",
+      "venue": "Polymarket US",
+      "name": "Settlement-average-aware probability",
+      "status": "research_only",
+      "requires": "Official index samples and contract averaging/rounding rules",
+      "controls": "Proxy-only data is not an official index",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    },
+    {
+      "id": "PM-04",
+      "venue": "Polymarket US",
+      "name": "Simple horizon-specific calibration",
+      "status": "research_only",
+      "requires": "Chronological verified outcomes and sufficient independent markets",
+      "controls": "Fit only earlier available labels",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    },
+    {
+      "id": "PM-05",
+      "venue": "Polymarket US",
+      "name": "Target-distance/volatility filter",
+      "status": "research_only",
+      "requires": "Time-aligned target, prices, volatility and executable quotes",
+      "controls": "One filter change, paired opportunity cohort",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    },
+    {
+      "id": "PM-06",
+      "venue": "Polymarket US",
+      "name": "Flow-confirmed entry",
+      "status": "research_only",
+      "requires": "Validated trade-side semantics and continuous book/trade data",
+      "controls": "Displayed imbalance can be transient",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    },
+    {
+      "id": "PM-07",
+      "venue": "Polymarket US",
+      "name": "Hold-to-settlement versus early exit",
+      "status": "research_only",
+      "requires": "Same entry cohort plus fresh exit bids/depth/costs",
+      "controls": "No hindsight best exit",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    },
+    {
+      "id": "CB-00",
+      "venue": "Coinbase Advanced",
+      "name": "Frozen EMA9/EMA21 + 3m return baseline",
+      "status": "running_paper",
+      "requires": "Existing Coin tracker inputs",
+      "controls": "Sampled quotes; assumed fees and slippage",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    },
+    {
+      "id": "CB-01",
+      "venue": "Coinbase Advanced",
+      "name": "Cost/turnover sensitivity",
+      "status": "research_only",
+      "requires": "Complete entry/exit journal and scenario fee models",
+      "controls": "Compare same gross opportunities, multiple cost scenarios",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    },
+    {
+      "id": "CB-02",
+      "venue": "Coinbase Advanced",
+      "name": "Slower trend confirmation",
+      "status": "research_only",
+      "requires": "Completed causal 5m/15m features and quotes",
+      "controls": "No future confirmation candle",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    },
+    {
+      "id": "CB-03",
+      "venue": "Coinbase Advanced",
+      "name": "Volatility breakout",
+      "status": "research_only",
+      "requires": "Prior range, completed volume, quotes and latency",
+      "controls": "Range excludes trigger candle",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    },
+    {
+      "id": "CB-04",
+      "venue": "Coinbase Advanced",
+      "name": "Range mean reversion",
+      "status": "research_only",
+      "requires": "Past-only range/regime definition and executable quotes",
+      "controls": "Do not fit a regime after observing its outcome",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    },
+    {
+      "id": "CB-05",
+      "venue": "Coinbase Advanced",
+      "name": "ATR-scaled risk and exits",
+      "status": "research_only",
+      "requires": "Causal volatility and intrabar/quote observations",
+      "controls": "Stops execute at observed prices, not guaranteed thresholds",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    },
+    {
+      "id": "CB-06",
+      "venue": "Coinbase Advanced",
+      "name": "Trend pullback and time stop",
+      "status": "research_only",
+      "requires": "Versioned entry/exit rules and complete observations",
+      "controls": "Assess missed trades as well as filled trades",
+      "live_orders_enabled": false,
+      "auto_activate": false
+    }
+  ],
+  "selection_rule": "One prespecified change at a time; frozen baseline; separate ledger; forward validation."
+}

@@ -51,6 +51,30 @@ the droplet's Nginx sites-enabled output. `portal/install.py` prompts privately
 for credentials and checks 401/200 behavior after HTTPS activation. Deployment
 is not yet confirmed. After portal completion, expand data collection last.
 
+Later confirmed: portal HTTPS was issued and a local unauthenticated check
+returned 401; the user successfully logged in and said it worked great. Keep
+its server-side auth and private password files unchanged. The initial post-
+reload certificate check had a transient hostname mismatch; do not rerun the
+non-idempotent installer over the now-working portal.
+
+Current request: extensive strategy research for Polymarket crypto predictions
+and Coinbase spot entries/exits, then paper testing across all supported markets.
+Research package is in `research/strategy/` (15 retrieved SDK/engineering
+sources, source hashes, 15 versioned candidates, explicit evidence limits and
+cost calculators). Full exchange docs/academic sites were inaccessible; do not
+claim those original papers or current fee tiers were verified.
+
+Prepared, not yet confirmed deployed: `deploy/expand-pbot-markets.sh --apply`
+preserves Champion/B BTC control wallets and adds 10 independent market-local
+research wallets using the generic research model. Fresh crypto streams may
+enter; missing metals remain paused. ALL use explicitly hypothetical 50c
+reference/costs; executable quote mapping/fills are still unfinished.
+`deploy/install-market-capture.sh --apply` adds a resource-capped, public-only
+Coinbase raw WebSocket recorder with compressed segments and lifecycle/gap
+logs. No trading keys. Its actual public channel availability must be checked
+on the droplet. Raw capture is not a validated tradable book. Existing CBot
+already paper-trades all four spot products. No real trading is authorized.
+
 | App | Target | Source | Scope |
 | --- | --- | --- | --- |
 | BTCandThings | btc.shaneathon.com | BTCandThings_Website/BTCandThings_Upload | Existing ten-market tracker |

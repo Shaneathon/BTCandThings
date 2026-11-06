@@ -63,3 +63,26 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     assert len([m for m in app.metric if m.label=='Hypothetical realized P/L'])==2
     assert any('Automatic paper-trade reviews' in e.label for e in app.expander)
     print('PASS PBot dual directional sandbox: separate wallets, assumed-price warning, automatic reviews')
+
+from trading_bot.dual_sandbox import MarketSandboxConfig, RESEARCH_MODEL, run_market_cycles
+from trading_bot.tests.test_bot import iso
+with tempfile.TemporaryDirectory() as temporary:
+    research_bots={name:Sandbox(Path(temporary)/(name+'.sqlite'),MarketSandboxConfig(asset=asset,duration_seconds=900,model_version=RESEARCH_MODEL))
+                   for name,asset in [('ETH_15m','ETH'),('GOLD_15m','GOLD')]}
+    inputs=dual_fixture()
+    inputs['markets'][0]['asset']='ETH'
+    inputs['markets'][0]['market_slug']='eth-updown-15m-fixture'
+    inputs['markets'][0]['contract_slug']='eth-fixture-contract'
+    inputs['predictions']=[dict(market_slug=inputs['markets'][0]['market_slug'],recorded_at=iso(DUAL_NOW-2),
+                                source_timestamp=iso(DUAL_NOW-5),model_version=RESEARCH_MODEL,predicted_up_probability=.2)]
+    dual['market_portfolios']=run_market_cycles(research_bots,inputs,DUAL_NOW)
+    for bot in research_bots.values(): bot.close()
+st.cache_data.clear()
+with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status','PBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}), patch('trading_bot.status_client.read_status',return_value=dual):
+    app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
+    assert not app.exception,[e.message for e in app.exception]
+    assert app.selectbox[0].label=='Inspect a research market'
+    coverage=next(frame.value for frame in app.dataframe if 'Market' in frame.value.columns and 'State' in frame.value.columns)
+    assert set(coverage['Market'])=={'ETH_15m','GOLD_15m'}
+    assert 'PAUSED_METADATA_UNAVAILABLE' in coverage['State'].tolist()
+    print('PASS PBot all-market panel: independent research wallets and explicit paused feed')

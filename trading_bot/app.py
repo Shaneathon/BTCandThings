@@ -60,6 +60,7 @@ def content():
         st.caption(data.get('price_assumption',''))
         st.caption(f"Forward BTC 15m comparison · input {data.get('input_status')} · "
                    f"shared signal markets {data.get('common_signal_markets',0)}. Separate virtual wallets; no historical entries are backfilled.")
+        if data.get('feed_errors'): st.warning('Some prediction feeds are unavailable: '+str(data['feed_errors']))
         for column,(name,report) in zip(st.columns(2),data.get('portfolios',{}).items()):
             with column:
                 st.markdown('### '+name)
@@ -89,6 +90,27 @@ def content():
             st.caption('Reviews update as verified settlements arrive. The baseline stays frozen; new tweaks use separate versions. '
                        'This release classifies losses and archives signals; it does not automatically optimize the strategy.')
             st.json(data.get('automatic_reviews',{}))
+        if data.get('market_portfolios'):
+            st.markdown('### All-market research experiments')
+            st.caption('Separate $1,000 virtual wallets use each market’s own research forecast. '
+                       'These are additional fixed-price directional experiments, not Champion clones or one combined funded portfolio. '
+                       'Missing feeds stay paused. Fees/prices remain hypothetical.')
+            rows=[]
+            for name,report in data['market_portfolios'].items():
+                account=report['account']
+                rows.append({'Market':name,'State':report['coverage_status'],
+                             'Virtual cash':f"${float(account['cash']):,.2f}",
+                             'Hypothetical P/L':f"${float(account['realized_pnl']):,.2f}",
+                             'Settled':account.get('settled_experiments_total',0)})
+            st.dataframe(rows,hide_index=True,width='stretch')
+            selected=st.selectbox('Inspect a research market',list(data['market_portfolios']),key='market_research_review')
+            with st.expander(selected+' positions and latest decisions'):
+                selected_report=data['market_portfolios'][selected]
+                if selected_report['account']['positions']:
+                    st.dataframe(selected_report['account']['positions'],hide_index=True,width='stretch')
+                if selected_report['decisions']:
+                    st.dataframe(selected_report['decisions'],hide_index=True,width='stretch')
+                else: st.info(selected_report['coverage_status'])
         return
     account=data.get('account',{})
     if data.get('operation_mode') == 'OBSERVE_ONLY':
