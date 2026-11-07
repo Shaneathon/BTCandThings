@@ -293,3 +293,17 @@ services active, fresh status ages (research 68.3s, Coin 9.5s, PBot 1.0s,
 CBot 53.7s). Only GOLD_15m/SILVER_15m paused notices remain. Sampler started
 near 00:20 UTC, so warm-up had not completed; actual candle counts/readiness
 and valid current contracts still need checking after sufficient history.
+
+## Fee clarification from user-supplied Polly support messages
+
+Polly reports published US taker coefficient .06, maker rebate .0125, formula
+coefficient * contracts * price * (1-price), price .01..99, fees per execution,
+nearest-cent HALF_EVEN (banker's rounding). Polly did NOT confirm whether
+market API feeCoefficient .095 overrides .06. Exact evidence user supplied:
+GET https://gateway.polymarket.us/v1/market/slug/cpcxrp-xrp-updown-5m-2026-11-07-0055z
+response market.feeCoefficient=0.095 (audit extracts fee_coefficient). Need
+provider answer; no account credentials needed. Formula implemented/tested in
+execution_model.taker_fee; no production coefficient selection or activation.
+Simulated level fills disclose ONE_SIMULATED_EXECUTION_PER_CONSUMED_PRICE_LEVEL:
+aggregate books cannot reveal actual execution partitions, hence rounding can
+differ from real exchange fees. Maker rebates not assumed for taker fills.

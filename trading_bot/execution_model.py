@@ -5,10 +5,26 @@ Verified fee/mapping references are inputs, never inferred from Yes/No labels or
 feeCoefficient. This module does not activate trading on its own.
 """
 from dataclasses import asdict, dataclass
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal, ROUND_DOWN, ROUND_HALF_EVEN
 import hashlib
 import json
 from trading_bot.core import amount
+
+
+QUADRATIC_TAKER_RULE = 'QUADRATIC_TAKER_PER_EXECUTION_HALF_EVEN_V1'
+
+
+def taker_fee(coefficient, contracts, price):
+    """Support-reported formula; coefficient applicability is a separate check.
+
+    Call once for each execution, not once for the combined order. Aggregated
+    book levels do not reveal individual counterparty executions; callers must
+    disclose their simulated fill partition assumption.
+    """
+    c, q, p = map(amount, (coefficient, contracts, price))
+    if not 0 <= c <= 1 or not Decimal('.01') <= p <= Decimal('.99'):
+        raise ValueError('INVALID_TAKER_FEE_INPUT')
+    return (c*q*p*(1-p)).quantize(Decimal('.01'),rounding=ROUND_HALF_EVEN)
 
 
 @dataclass(frozen=True)
@@ -52,9 +68,8 @@ class OrderPlan:
             raise ValueError('INVALID_ORDER_TIMING')
         if self.time_in_force not in ('TIME_IN_FORCE_FILL_OR_KILL','TIME_IN_FORCE_IMMEDIATE_OR_CANCEL'):
             raise ValueError('UNSUPPORTED_TIME_IN_FORCE')
-        # Only a reviewed explicitly flat schedule is implemented. The observed
-        # coefficient .095 is NOT approved for this formula.
-        if self.fee_rule != 'VERIFIED_FLAT_PER_SHARE' or amount(self.fee_parameter) > 1:
+        # Formula support does not approve a coefficient for a given market.
+        if self.fee_rule not in ('VERIFIED_FLAT_PER_SHARE',QUADRATIC_TAKER_RULE) or amount(self.fee_parameter) > 1:
             raise ValueError('UNIMPLEMENTED_OR_UNVERIFIED_FEE_RULE')
         if self.execution_version != 'OBSERVED_DEPTH_V1':
             raise ValueError('UNSUPPORTED_EXECUTION_VERSION')
@@ -129,7 +144,8 @@ def simulate(plan, snapshot, now, *, participation='0.25'):
         available=(visible*factor/increment).to_integral_value(rounding=ROUND_DOWN)*increment
         filled=min(remaining,available)
         if filled>0:
-            level_fee=filled*amount(plan.fee_parameter)
+            level_fee=(taker_fee(plan.fee_parameter,filled,px) if plan.fee_rule==QUADRATIC_TAKER_RULE
+                       else filled*amount(plan.fee_parameter))
             fills.append(dict(price=str(px),quantity=str(filled),fee=str(level_fee)))
             gross+=filled*px
             fee+=level_fee
@@ -138,6 +154,8 @@ def simulate(plan, snapshot, now, *, participation='0.25'):
         return reject('FOK_INSUFFICIENT_VISIBLE_DEPTH')
     if not fills:
         return reject('LIMIT_OR_DEPTH_UNFILLED')
+    result['fee_partition_assumption']='ONE_SIMULATED_EXECUTION_PER_CONSUMED_PRICE_LEVEL'
+    result['actual_exchange_fill_partition_known']=False
     result.update(state='FILLED' if remaining==0 else 'PARTIALLY_FILLED_CANCELLED',
                   filled_quantity=str(wanted-remaining),gross_cost=str(gross),fees=str(fee),
                   total_cost=str(gross+fee),fills=fills,reason='SIMULATED_TAKER_DEPTH')

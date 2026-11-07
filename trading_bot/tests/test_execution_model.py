@@ -1,6 +1,6 @@
 from dataclasses import replace
 import unittest
-from trading_bot.execution_model import OrderPlan, exchange_order, simulate
+from trading_bot.execution_model import OrderPlan, exchange_order, simulate, taker_fee, QUADRATIC_TAKER_RULE
 from trading_bot.market_pnl import summarize
 
 
@@ -53,6 +53,24 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual(plan().order_id,plan().order_id)
         data=book();data['offers'].append(data['offers'][0])
         self.assertEqual(simulate(plan(),data,103)['state'],'REJECTED')
+
+    def test_quadratic_fees_bankers_rounding_per_execution(self):
+        self.assertEqual(str(taker_fee('.06','100','.50')),'1.50')
+        self.assertEqual(str(taker_fee('.095','100','.50')),'2.38')
+        self.assertEqual(str(taker_fee('.02','1','.50')),'0.00')
+        self.assertEqual(str(taker_fee('.06','1','.50')),'0.02')
+        self.assertNotEqual(sum(taker_fee('.02','1','.5') for _ in range(3)),taker_fee('.02','3','.5'))
+        for coefficient,qty,price in [('.06','1','NaN'),('.06','-1','.5'),('.06','1','.001')]:
+            with self.assertRaises((ValueError,ArithmeticError)):
+                taker_fee(coefficient,qty,price)
+        configured=replace(plan(),fee_rule=QUADRATIC_TAKER_RULE,fee_parameter='.06',
+                           fee_evidence='Synthetic support-formula test; not market coefficient approval')
+        result=simulate(configured,book(),103)
+        self.assertEqual(result['fees'],'0.14')
+        self.assertEqual(result['total_cost'],'5.89')
+        self.assertFalse(result['actual_exchange_fill_partition_known'])
+        empty=book();empty['offers']=empty['offers'][:1]
+        self.assertEqual(simulate(configured,empty,103)['fees'],'0')
 
     def test_market_accounting_reconciles_gross_fees_net_and_open_cost(self):
         positions=[dict(market_slug='btc1',asset='BTC',duration_seconds=900,state='PAPER_CLOSED',
