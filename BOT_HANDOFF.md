@@ -25,6 +25,30 @@ or present the diagnostic as the finished replacement. Full requirements:
 `research/execution/REALISTIC_PAPER_PLAN.md`. CBot is unchanged and retains its
 sampled real quote/assumed-cost limitations.
 
+### Audit received; accounting and execution primitives prepared
+
+User returned AUDIT_COMPLETE. Observed XRP5m exact contract LONG book has real
+prices/quantities; metadata has Yes/long=true and No/long=false, feeCoefficient
+0.095, tick0.01, minimum quantity0.01. Transaction timestamp was ~29s old despite
+fresh REST reception. Do not equate last book mutation time with REST freshness
+without checking snapshot/cache semantics. These fields do not yet prove fee
+formula or directional mapping. No new execution bot has been activated.
+
+Prepared next deployment `deploy/update-pbot-market-report.sh --apply` updates
+only PBot code/units, requires STOP-SANDBOX already present, preserves that pause
+and all ledgers. It displays complete-history P/L by wallet and market, including
+zero-entry streams, separate gross/assumed fees/net and open cost. Historical
+fixed-price labels remain prominent. Collectors/CBot unchanged. Not yet run by
+user at time of commit.
+
+`trading_bot/execution_model.py` now contains a common immutable order spec and
+an offline depth simulator (post-delay books, limit/size/TIF, FOK rejection or
+IOC partial fill, max25% participation). Tested offline only. It is NOT a
+persistent runner or an active trading adapter. Only a synthetic reviewed-flat-
+fee rule exists for tests; do not use .095 as that parameter. Production fee
+formula, semantic mapping, short conversion, persistent reservation/idempotence,
+book acquisition and realistic-ledger/UI integration remain to finish.
+
 ## Current confirmed status — November 6, 2026
 
 This section supersedes historical preparation notes below. Last server evidence:

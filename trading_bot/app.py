@@ -58,6 +58,17 @@ def content():
     if data.get('operation_mode') == 'DIRECTIONAL_SANDBOX':
         st.warning('DIRECTIONAL SANDBOX · Hypothetical fixed prices, not executable market fills. Real trading is disabled.')
         st.caption(data.get('price_assumption',''))
+        if data.get('new_fixed_price_entries_paused'):
+            st.info('New fixed-price entries are paused for the execution realism migration. Existing settlements continue. No replacement engine is active yet.')
+        breakdown=[]
+        for group in ('portfolios','market_portfolios'):
+            for name,report in data.get(group,{}).items():
+                for row in report.get('account',{}).get('market_pnl',[]):
+                    breakdown.append(dict(wallet=name,**row))
+        if breakdown:
+            st.markdown('### P/L by market · historical fixed-price experiments')
+            st.caption('Complete ledger totals. Wallets have independent virtual bankrolls; do not add them as one funded account. These results are not live-equivalent.')
+            st.dataframe(breakdown,hide_index=True,width='stretch')
         st.caption(f"Forward BTC 15m comparison · input {data.get('input_status')} · "
                    f"shared signal markets {data.get('common_signal_markets',0)}. Separate virtual wallets; no historical entries are backfilled.")
         if data.get('feed_errors'): st.warning('Some prediction feeds are unavailable: '+str(data['feed_errors']))

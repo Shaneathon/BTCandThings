@@ -68,3 +68,17 @@ next realism pass also needs shared order proposals, depth-limited post-delay
 fills, verified fee assumptions and reconnect/gap handling. The public raw
 recorder currently has no validated Level-2 book. This Polymarket diagnostic does
 not change CBot or pretend to fix Coinbase book reconstruction.
+
+## Offline primitives and accounting update
+
+`trading_bot/execution_model.py` defines the shared order instruction and a pure
+post-delay taker-depth simulator. It is not wired to production or a live client.
+Its only fee rule is a synthetic reviewed-flat-rate test interface, not the
+Polymarket crypto fee formula. Unknown rules are rejected, not approximated.
+The caller still needs persistent reservation/order-ID accounting and data
+validation before using it. A 25% visible-size participation cap is a modeling
+assumption, not a guarantee of exchange fills.
+
+`deploy/update-pbot-market-report.sh --apply` publishes complete-history
+per-market accounting and the explicit migration pause message. It does NOT
+activate this simulator. No market P/L is silently reclassified as realistic.

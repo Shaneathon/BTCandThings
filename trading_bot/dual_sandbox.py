@@ -155,6 +155,8 @@ class Sandbox(PaperBot):
             account.update(settled_experiments_total=len(all_closed),
                            losses_total=sum(Decimal(p['pnl'])<0 for p in all_closed),
                            position_count=len(all_positions))
+            from trading_bot.market_pnl import summarize
+            account['market_pnl']=summarize(all_positions,streams=[(asset,duration)])
             # Preserve the complete ledger on disk; bound the private API response.
             account['positions']=sorted(all_positions,key=lambda p:p['opened_at'])[-100:]
             result=dict(observed_at=now,account=account,configuration=asdict(self.config),decisions=decisions,
@@ -246,6 +248,7 @@ def run_cycle(bots, data, now, paused=False):
                            reason='Keep baseline frozen; new rule versions need separate ledgers and forward validation.')
     return dict(observed_at=now,operation_mode='DIRECTIONAL_SANDBOX',
                 input_status='FRESH' if fresh else 'STALE',common_signal_markets=len(shared),
+                new_fixed_price_entries_paused=paused,
                 account=dict(mode='PAPER',venue='Polymarket US',live_orders_enabled=False),portfolios=reports,
                 price_assumption='Fixed hypothetical 50c + 1c slippage + 1c fee per share; liquidity unverified.',
                 executable_quote_fills_enabled=False,automatic_reviews=reviews,feed_errors=data.get('feed_errors',[]))
