@@ -91,3 +91,19 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     assert set(coverage['Market'])=={'ETH_15m','GOLD_15m'}
     assert 'PAUSED_METADATA_UNAVAILABLE' in coverage['State'].tolist()
     print('PASS PBot all-market panel: independent research wallets and explicit paused feed')
+
+# The new execution dashboard must keep the fixed-price histories separate.
+from trading_bot.observed_paper import Engine as ObservedEngine
+with tempfile.TemporaryDirectory() as temporary:
+    engine=ObservedEngine(Path(temporary)/'observed.sqlite')
+    observed=engine.report(DUAL_NOW,True)
+    engine.close()
+st.cache_data.clear()
+with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status','PBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}), patch('trading_bot.status_client.read_status',return_value=observed):
+    app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
+    assert not app.exception,[e.message for e in app.exception]
+    assert any('OBSERVED-BOOK PAPER' in item.value for item in app.info)
+    table=next(frame.value for frame in app.dataframe if 'reserved_cash' in frame.value.columns)
+    assert len(table)==12
+    assert all(value=='0' for value in table['realized_net_pnl'])
+    print('PASS PBot observed execution: 12 separate new ledgers, zero inherited artificial profit')

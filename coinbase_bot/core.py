@@ -58,6 +58,15 @@ class PaperBot:
 
     def close(self): self.db.close()
 
+    def pending(self,product,side): return None
+
+    def reserved_cash(self,except_product): return Decimal(0)
+
+    def execute(self,source,side,quantity,now,reason=None):
+        price=(positive(source['ask'])*(1+positive(self.config.slippage_rate)) if side=='BUY'
+               else positive(source['bid'])*(1-positive(self.config.slippage_rate)))
+        return price,quantity,quantity*price*positive(self.config.fee_rate)
+
     def cycle(self,snapshots,now,kill_switch=False):
         cfg=self.config
         self.db.execute('BEGIN IMMEDIATE')
@@ -110,14 +119,16 @@ class PaperBot:
                         reason=('STOP_LOSS' if bid<=entry*(1-positive(cfg.stop_loss_fraction)) else
                                 'TAKE_PROFIT' if bid>=entry*(1+positive(cfg.take_profit_fraction)) else
                                 'TREND_EXIT' if signal['direction']=='SELL' else None)
+                        queued=self.pending(product,'SELL')
+                        reason=reason or (queued.get('reason') if queued else None)
                         if not reason: raise ValueError('HOLDING_SPOT')
                         quantity=positive(position['quantity'])
                         if positive(source['bid_size'])<quantity: raise ValueError('INSUFFICIENT_EXIT_DEPTH')
-                        price=bid*(1-positive(cfg.slippage_rate))
-                        proceeds=quantity*price*(1-positive(cfg.fee_rate))
+                        price,quantity,exit_fee=self.execute(source,'SELL',quantity,now,reason=reason)
+                        proceeds=quantity*price-exit_fee
                         pnl=proceeds-positive(position['cost'])
                         cash+=proceeds; exposure-=positive(position['cost']); daily+=pnl
-                        trade={**position,'closed_at':now,'exit_price':str(price),'proceeds':str(proceeds),'pnl':str(pnl),'exit_reason':reason}
+                        trade={**position,'closed_at':now,'exit_price':str(price),'proceeds':str(proceeds),'pnl':str(pnl),'exit_reason':reason,'exit_fees':str(exit_fee)}
                         trade_id=product+':'+str(position['opened_at'])
                         self.db.execute('INSERT INTO trades VALUES (?,?)',(trade_id,json.dumps(trade)))
                         self.db.execute('DELETE FROM positions WHERE product_id=?',(product,))
@@ -131,18 +142,19 @@ class PaperBot:
                     if (high-equity)/high>=positive(cfg.max_drawdown): halted='MAX_REALIZED_DRAWDOWN'
                     if halted: raise ValueError(halted)
                     if daily<=-positive(cfg.max_daily_loss): raise ValueError('DAILY_LOSS_LIMIT')
-                    if prior and prior[0]>=signal['candle_end']: raise ValueError('ALREADY_PROCESSED_CANDLE')
+                    if prior and prior[0]>=signal['candle_end'] and not self.pending(product,'BUY'): raise ValueError('ALREADY_PROCESSED_CANDLE')
                     if last_exit is not None and now-last_exit<cfg.cooldown_seconds: raise ValueError('COOLDOWN')
                     self.db.execute('INSERT INTO processed VALUES (?,?,NULL) ON CONFLICT(product_id) DO UPDATE SET candle_end=excluded.candle_end',(product,signal['candle_end']))
-                    if signal['direction']!='BUY': raise ValueError('NO_BUY_TREND')
+                    if signal['direction']!='BUY' and not self.pending(product,'BUY'): raise ValueError('NO_BUY_TREND')
                     if (ask-bid)/ask>positive(cfg.maximum_spread_fraction): raise ValueError('WIDE_SPREAD')
                     metadata=source['metadata']
                     if metadata.get('product_id')!=product or metadata.get('product_type')!='SPOT' or metadata.get('trading_disabled') is not False: raise ValueError('PRODUCT_NOT_READY')
                     fill=ask*(1+positive(cfg.slippage_rate))
                     unit_cost=fill*(1+positive(cfg.fee_rate))
-                    capacity=min(positive(cfg.max_position_cost),cash,positive(cfg.max_exposure)-exposure,
-                                 positive(cfg.max_daily_loss)+daily-exposure,
-                                 high*positive(cfg.max_drawdown)-(high-equity)-exposure)
+                    reserve=self.reserved_cash(product)
+                    capacity=min(positive(cfg.max_position_cost),cash-reserve,positive(cfg.max_exposure)-exposure-reserve,
+                                 positive(cfg.max_daily_loss)+daily-exposure-reserve,
+                                 high*positive(cfg.max_drawdown)-(high-equity)-exposure-reserve)
                     if metadata.get('quote_max_size'):
                         capacity=min(capacity,positive(metadata['quote_max_size'])*(1+positive(cfg.fee_rate)))
                     increment=positive(metadata['base_increment'])
@@ -150,8 +162,9 @@ class PaperBot:
                     if metadata.get('base_max_size'):
                         quantity=min(quantity,(positive(metadata['base_max_size'])/increment).to_integral_value(rounding=ROUND_FLOOR)*increment)
                     if quantity<positive(metadata['base_min_size']) or quantity*fill<positive(metadata['quote_min_size']): raise ValueError('MINIMUM_SIZE_OR_RISK')
-                    cost=quantity*unit_cost
-                    position=dict(product_id=product,quantity=str(quantity),entry_price=str(fill),cost=str(cost),opened_at=now,simulated_only=True)
+                    fill,quantity,entry_fee=self.execute(source,'BUY',quantity,now)
+                    cost=quantity*fill+entry_fee
+                    position=dict(product_id=product,quantity=str(quantity),entry_price=str(fill),cost=str(cost),entry_fees=str(entry_fee),opened_at=now,simulated_only=True)
                     self.db.execute('INSERT INTO positions VALUES (?,?)',(product,json.dumps(position)))
                     positions[product]=position
                     cash-=cost; exposure+=cost

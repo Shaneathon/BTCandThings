@@ -3,6 +3,54 @@
 Repository: Shaneathon/BTCandThings. Current preparation branch:
 `tracker/coinbase-research`.
 
+## Prepared observed-price migration — NOT YET deployed
+
+User explicitly expanded realism work to BOTH Polymarket and Coinbase. Future
+$5–10 real-money experiment discussed only conditionally; real submission is
+still disabled and not authorized by this migration.
+
+`deploy/activate-observed-paper.sh --apply` is the prepared ONE-block deployment
+for both bots. First creates/tests fresh immutable releases, preserves all old
+histories/configuration/tokens, verifies startup/live-disabled mode, then updates
+health markers to new ledgers. It refuses existing observed ledgers and unsettled
+old PBot positions; do not retry by deleting either. New ledgers:
+`/var/lib/pbot/observed-v1.sqlite`, `/var/lib/cbot/observed-v1.sqlite`.
+Old Coinbase virtual open positions remain archived, not transferred. Each new
+wallet starts independently at $1,000; PBot has 12 comparison/research wallets,
+CBot one shared spot wallet across four products. No collectors restart.
+
+PBot source `trading_bot/observed_paper.py`: persistent reservations/proposals,
+post-delay books, IOC partial/unfilled outcomes, official settlement once,
+per-market complete-history P/L, original Champion/B fresh paired-control gate.
+Provider adapter `provider.py` uses typed current terms + explicit Up-if>=
+description + Yes LONG/No SHORT identifiers + resolved-cohort corroboration
+(>=3 distinct, both UP and DOWN, no conflicts). Complementary SHORT model is
+explicit. REST Date/Age/request latency used for snapshot freshness;
+transaction timestamp can be old on unchanged book. New pause file STOP-OBSERVED.
+Old STOP-SANDBOX stays present. Quote archive budget 1GiB plus 4GiB free floor.
+
+Fee basis was clarified by subsequent user-relayed support: published taker .06,
+quadratic c*q*p*(1-p), HALF_EVEN per execution. Use .06 as explicit published-
+schedule paper basis; retain observed API .095 and fee sensitivity per position.
+No maker rebates credited. API override applicability still unconfirmed, not
+silently treated as resolved. One simulated execution per price level means
+real fill partition rounding may differ.
+
+CBot `coinbase_bot/observed.py`: same existing signal/risk strategy, durable
+frozen Coinbase limit_limit_fok instructions, >=2s delay/later sampled book,
+45s expiry, best-level 25% participation, FOK unfilled at limit/size failure,
+separate new ledger. 0.6% fee per side is STILL explicitly estimated, not an
+actual account fee tier. Old 5bps parameter is limit allowance, not an invented
+fill-price markup. Runner polls local Coin feed every5s, handles outage without
+fabricating fills; no extra Coinbase requests. Both shared order-instruction
+helpers exist but actual live submission still raises disabled errors.
+
+Full release rules and limits: research/execution/OBSERVED_PAPER_V1.md. Previous
+pending notes below are historical; code is now prepared beyond their state.
+User confirmed old P/L dashboard migration at /opt/pbot/releases/20261107T010608-43106:
+ChampionBTC15m124.64, Challenger134.52, all old fixed-price open exposure0.
+Do not report these as live-equivalent profit or import them into new results.
+
 ## Pending paper-execution realism migration — November 7, 2026
 
 User explicitly requests paper results based on actual market prices, with the

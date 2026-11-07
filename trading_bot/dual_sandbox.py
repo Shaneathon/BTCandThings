@@ -170,7 +170,7 @@ class Sandbox(PaperBot):
             raise
 
 
-def export(source, output, group, all_markets=False):
+def export(source, output, group, all_markets=False, execution_evidence=False):
     now = time.time()
     start = int(now)//900*900
     slug = 'btc-updown-15m-'+datetime.fromtimestamp(start,timezone.utc).strftime('%Y-%m-%d-%H%M')+'z'
@@ -207,6 +207,9 @@ def export(source, output, group, all_markets=False):
             raise ValueError('Prediction identity mismatch')
         predictions.extend(rows)
     data=dict(exported_at=time.time(),markets=markets,predictions=predictions+research,requested_market=slug,feed_errors=feed_errors)
+    if execution_evidence:
+        from trading_bot.provider import evidence_packet
+        data['execution_evidence']=evidence_packet(source)
     fd,temporary=tempfile.mkstemp(dir=Path(output).parent,prefix='.sandbox-')
     try:
         with os.fdopen(fd,'w') as stream:
@@ -281,9 +284,10 @@ def main():
     parser.add_argument('--state',type=Path)
     parser.add_argument('--group',type=int)
     parser.add_argument('--all-markets',action='store_true',help='Additional independent market-local research wallets; preserves BTC controls')
+    parser.add_argument('--execution-evidence',action='store_true')
     args=parser.parse_args()
     if args.command=='export':
-        export(args.source,args.input,args.group,all_markets=args.all_markets)
+        export(args.source,args.input,args.group,all_markets=args.all_markets,execution_evidence=args.execution_evidence)
         return
     bots={name:Sandbox(args.state/('champion-directional-v1.sqlite' if name=='Champion' else 'challenger-b-directional-v1.sqlite'),
                        SandboxConfig(model_version=model)) for name,model in MODELS.items()}

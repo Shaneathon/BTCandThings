@@ -46,6 +46,14 @@ def render():
             if not 0<=time.time()-data.get('observed_at',0)<=120: st.warning('Coinbase paper status is stale.')
         except Exception as exc:
             st.error('Coinbase paper status unavailable ('+type(exc).__name__+').')
+    if data.get('operation_mode')=='OBSERVED_LIMIT_PAPER':
+        st.info('OBSERVED LIMIT PAPER · Separate new ledger, delayed frozen orders and size-limited FOK fills. Real orders disabled.')
+        st.warning('Fees are estimated at 0.6% per side; your actual Coinbase account fee tier is not connected.')
+        if data.get('market_pnl'): st.dataframe(data['market_pnl'],hide_index=True,width='stretch')
+        with st.expander('Order outcomes and execution assumptions'):
+            st.json(data.get('order_states',{}))
+            st.json(data.get('execution_assumptions',[]))
+            st.json(data.get('recent_orders',[]))
     account=data.get('account',{})
     positions=account.get('positions',[])
     tiles=st.columns(4)

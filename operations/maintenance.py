@@ -195,8 +195,8 @@ def health(folder,service_check=None,publish=True):
         if not active: issues.append(dict(level='critical',message='Metals quote sampler is not active'))
     databases=[('/var/lib/btcandthings-research/research.sqlite','collector_status',240,'Research collector'),
                ('/var/lib/coin/research.sqlite','tracker_status',180,'Coinbase tracker'),
-               ('/var/lib/pbot/comparison.sqlite','bot_snapshot',60,'Polymarket paper experiments'),
-               ('/var/lib/cbot/paper.sqlite','bot_snapshot',180,'Coinbase paper bot')]
+               ('/var/lib/pbot/observed-v1.sqlite' if Path('/var/lib/pbot/OBSERVED-ACTIVE').is_file() else '/var/lib/pbot/comparison.sqlite','bot_snapshot',60,'Polymarket paper experiments'),
+               ('/var/lib/cbot/observed-v1.sqlite' if Path('/var/lib/cbot/OBSERVED-ACTIVE').is_file() else '/var/lib/cbot/paper.sqlite','bot_snapshot',180,'Coinbase paper bot')]
     freshness={}
     for source,table,limit,label in databases:
         try:

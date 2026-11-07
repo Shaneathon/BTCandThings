@@ -32,3 +32,9 @@ class LiveGateway:
 
     def submit(self,*args,**kwargs):
         raise LiveTradingDisabled('Real orders require a separately implemented, reviewed and explicitly authorized execution release')
+
+
+def observed_order(plan):
+    """Same frozen paper instruction; no real submission implementation."""
+    from trading_bot.execution_model import exchange_order
+    return exchange_order(plan)

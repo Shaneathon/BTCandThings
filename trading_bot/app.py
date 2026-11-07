@@ -55,6 +55,34 @@ def content():
                 st.warning('Paper engine status is stale. Displayed positions may be out of date.')
         except Exception as exc:
             st.error(f'Paper status unavailable ({type(exc).__name__}). No account credentials are displayed.')
+    if data.get('operation_mode') == 'OBSERVED_BOOK_PAPER':
+        st.info('OBSERVED-BOOK PAPER · New forward ledgers. Old fixed-price results are excluded. Real orders remain disabled.')
+        st.caption('Input: '+data.get('input_status','UNKNOWN')+' · '+data.get('fee_basis',''))
+        rows=[]
+        for name,report in data.get('portfolios',{}).items():
+            account=report['account']
+            for row in account.get('market_pnl',[]):
+                rows.append(dict(wallet=name,**row,cash=account['cash'],reserved_cash=account['reserved_cash'],
+                                 order_states=str(report.get('order_states',{}))))
+        st.markdown('### New paper P/L by market and wallet')
+        st.caption('Each wallet starts with $1,000 independently. These balances are not one pooled funded account.')
+        if rows: st.dataframe(rows,hide_index=True,width='stretch')
+        choices=list(data.get('portfolios',{}))
+        if choices:
+            chosen=st.selectbox('Inspect execution wallet',choices)
+            report=data['portfolios'][chosen]
+            if report['account'].get('halted_reason'): st.error(report['account']['halted_reason'])
+            st.markdown('#### Recent positions')
+            st.dataframe(report['account']['positions'],hide_index=True,width='stretch')
+            st.markdown('#### Latest skips and order decisions')
+            st.dataframe(report.get('decisions',[]),hide_index=True,width='stretch')
+        with st.expander('Execution rules and remaining assumptions'):
+            for item in data.get('limitations',[]): st.write(item)
+            st.json(data.get('configuration',{}))
+            st.code('touch /var/lib/pbot/STOP-OBSERVED',language='bash')
+            st.caption('Pauses new entries and queued proposals; verified settlement processing continues.')
+        st.caption('Historical fixed-price ledgers are preserved on the server. Their profits are not included above.')
+        return
     if data.get('operation_mode') == 'DIRECTIONAL_SANDBOX':
         st.warning('DIRECTIONAL SANDBOX · Hypothetical fixed prices, not executable market fills. Real trading is disabled.')
         st.caption(data.get('price_assumption',''))

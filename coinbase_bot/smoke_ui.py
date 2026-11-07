@@ -32,3 +32,17 @@ with patch.dict('os.environ',{'CBOT_STATUS_URL':'https://cbot-status.example/sta
     assert not app.exception
     assert app.error
     print('PASS CBot outage: explicit unavailable state')
+
+# New mode exposes fee uncertainty and independent per-product accounting.
+from coinbase_bot.observed import ObservedBot
+observed_bot=ObservedBot(':memory:')
+observed_report=observed_bot.cycle({},NOW)
+observed_bot.close()
+st.cache_data.clear()
+with patch.dict('os.environ',{'CBOT_STATUS_URL':'https://status.example/status','CBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}), patch('trading_bot.status_client.read_status',return_value=observed_report):
+    app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
+    assert not app.exception,[e.message for e in app.exception]
+    assert any('OBSERVED LIMIT PAPER' in item.value for item in app.info)
+    assert any('Fees are estimated' in item.value for item in app.warning)
+    assert any('realized_net_pnl' in frame.value.columns and len(frame.value)==4 for frame in app.dataframe)
+    print('PASS CBot observed mode: explicit estimated fees and per-product new-ledger P/L')
