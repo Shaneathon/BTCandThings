@@ -11,7 +11,7 @@ done
 grep -Fq ' -m trading_bot.observed_paper ' /etc/systemd/system/pbot-paper.service
 task_old_release="$(sed -n 's/^WorkingDirectory=//p' /etc/systemd/system/pbot-paper.service)"
 # One public GET. A skipped cooldown or failed freshness check leaves services as-is.
-(cd "$task_source_root"; /root/BTCandThings/venv/bin/python -m trading_bot.verify_runtime --cache-probe)
+(cd "$task_source_root"; /root/BTCandThings/venv/bin/python -m trading_bot.verify_runtime --cache-probe --wait-for-budget)
 task_release="/opt/pbot/releases/cache-$(date -u +%Y%m%dT%H%M%S)-$$"
 mkdir -p "$task_release"
 python3 - "$task_source_root" "$task_release" <<'PY'

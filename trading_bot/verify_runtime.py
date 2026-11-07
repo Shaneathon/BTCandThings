@@ -104,7 +104,8 @@ def public_book_report(input_path,ledger,now,bypass=False):
     from urllib.request import Request,urlopen
     with connect(ledger) as db: budget=dict(db.execute('SELECT key,value FROM meta'))
     if budget.get('retry_until',0)>now or now-budget.get('last_request',0)<3:
-        return dict(state='SKIPPED_TO_RESPECT_BOT_REQUEST_BUDGET')
+        return dict(state='SKIPPED_TO_RESPECT_BOT_REQUEST_BUDGET',
+                    retry_after_seconds=round(max(budget.get('retry_until',0)-now,3-(now-budget.get('last_request',0)),0),2))
     data=json.loads(Path(input_path).read_text())
     rows=[m for m in data.get('markets',[]) if m.get('market_slug')==data.get('requested_market')]
     if not rows: return dict(state='NO_CURRENT_BTC15_CONTRACT')
@@ -138,11 +139,24 @@ def main():
     parser.add_argument('--input',type=Path,default=Path('/var/lib/pbot-input/dual-sandbox.json'))
     parser.add_argument('--pbot',type=Path,default=Path('/var/lib/pbot/observed-v1.sqlite'))
     parser.add_argument('--cbot',type=Path,default=Path('/var/lib/cbot/observed-v1.sqlite'))
+    parser.add_argument('--wait-for-budget',action='store_true',help='Wait up to 45 seconds for a quote budget slot; does not retry HTTP errors')
     parser.add_argument('--cache-probe',action='store_true',help='Only probe a unique-query fresh public book; does not modify services')
     parser.add_argument('--public-book',action='store_true',help='One public unauthenticated quote-header check, no retries')
     args=parser.parse_args();now=time.time()
     if args.cache_probe:
-        result=public_book_report(args.input,args.pbot,now,bypass=True)
+        deadline=time.monotonic()+45
+        while True:
+            result=public_book_report(args.input,args.pbot,time.time(),bypass=True)
+            if result.get('state')!='SKIPPED_TO_RESPECT_BOT_REQUEST_BUDGET' or not args.wait_for_budget:
+                break
+            remaining=deadline-time.monotonic()
+            retry=result.get('retry_after_seconds',3)
+            if remaining<=0 or retry>remaining:
+                print('Provider/request cooldown still active; services remain unchanged.',flush=True)
+                break
+            delay=min(max(retry+.15,.25),3,remaining)
+            print('Waiting for quote request budget:',round(delay,2),'seconds',flush=True)
+            time.sleep(delay)
         print(json.dumps(result,indent=2))
         if not result.get('fresh_response_verified'): raise SystemExit(1)
         return
