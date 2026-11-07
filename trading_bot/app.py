@@ -97,7 +97,13 @@ def content():
                 st.caption('Total entry cost including fees: $'+str(last_trade['cost'])+' · Modeled fees: $'+str(last_trade['fees'])+' · Result: '+last_trade['result']+' · Net P/L: '+net)
                 if last_trade.get('order_state'): st.caption('Order outcome: '+last_trade['order_state']+' · Requested quantity: '+str(last_trade.get('requested_quantity')))
             else: st.info('No filled trades yet in this wallet.')
-            st.caption('Maximum entry cost: $'+str(data.get('configuration',{}).get('max_trade_cost','10'))+' including modeled fees, per wallet. One open or pending position per wallet; liquidity and risk limits may reduce size.')
+            limits=data.get('configuration',{})
+            if limits.get('min_trade_cost'):
+                st.caption('Proposed entry range: $'+limits['min_trade_cost']+'–$'+limits['max_trade_cost']+' including modeled fees, per wallet. Partial fills or price improvement may cost less than the minimum proposed amount.')
+            else:
+                st.caption('Maximum entry cost: $'+str(limits.get('max_trade_cost','10'))+' including modeled fees, per wallet.')
+            st.caption('One open or pending position per wallet; cash, liquidity and risk limits can reduce size or cause a skip.')
+            if data.get('entry_policy_changed_at'): st.caption('New entry limits applied '+central(data['entry_policy_changed_at'])+'. Older trades retain their original amounts.')
             if st.checkbox('Show complete trade history',key='pbot_show_trade_history'):
                 scope=st.radio('Trade history scope',('Selected wallet','All wallets'),horizontal=True,key='pbot_history_scope')
                 target=chosen if scope=='Selected wallet' else '*'

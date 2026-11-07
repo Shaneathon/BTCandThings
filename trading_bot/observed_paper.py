@@ -16,10 +16,11 @@ from trading_bot.execution_model import OrderPlan,QUADRATIC_TAKER_RULE,simulate,
 from trading_bot.provider import directional_book,mapping,FEE_BASIS
 from trading_bot.market_pnl import summarize
 
-SETTINGS=dict(version='OBSERVED_PAPER_V1',initial_cash='1000',max_trade_cost='10',max_open=1,
+LEGACY_SETTINGS=dict(version='OBSERVED_PAPER_V1',initial_cash='1000',max_trade_cost='10',max_open=1,
               max_daily_loss='100',max_drawdown='.10',minimum_edge='.03',latency_seconds=2,
               max_signal_age=90,quote_limit_allowance='.01',participation='.25',fee='.06',
               fee_basis=FEE_BASIS,entry_seconds_remaining=[30,90],order_ttl_seconds=15)
+SETTINGS=dict(LEGACY_SETTINGS,version='OBSERVED_PAPER_V2_050_5',min_trade_cost='0.50',max_trade_cost='5')
 
 
 def slots():
@@ -36,6 +37,7 @@ class Engine:
         self.db.execute('PRAGMA journal_mode=WAL')
         self.db.executescript('''
           CREATE TABLE IF NOT EXISTS settings(id INTEGER PRIMARY KEY,payload TEXT);
+          CREATE TABLE IF NOT EXISTS configuration_history(id INTEGER PRIMARY KEY,changed_at REAL,previous TEXT,current TEXT,reason TEXT);
           CREATE TABLE IF NOT EXISTS wallets(name TEXT PRIMARY KEY,cash TEXT,high TEXT,halted TEXT);
           CREATE TABLE IF NOT EXISTS orders(wallet TEXT,market_slug TEXT,state TEXT,payload TEXT,result TEXT,PRIMARY KEY(wallet,market_slug));
           CREATE TABLE IF NOT EXISTS positions(wallet TEXT,market_slug TEXT,payload TEXT,PRIMARY KEY(wallet,market_slug));
@@ -84,7 +86,7 @@ class Engine:
         with self.db: self.db.execute('UPDATE wallets SET high=?,halted=? WHERE name=?',(str(high),halted,wallet))
         pending=[json.loads(r[0]) for r in self.db.execute("SELECT payload FROM orders WHERE wallet=? AND state='PROPOSED'",(wallet,))]
         reserve=sum((amount(p['reserve']) for p in pending),Decimal(0))
-        capacity=min(Decimal(10),cash-reserve,Decimal(10)-exposure-reserve,
+        capacity=min(Decimal(SETTINGS['max_trade_cost']),cash-reserve,Decimal(10)-exposure-reserve,
                      Decimal(100)+daily-exposure-reserve,high*Decimal('.10')-(high-cash-exposure)-exposure-reserve)
         if halted or any(p['state']=='PAPER_OPEN' for p in positions) or pending: capacity=Decimal(0)
         return max(Decimal(0),capacity)
@@ -107,17 +109,21 @@ class Engine:
         if limit<best: raise ValueError('UNREACHABLE_LIMIT')
         # Reserve worst fee plus cent-rounding allowance for each visible level.
         capacity=self.risk(wallet,now)
-        allowance=Decimal('.005')*len(book['offers'])
-        quantity=((capacity-allowance)/(limit+Decimal('.015'))).to_integral_value(rounding=ROUND_DOWN)
+        # Whole-contract fills: reserve up to 1.5c fee plus 0.5c rounding
+        # allowance per contract, even if future depth splits into more levels.
+        quantity=(capacity/(limit+Decimal('.020'))).to_integral_value(rounding=ROUND_DOWN)
         if quantity<max(Decimal(1),provider_min): raise ValueError('RISK_OR_MINIMUM_SIZE')
+        proposed_cost=quantity*best+taker_fee('.06',quantity,best)
+        if proposed_cost<Decimal(SETTINGS['min_trade_cost']): raise ValueError('BELOW_MINIMUM_PROPOSED_TRADE_COST')
         estimated=taker_fee('.06',quantity,limit)
         if probability-limit-estimated/quantity<Decimal('.03'): raise ValueError('NO_NET_EDGE')
         plan=OrderPlan(m['market_slug'],m['contract_slug'],p['model_version'],m['asset'],m['duration_seconds'],side,
               book['intent'],str(quantity),str(limit),str(tick),'1',now,when,now+2,min(now+15,end-1),end,
               'TIME_IN_FORCE_IMMEDIATE_OR_CANCEL',book['mapping_evidence'],QUADRATIC_TAKER_RULE,'.06',FEE_BASIS)
         plan.validate()
-        reserve=quantity*(limit+Decimal('.015'))+allowance
+        reserve=quantity*(limit+Decimal('.020'))
         payload=dict(plan=asdict(plan),market=m,reserve=str(reserve),signal=p,available_at=available_at,initial_book=book,
+                     entry_limits=dict(version=SETTINGS['version'],minimum_proposed_cost=SETTINGS['min_trade_cost'],maximum_total_cost=SETTINGS['max_trade_cost'],estimated_proposed_cost=str(proposed_cost)),
                      api_fee_coefficient=details.get('feeCoefficient'),provider_minimum_quantity=str(provider_min),
                      legacy_feature_time_unknown=not bool(p.get('source_timestamp')))
         with self.db:
@@ -140,14 +146,14 @@ class Engine:
             if amount(result['filled_quantity'])>0:
                 cost=amount(result['total_cost']);m=record['market']
                 cash=amount(self.db.execute('SELECT cash FROM wallets WHERE name=?',(wallet,)).fetchone()[0])
-                if cost>amount(record['reserve']) or cost>cash: raise ValueError('FILL_EXCEEDS_RESERVED_CASH')
+                if cost>amount(record['reserve']) or cost>cash or cost>Decimal(SETTINGS['max_trade_cost']): raise ValueError('FILL_EXCEEDS_RESERVED_CASH')
                 qty=amount(result['filled_quantity'])
                 alternate=record.get('api_fee_coefficient')
                 sensitivity=None
                 if alternate is not None:
                     sensitivity=str(sum((taker_fee(alternate,f['quantity'],f['price']) for f in result['fills']),Decimal(0)))
                 position=dict(market_slug=slug,contract_slug=m['contract_slug'],asset=m['asset'],duration_seconds=m['duration_seconds'],
-                              model_version=plan.strategy_version,side=plan.side,state='PAPER_OPEN',quantity=str(qty),
+                              model_version=plan.strategy_version,entry_limits=record.get('entry_limits'),side=plan.side,state='PAPER_OPEN',quantity=str(qty),
                               entry_price=str(amount(result['gross_cost'])/qty),fees=result['fees'],cost=str(cost),opened_at=now,
                               window_start=time_of(m['window_start']),window_end=time_of(m['window_end']),
                               price_to_beat=str(m['official_price_to_beat']),order_id=plan.order_id,
@@ -183,6 +189,8 @@ class Engine:
                                  'Separate virtual wallets, not one funded account; realized/cost-basis accounting, not live marked equity.',
                                  'Legacy Champion/B feature timestamps are unavailable; publication and first observation times are checked.',
                                  'Rule-template direction mapping requires both UP and DOWN resolved-contract corroboration.'])
+        policy=self.db.execute('SELECT changed_at FROM configuration_history ORDER BY id DESC LIMIT 1').fetchone()
+        report['entry_policy_changed_at']=policy[0] if policy else None
         with self.db: self.db.execute('INSERT INTO bot_snapshot VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET observed_at=excluded.observed_at,payload=excluded.payload',(now,json.dumps(report)))
         return report
 

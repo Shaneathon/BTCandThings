@@ -30,7 +30,7 @@ def page(path,wallet='*',number=1,limit=50,as_of=None,now=None):
         if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='wallets'").fetchone():
             raise LookupError('History unavailable for this ledger')
         config=json.loads(db.execute('SELECT payload FROM settings WHERE id=1').fetchone()[0])
-        if config.get('version')!='OBSERVED_PAPER_V1': raise LookupError('Wrong ledger version')
+        if config.get('version') not in ('OBSERVED_PAPER_V1','OBSERVED_PAPER_V2_050_5'): raise LookupError('Wrong ledger version')
         if wallet!='*' and not db.execute('SELECT 1 FROM wallets WHERE name=?',(wallet,)).fetchone():
             raise ValueError('Unknown wallet')
         clauses=["CAST(json_extract(p.payload,'$.opened_at') AS REAL)<=?"]

@@ -598,3 +598,7 @@ read-only files, UI details/history; isolated package and CBot compatibility pas
 Last user confirmed previous top-of-page update succeeded Nov7 08:45:21AM CST,
 freshinput08:45:20,lastfill08:43:52; Champion/B filled08:43:36, several await
 official settlement after08:45window. No trading/collector restart or reset.
+
+## Prepared PBot entry-range update (not deployment confirmation)
+
+User requested PBot entries between $0.50 and $5 including modeled fees per wallet. Version OBSERVED_PAPER_V2_050_5 enforces minimum estimated proposed cost and maximum actual fill cost. IOC partial fills/price improvement may legitimately cost less than $0.50. Existing holdings/cash/history are preserved; pending old-policy proposals cancel without fees. Run deploy/set-pbot-entry-range.sh --apply from the staged archive. It backs up the ledger, migrates settings explicitly, and updates only PBot paper/status/dashboard units. Failure rollback changes settings/units, never overwrites financial history with a backup. Coinbase, collectors, and input exporter stay unchanged; real orders remain disabled. Regression: 59 PBot tests plus UI smoke passed.

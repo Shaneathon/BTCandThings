@@ -30,6 +30,28 @@ class ObservedTests(unittest.TestCase):
         raw['marketData']['offers'][0]['qty']='100'
         return directional_book(self.m,self.details,self.proof,raw,now-1,now)
 
+    def test_new_entry_budget_and_legacy_policy_migration(self):
+        from trading_bot.observed_paper import SETTINGS,LEGACY_SETTINGS
+        from trading_bot.entry_limits import migrate
+        self.engine.propose('Champion',self.m,self.p,self.details,self.quotes(NOW),NOW,NOW-1)
+        record=json.loads(self.engine.db.execute('SELECT payload FROM orders').fetchone()[0])
+        self.assertLessEqual(Decimal(record['reserve']),Decimal('5'))
+        self.assertGreaterEqual(Decimal(record['entry_limits']['estimated_proposed_cost']),Decimal('.50'))
+        self.engine.complete('Champion',self.m['market_slug'],json.dumps(record),self.quotes(NOW+4),NOW+4)
+        self.assertLessEqual(Decimal(json.loads(self.engine.db.execute('SELECT payload FROM positions').fetchone()[0])['cost']),Decimal('5'))
+        financial=self.engine.db.execute('SELECT * FROM wallets').fetchall()
+        positions=self.engine.db.execute('SELECT * FROM positions').fetchall()
+        with self.engine.db:
+            self.engine.db.execute('UPDATE settings SET payload=?',(json.dumps(LEGACY_SETTINGS,sort_keys=True),))
+            self.engine.db.execute("INSERT INTO orders VALUES('Challenger B','pending','PROPOSED','{}',NULL)")
+        result=migrate(self.path)
+        self.assertEqual(result['unfilled_proposals_cancelled_without_fee'],1)
+        self.assertEqual(self.engine.db.execute('SELECT * FROM wallets').fetchall(),financial)
+        self.assertEqual(self.engine.db.execute('SELECT * FROM positions').fetchall(),positions)
+        migrate(self.path,rollback=True)
+        self.assertEqual(json.loads(self.engine.db.execute('SELECT payload FROM settings').fetchone()[0]),LEGACY_SETTINGS)
+        with self.engine.db: self.engine.db.execute('UPDATE settings SET payload=?',(json.dumps(SETTINGS,sort_keys=True),))
+
     def test_exported_evidence_is_distinct_read_only_and_conflicts_are_not_hidden(self):
         from trading_bot.provider import evidence_packet
         source=Path(self.tmp.name)/'collector.sqlite'

@@ -159,5 +159,5 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     history_table=next(f.value for f in app.dataframe if 'Average entry ($)' in f.value.columns)
     assert history_table.iloc[0]['Result']=='LOST'
     assert history_table.iloc[0]['Net P/L ($)']=='-1.25'
-    assert any('Maximum entry cost: $10' in c.value for c in app.caption)
-    print('PASS PBot trade detail/history: last fill description, outcome/fees, complete-history control and $10 entry cap')
+    assert any('Proposed entry range: $0.50–$5' in c.value for c in app.caption)
+    print('PASS PBot trade detail/history: last fill description, outcome/fees, complete-history control and $0.50–$5 proposed entry range')
