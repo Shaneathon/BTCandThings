@@ -56,26 +56,8 @@ def content():
         except Exception as exc:
             st.error(f'Paper status unavailable ({type(exc).__name__}). No account credentials are displayed.')
     if data.get('operation_mode') == 'OBSERVED_BOOK_PAPER':
-        st.info('OBSERVED-BOOK PAPER · New forward ledgers. Old fixed-price results are excluded. Real orders remain disabled.')
-        st.caption('Input: '+data.get('input_status','UNKNOWN')+' · '+data.get('fee_basis',''))
-        if data.get('input_error'): st.error('Execution input rejected: '+data['input_error']+' — new entries are blocked.')
         from trading_bot.display_status import central,ago,table_times
         health=data.get('display_health',{})
-        if data.get('display_health_error'): st.error('Activity details could not be verified: '+data['display_health_error'])
-        panels=st.columns(4)
-        age=time.time()-health.get('engine_updated_at',data.get('observed_at',0))
-        input_age=time.time()-health['input_updated_at'] if health.get('input_updated_at') is not None else None
-        input_fresh=input_age is not None and 0<=input_age<=45 and not health.get('input_error')
-        panels[0].metric('Engine heartbeat','Active' if 0<=age<=30 else 'STALE')
-        panels[0].caption(central(health.get('engine_updated_at',data.get('observed_at'))))
-        panels[1].metric('Execution input','Fresh' if input_fresh else 'Blocked' if health else 'Unverified')
-        panels[1].caption(central(health['input_updated_at']) if health.get('input_updated_at') is not None else 'Input timestamp unavailable')
-        panels[2].metric('Last filled trade · all wallets',ago(health.get('last_filled_at')))
-        panels[2].caption(central(health.get('last_filled_at')))
-        panels[3].metric('Last settlement processed',ago(health.get('last_settled_at')))
-        panels[3].caption(central(health.get('last_settled_at')))
-        st.caption('All times use America/Chicago Central time (CST/CDT). A waiting wallet can be healthy; heartbeat and input freshness are separate from trading activity.')
-        if health.get('input_error'): st.error('Input check: '+health['input_error'])
         labels={'ENGINE_STALE':'Engine heartbeat stale','INPUT_BLOCKED':'Input unavailable — entries blocked',
                 'ENTRIES_PAUSED':'New entries paused','RISK_HALT':'Risk halt',
                 'RISK_BUDGET_EXHAUSTED':'Entry risk budget exhausted','ORDER_ALREADY_ATTEMPTED':'Order already attempted — waiting for next window','ORDER_PROCESSING_LATE':'Pending order overdue',
@@ -84,17 +66,6 @@ def content():
                 'WAITING_FOR_ENTRY_WINDOW':'Waiting for entry window','ENTRY_WINDOW_CLOSED':'Waiting for next window',
                 'WAITING_FOR_FRESH_SIGNAL':'Waiting for fresh prediction','WAITING_FOR_PAIRED_SIGNAL':'Waiting for both control predictions',
                 'EVALUATING_BOOK_AND_EDGE':'Checking quotes and net edge'}
-        rows=[]
-        for name,report in data.get('portfolios',{}).items():
-            account=report['account'];activity=report.get('activity',{})
-            for row in account.get('market_pnl',[]):
-                rows.append(dict(wallet=name,**row,cash=account['cash'],reserved_cash=account['reserved_cash'],
-                                 order_states=str(report.get('order_states',{})),
-                                 last_trade_central=central(activity.get('last_filled_at')),
-                                 current_status=labels.get(report.get('display_state',{}).get('state'),'Unverified')))
-        st.markdown('### New paper P/L by market and wallet')
-        st.caption('Each wallet starts with $1,000 independently. These balances are not one pooled funded account.')
-        if rows: st.dataframe(rows,hide_index=True,width='stretch')
         choices=list(data.get('portfolios',{}))
         if choices:
             chosen=st.radio('Click a market or model',choices,horizontal=True,key='pbot_wallet_choice',
@@ -114,6 +85,37 @@ def content():
             st.markdown('**Last settlement processed:** '+central(activity.get('last_settled_at'))+' · '+ago(activity.get('last_settled_at')))
             st.caption('Last order proposed: '+central(activity.get('last_order_proposed_at'))+'. Proposals can remain unfilled; they are not counted as completed trades.')
             if account.get('halted_reason'): st.error(account['halted_reason'])
+        st.info('OBSERVED-BOOK PAPER · New forward ledgers. Old fixed-price results are excluded. Real orders remain disabled.')
+        st.caption('Input: '+data.get('input_status','UNKNOWN')+' · '+data.get('fee_basis',''))
+        if data.get('input_error'): st.error('Execution input rejected: '+data['input_error']+' — new entries are blocked.')
+        if data.get('display_health_error'): st.error('Activity details could not be verified: '+data['display_health_error'])
+        panels=st.columns(4)
+        age=time.time()-health.get('engine_updated_at',data.get('observed_at',0))
+        input_age=time.time()-health['input_updated_at'] if health.get('input_updated_at') is not None else None
+        input_fresh=input_age is not None and 0<=input_age<=45 and not health.get('input_error')
+        panels[0].metric('Engine heartbeat','Active' if 0<=age<=30 else 'STALE')
+        panels[0].caption(central(health.get('engine_updated_at',data.get('observed_at'))))
+        panels[1].metric('Execution input','Fresh' if input_fresh else 'Blocked' if health else 'Unverified')
+        panels[1].caption(central(health['input_updated_at']) if health.get('input_updated_at') is not None else 'Input timestamp unavailable')
+        panels[2].metric('Last filled trade · all wallets',ago(health.get('last_filled_at')))
+        panels[2].caption(central(health.get('last_filled_at')))
+        panels[3].metric('Last settlement processed',ago(health.get('last_settled_at')))
+        panels[3].caption(central(health.get('last_settled_at')))
+        st.caption('All times use America/Chicago Central time (CST/CDT). A waiting wallet can be healthy; heartbeat and input freshness are separate from trading activity.')
+        if health.get('input_error'): st.error('Input check: '+health['input_error'])
+        rows=[]
+        for name,report in data.get('portfolios',{}).items():
+            account=report['account'];activity=report.get('activity',{})
+            for row in account.get('market_pnl',[]):
+                rows.append(dict(wallet=name,**row,cash=account['cash'],reserved_cash=account['reserved_cash'],
+                                 order_states=str(report.get('order_states',{})),
+                                 last_trade_central=central(activity.get('last_filled_at')),
+                                 current_status=labels.get(report.get('display_state',{}).get('state'),'Unverified')))
+        st.markdown('### New paper P/L by market and wallet')
+        st.caption('Each wallet starts with $1,000 independently. These balances are not one pooled funded account.')
+        if rows: st.dataframe(rows,hide_index=True,width='stretch')
+        if choices:
+            report=data['portfolios'][chosen];account=report['account']
             st.markdown('#### Recent positions')
             st.dataframe(table_times(account['positions']),hide_index=True,width='stretch')
             st.markdown('#### Historical skip reasons and order decisions')

@@ -560,3 +560,14 @@ to include coinbase_bot Python package required by diagnostic tests. Verified
 using the actual embedded copy code into an isolated temporary release (not
 checkout imports): all46 PBot tests plus UI smoke checks pass. User should fetch
 and rerun the same cache-fix command; fresh probe still gates any service change.
+
+### PBot display installed; follow-up layout order prepared
+
+User confirmed refresh-pbot-display.sh succeeded:55tests/UI pass, engine
+Nov7 08:40:40AM CST,input08:40:30,lastglobalfill08:28:34. No financial changes.
+Then requested wallet buttons and selected wallet status/cash/P&L/fill count
+at TOP. Reordered only trading_bot/app.py ObservedBook branch: selector and
+selected summary first, global freshness panel and preserved overview below,
+then selected positions/history. Existing click-through UI smoke checks pass.
+Rerun the same refresh-pbot-display.sh after fetching to deploy this layout;
+only status/UI restart, engine/exporter/collectors/ledgers unchanged.
