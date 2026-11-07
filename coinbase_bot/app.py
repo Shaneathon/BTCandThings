@@ -12,7 +12,21 @@ st.set_page_config(page_title='CBot · Coinbase Paper',page_icon='◈',layout='w
 st.html('''<style>.stApp{background:#091326;color:#e8efff}.block-container{max-width:1450px;padding-top:1.5rem}
 .hero{padding:25px;border:1px solid #33568d;border-radius:18px;background:linear-gradient(115deg,#153d89,#111f3a);margin-bottom:20px}
 .title{font-size:38px;font-weight:800;color:#f7faff}.sub{color:#b0c9ed}.kicker{color:#8ebcff;letter-spacing:2px;font-size:12px;font-weight:800}
-[data-testid=stMetric]{background:#142643;padding:18px;border:1px solid #33568d;border-radius:14px}</style>''')
+[data-testid=stMetric]{background:#142643;padding:18px;border:1px solid #33568d;border-radius:14px}
+/* Compact desktop and mobile layout; retain readable controls and all content. */
+[data-testid="stAppViewContainer"] .block-container{padding-top:1rem;padding-bottom:1.5rem}
+[data-testid="stMarkdownContainer"] p,[data-testid="stMarkdownContainer"] li{font-size:.875rem;line-height:1.4}
+h1{font-size:1.65rem!important}h2{font-size:1.3rem!important}h3{font-size:1.1rem!important}
+[data-testid="stVerticalBlock"]{gap:.65rem}
+.hero{padding:14px 18px;border-radius:12px;margin-bottom:12px}
+.hero .title{font-size:26px;line-height:1.2}.hero .subtitle,.hero .sub{font-size:13px;margin-top:4px}
+[data-testid="stMetric"]{padding:10px 12px;border-radius:10px}
+[data-testid="stMetricValue"]{font-size:1.5rem}
+[data-testid="stMetricLabel"] p{font-size:.8rem}
+[data-testid="stTabs"] button{font-size:.85rem;padding:6px 10px}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p{font-size:.82rem}
+@media(max-width:640px){.hero .title{font-size:22px}.hero{padding:12px}[data-testid="stMetricValue"]{font-size:1.3rem}}
+</style>''')
 st.html('<div class="hero"><div class="kicker">CBOT · COINBASE SPOT · PAPER ONLY</div><div class="title">Crypto. Independent paper wallets.</div><div class="sub">BTC / USD · ETH / USD · XRP / USD · SOL / USD</div></div>')
 with st.sidebar:
     st.markdown('### CBot control room')

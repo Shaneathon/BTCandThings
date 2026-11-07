@@ -16,6 +16,20 @@ h1,h2,h3{letter-spacing:-.03em}.hero{padding:25px;border:1px solid #29445a;borde
 .subtitle{color:#9cb4c7;font-size:14px;margin-top:6px}.badge{float:right;padding:6px 12px;border:1px solid #4bbf9b;border-radius:20px;color:#8af2c9;font-size:12px}
 [data-testid=stMetric]{background:#132235;padding:18px;border:1px solid #29445a;border-radius:14px}[data-testid=stMetricValue]{color:#f2f8ff}
 [data-testid=stTabs] button{font-weight:700}
+
+/* Compact desktop and mobile layout; retain readable controls and all content. */
+[data-testid="stAppViewContainer"] .block-container{padding-top:1rem;padding-bottom:1.5rem}
+[data-testid="stMarkdownContainer"] p,[data-testid="stMarkdownContainer"] li{font-size:.875rem;line-height:1.4}
+h1{font-size:1.65rem!important}h2{font-size:1.3rem!important}h3{font-size:1.1rem!important}
+[data-testid="stVerticalBlock"]{gap:.65rem}
+.hero{padding:14px 18px;border-radius:12px;margin-bottom:12px}
+.hero .title{font-size:26px;line-height:1.2}.hero .subtitle,.hero .sub{font-size:13px;margin-top:4px}
+[data-testid="stMetric"]{padding:10px 12px;border-radius:10px}
+[data-testid="stMetricValue"]{font-size:1.5rem}
+[data-testid="stMetricLabel"] p{font-size:.8rem}
+[data-testid="stTabs"] button{font-size:.85rem;padding:6px 10px}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p{font-size:.82rem}
+@media(max-width:640px){.hero .title{font-size:22px}.hero{padding:12px}[data-testid="stMetricValue"]{font-size:1.3rem}}
 </style>''')
 st.html('<div class="hero"><span class="badge">PAPER ONLY</span><div class="kicker">PBOT · INDEPENDENT TRADING TERMINAL</div><div class="title">Ten markets. One paper portfolio.</div><div class="subtitle">BTC · ETH · XRP · SOL · Gold · Silver — separate from the BTCandThings tracker</div></div>')
 with st.sidebar:
