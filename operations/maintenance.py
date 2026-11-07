@@ -189,7 +189,7 @@ def health(folder,service_check=None,publish=True):
             except subprocess.TimeoutExpired: active=False
         checks[name]='active' if active else 'NOT_ACTIVE'
         if not active: issues.append(dict(level='critical',message=name+' is not active'))
-    if Path('/etc/systemd/system/btc-metals-proxy.service').is_file():
+    if Path('/etc/systemd/system/btc-metals-proxy.service').is_file() and not Path('/var/lib/shaneathon-ops/METALS-RETIRED').exists():
         name='btc-metals-proxy.service'
         if service_check: active=service_check(name)
         else:
@@ -232,6 +232,7 @@ def health(folder,service_check=None,publish=True):
             if data.get('cloud_sync',{}).get('errors',0)>0: issues.append(dict(level='warning',message='Research cloud upload errors reported'))
             if table=='collector_status':
                 for stream,state in data.get('streams',{}).items():
+                    if stream in ('GOLD_15m','SILVER_15m'): continue
                     if not state.get('collection_ready'): issues.append(dict(level='notice',message=stream+' prediction collection paused'))
         except (OSError,sqlite3.Error,TypeError,ValueError,IndexError):
             issues.append(dict(level='critical',message=label+' status could not be read'))

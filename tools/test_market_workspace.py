@@ -7,12 +7,12 @@ from market_workspace import ASSETS, DURATIONS, event_slug, window_for, verified
 
 class WorkspaceTests(unittest.TestCase):
     def test_all_twelve_selectable(self):
-        self.assertEqual(len(ASSETS)*len(DURATIONS),12)
+        self.assertEqual(len(ASSETS)*len(DURATIONS),8)
     def test_five_minute_slug(self):
         self.assertEqual(event_slug("ETH","5m",1793832900),"eth-updown-5m-2026-11-04-2255z")
     def test_unsupported_metal_five_minute(self):
         self.assertIsNone(event_slug("GOLD","5m",1793832900))
-        self.assertIsNotNone(event_slug("GOLD","15m",1793832600))
+        self.assertIsNone(event_slug("GOLD","15m",1793832600))
     def test_boundaries(self):
         self.assertEqual(window_for(901, "5m"),(900,1200))
         self.assertEqual(window_for(901, "15m"),(900,1800))

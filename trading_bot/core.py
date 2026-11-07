@@ -8,7 +8,7 @@ from pathlib import Path
 import sqlite3
 from datetime import datetime, timezone
 
-STREAMS={(a,d) for a in ('BTC','ETH','XRP','SOL') for d in (300,900)} | {('GOLD',900),('SILVER',900)}
+STREAMS={(a,d) for a in ('BTC','ETH','XRP','SOL') for d in (300,900)}
 
 
 def time_of(value):

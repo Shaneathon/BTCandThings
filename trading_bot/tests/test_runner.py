@@ -33,7 +33,7 @@ class RunnerTests(unittest.TestCase):
             with patch('sys.argv',argv),patch('trading_bot.runner.time.time',return_value=NOW),redirect_stdout(output):
                 main()
             report=json.loads(output.getvalue())
-            self.assertEqual(len(report['account']['positions']),10)
+            self.assertEqual(len(report['account']['positions']),8)
             self.assertEqual(before,collector.read_bytes())
             self.assertFalse(snapshot(ledger)['account']['live_orders_enabled'])
 

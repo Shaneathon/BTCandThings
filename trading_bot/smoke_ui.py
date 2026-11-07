@@ -11,12 +11,12 @@ from dataclasses import replace
 root=Path(__file__).resolve().parent
 app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
 assert not app.exception,[e.message for e in app.exception]
-assert [t.label for t in app.tabs]==['10 markets','Paper portfolio','Decision journal','Strategy & risk','Live readiness']
-assert len(app.dataframe[0].value)==10
+assert [t.label for t in app.tabs]==['8 markets','Paper portfolio','Decision journal','Strategy & risk','Live readiness']
+assert len(app.dataframe[0].value)==8
 assert any('SETUP' in item.value for item in app.info)
 app.toggle[0].set_value(False).run(timeout=20)
 assert not app.exception
-print('PASS PBot setup dashboard: ten streams, five tabs, refresh switch, no invented balances')
+print('PASS PBot setup dashboard: eight crypto streams, five tabs, refresh switch, no invented balances')
 
 bot=PaperBot(':memory:',replace(Config(),minimum_settled_markets=2))
 report=bot.cycle(*fixtures(),NOW)
@@ -24,12 +24,12 @@ bot.close()
 with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status','PBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}), patch('trading_bot.status_client.read_status',return_value=report):
     app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
     assert not app.exception,[e.message for e in app.exception]
-    assert [m.value for m in app.metric if m.label=='Open paper positions']==['10']
-    assert [m.value for m in app.metric if m.label=='Virtual cash']==['$901.20']
-    assert len(app.dataframe[0].value)==10
-    assert len(app.dataframe[1].value)==10
+    assert [m.value for m in app.metric if m.label=='Open paper positions']==['8']
+    assert [m.value for m in app.metric if m.label=='Virtual cash']==['$920.96']
+    assert len(app.dataframe[0].value)==8
+    assert len(app.dataframe[1].value)==8
     assert all('buy' not in b.label.lower() and 'trade' not in b.label.lower() for b in app.button)
-    print('PASS PBot connected fixture: virtual wallet, ten positions, decision journal, no trade controls')
+    print('PASS PBot connected fixture: virtual wallet, eight positions, decision journal, no trade controls')
 import streamlit as st
 st.cache_data.clear()
 paused = dict(report, operation_mode='OBSERVE_ONLY', paper_entries_enabled=False,
@@ -73,7 +73,7 @@ from trading_bot.dual_sandbox import MarketSandboxConfig, RESEARCH_MODEL, run_ma
 from trading_bot.tests.test_bot import iso
 with tempfile.TemporaryDirectory() as temporary:
     research_bots={name:Sandbox(Path(temporary)/(name+'.sqlite'),MarketSandboxConfig(asset=asset,duration_seconds=900,model_version=RESEARCH_MODEL))
-                   for name,asset in [('ETH_15m','ETH'),('GOLD_15m','GOLD')]}
+                   for name,asset in [('ETH_15m','ETH'),('XRP_15m','XRP')]}
     inputs=dual_fixture()
     inputs['markets'][0]['asset']='ETH'
     inputs['markets'][0]['market_slug']='eth-updown-15m-fixture'
@@ -88,7 +88,7 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     assert not app.exception,[e.message for e in app.exception]
     assert app.selectbox[0].label=='Inspect a research market'
     coverage=next(frame.value for frame in app.dataframe if 'Market' in frame.value.columns and 'State' in frame.value.columns)
-    assert set(coverage['Market'])=={'ETH_15m','GOLD_15m'}
+    assert set(coverage['Market'])=={'ETH_15m','XRP_15m'}
     assert 'PAUSED_METADATA_UNAVAILABLE' in coverage['State'].tolist()
     print('PASS PBot all-market panel: independent research wallets and explicit paused feed')
 
@@ -104,9 +104,9 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     assert not app.exception,[e.message for e in app.exception]
     assert any('OBSERVED-BOOK PAPER' in item.value for item in app.info)
     table=next(frame.value for frame in app.dataframe if 'reserved_cash' in frame.value.columns)
-    assert len(table)==12
+    assert len(table)==10
     assert all(value=='0' for value in table['realized_net_pnl'])
-    print('PASS PBot observed execution: 12 separate new ledgers, zero inherited artificial profit')
+    print('PASS PBot observed execution: 10 active wallets, zero inherited artificial profit')
 
 # Click-through views and Central last-trade times retain the original overview.
 import copy,time
@@ -126,7 +126,7 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
     assert not app.exception,[e.message for e in app.exception]
     table=next(frame.value for frame in app.dataframe if 'reserved_cash' in frame.value.columns)
-    assert len(table)==12
+    assert len(table)==10
     assert 'last_trade_central' in table.columns
     selector=next(r for r in app.radio if r.label=='Click a market or model')
     selector.set_value('ETH_5m').run(timeout=20)

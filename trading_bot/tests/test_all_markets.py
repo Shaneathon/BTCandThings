@@ -30,7 +30,7 @@ class AllMarketTests(unittest.TestCase):
             data=dict(exported_at=NOW-1,markets=markets,predictions=predictions)
             try:
                 reports=run_market_cycles(bots,data,NOW)
-                self.assertEqual(len(reports),10)
+                self.assertEqual(len(reports),8)
                 for name,report in reports.items():
                     if name.startswith(('GOLD','SILVER')):
                         self.assertEqual(report['coverage_status'],'PAUSED_NO_FRESH_PREDICTION')

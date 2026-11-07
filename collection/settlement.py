@@ -57,6 +57,7 @@ def reconcile(store, get, now, limit=20):
     report = dict(verified=0, pending=0, errors=0, checked=0)
     for slug, payload in rows:
         row = json.loads(payload)
+        if row.get('asset') in ('GOLD','SILVER'): continue
         if row['settlement_status'] != 'PENDING' or epoch(row['window_end']) > now:
             continue
         if report['checked'] >= limit:

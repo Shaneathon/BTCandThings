@@ -31,7 +31,7 @@ h1{font-size:1.65rem!important}h2{font-size:1.3rem!important}h3{font-size:1.1rem
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p{font-size:.82rem}
 @media(max-width:640px){.hero .title{font-size:22px}.hero{padding:12px}[data-testid="stMetricValue"]{font-size:1.3rem}}
 </style>''')
-st.html('<div class="hero"><span class="badge">PAPER ONLY</span><div class="kicker">PBOT · INDEPENDENT TRADING TERMINAL</div><div class="title">Ten markets. One paper portfolio.</div><div class="subtitle">BTC · ETH · XRP · SOL · Gold · Silver — separate from the BTCandThings tracker</div></div>')
+st.html('<div class="hero"><span class="badge">PAPER ONLY</span><div class="kicker">PBOT · INDEPENDENT TRADING TERMINAL</div><div class="title">Eight crypto markets. Independent wallets.</div><div class="subtitle">BTC · ETH · XRP · SOL — separate from the BTCandThings tracker</div></div>')
 with st.sidebar:
     st.markdown('### PBot control room')
     st.caption('Target hostname: pbot.shaneathon.com')
@@ -275,7 +275,7 @@ def content():
     columns[3].metric('Open paper positions',len(opened) if data else '—')
     if account.get('halted_reason'):
         st.error('New entries halted: '+account['halted_reason'])
-    markets,portfolio,decisions,risk,live=st.tabs(['10 markets','Paper portfolio','Decision journal','Strategy & risk','Live readiness'])
+    markets,portfolio,decisions,risk,live=st.tabs(['8 markets','Paper portfolio','Decision journal','Strategy & risk','Live readiness'])
     with markets:
         st.markdown('### Market coverage')
         rows=[]
@@ -288,7 +288,7 @@ def content():
                 'Decision':decision.get('action','WAITING FOR DATA'),'Reason':decision.get('reason','—'),
                 'Historical markets':score.get('markets','—')})
         st.dataframe(rows,hide_index=True,width='stretch')
-        st.caption('Crypto: 5m + 15m. Gold/silver: 15m. No unsupported 5m metals streams.')
+        st.caption('BTC, ETH, XRP and SOL: 5m + 15m.')
     with portfolio:
         st.markdown('### Persistent paper ledger')
         if positions:

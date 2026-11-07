@@ -71,7 +71,7 @@ class PipelineTests(unittest.TestCase):
             seed(source,destination)
             self.assertEqual(destination.stat().st_mode & 0o777,0o600)
             with __import__('sqlite3').connect(destination) as copy:
-                self.assertEqual(copy.execute('SELECT count(*) FROM research_snapshots').fetchone()[0],10)
+                self.assertEqual(copy.execute('SELECT count(*) FROM research_snapshots').fetchone()[0],8)
             before=destination.read_bytes()
             with self.assertRaises(FileExistsError): seed(source,destination)
             self.assertEqual(before,destination.read_bytes())
@@ -92,7 +92,7 @@ class PipelineTests(unittest.TestCase):
     def test_raw_quotes_retained_without_inventing_semantic_mapping(self):
         from quotes import capture
         records=[json.loads(row[0]) for row in self.store.db.execute('SELECT payload FROM raw_quotes')]
-        self.assertEqual(len(records),10)
+        self.assertEqual(len(records),8)
         self.assertTrue(all(r['side_mapping_verified'] is False for r in records))
         market=json.loads(self.store.db.execute("SELECT payload FROM records WHERE kind='market' LIMIT 1").fetchone()[0])
         with self.assertRaises(ValueError):
@@ -215,12 +215,12 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(result['errors'],0)
         markets=list(cloud.tables['asset_market_windows'].values())
         predictions=list(cloud.tables['asset_market_predictions'].values())
-        self.assertEqual(len(predictions),10)
+        self.assertEqual(len(predictions),8)
         quotes=[dict(market_slug=m['market_slug'],contract_slug=m['contract_slug'],captured_at=iso(NOW+1),
                      up_ask=.6,down_ask=.45,side_mapping_verified=True,source_name='Polymarket US') for m in markets]
         result=simulate(markets,predictions,quotes,10,.01,.02)
-        self.assertEqual(result['closed'],10)
-        self.assertAlmostEqual(result['realized_pnl'],37)
+        self.assertEqual(result['closed'],8)
+        self.assertAlmostEqual(result['realized_pnl'],29.6)
         # A conflicting official cloud outcome may never be overwritten.
         key=next(k for k,v in cloud.tables['asset_market_windows'].items() if v['settlement_status']=='VERIFIED')
         cloud.tables['asset_market_windows'][key]['official_winner']='DOWN'

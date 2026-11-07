@@ -13,7 +13,7 @@ class ActivityTests(unittest.TestCase):
             data.write_text(json.dumps(dict(exported_at=1000,markets=[],predictions=[])))
             before=ledger.read_bytes()
             result=inspect(ledger,data,1001)
-            self.assertEqual(len(result['wallets']),12)
+            self.assertEqual(len(result['wallets']),10)
             self.assertTrue(all(w['orders_created_in_period']==0 for w in result['wallets']))
             self.assertTrue(all(w['current_state']=='NO_CURRENT_MARKET' for w in result['wallets']))
             self.assertEqual(result['input_age_seconds'],1)

@@ -20,17 +20,19 @@ ASSETS = {
     "GOLD": {"name": "Gold", "slug": "gold", "symbols": ("gold", "xau"), "pair": None},
     "SILVER": {"name": "Silver", "slug": "silver", "symbols": ("silver", "xag"), "pair": None},
 }
+RETIRED_ASSETS = {key: ASSETS.pop(key) for key in ("GOLD", "SILVER")}
 DURATIONS = {"5m": 300, "15m": 900}
 # As listed on the Polymarket US Crypto/Commodities pages Nov 5, 2026.
 # We do not construct an unsupported gold/silver 5m event as though it exists.
 LISTED_DURATIONS = {
     "BTC": ("5m", "15m"), "ETH": ("5m", "15m"),
     "XRP": ("5m", "15m"), "SOL": ("5m", "15m"),
-    "GOLD": ("15m",), "SILVER": ("15m",)
+    "GOLD": (), "SILVER": ()
 }
 
 
 def event_slug(asset, duration, start):
+    if asset in RETIRED_ASSETS: return None
     if asset not in ASSETS or duration not in DURATIONS:
         raise ValueError("Unknown asset or duration")
     if duration not in LISTED_DURATIONS[asset]:
@@ -46,7 +48,7 @@ def window_for(now, duration):
 
 
 def verified_target(market, asset, start, duration):
-    return typed_reference(market, ASSETS[asset]["symbols"], start, DURATIONS[duration])
+    return typed_reference(market, (ASSETS.get(asset) or RETIRED_ASSETS[asset])["symbols"], start, DURATIONS[duration])
 
 
 def price_label(asset, value):

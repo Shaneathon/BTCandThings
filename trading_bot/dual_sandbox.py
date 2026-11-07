@@ -45,7 +45,7 @@ class MarketSandboxConfig(SandboxConfig):
     duration_seconds: int = 900
 
 
-MARKET_STREAMS=[(asset,duration) for asset in ('BTC','ETH','XRP','SOL') for duration in (300,900)]+[('GOLD',900),('SILVER',900)]
+MARKET_STREAMS=[(asset,duration) for asset in ('BTC','ETH','XRP','SOL') for duration in (300,900)]
 RESEARCH_MODEL='Multi-asset spot baseline research V1'
 
 

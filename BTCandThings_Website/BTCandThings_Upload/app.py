@@ -171,7 +171,9 @@ def parse_array(v):
 # Compact top-level market navigation. Only one asset and one duration is visible.
 # All other views are independently verified monitors, not cloned BTC forecasts.
 st.markdown("### Select market")
-nav_assets = ("BTC", "ETH", "XRP", "SOL", "GOLD", "SILVER")
+nav_assets = ("BTC", "ETH", "XRP", "SOL")
+if st.session_state.get("workspace_asset") not in nav_assets:
+    st.session_state["workspace_asset"] = "BTC"
 selected_asset = st.radio("Asset", nav_assets, horizontal=True, key="workspace_asset")
 selected_duration = st.radio("Duration", ("15m", "5m"), horizontal=True,
                              key="workspace_duration")

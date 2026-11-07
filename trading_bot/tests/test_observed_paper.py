@@ -30,6 +30,17 @@ class ObservedTests(unittest.TestCase):
         raw['marketData']['offers'][0]['qty']='100'
         return directional_book(self.m,self.details,self.proof,raw,now-1,now)
 
+    def test_retired_metals_history_preserved_but_not_active(self):
+        archived=json.dumps(dict(asset='GOLD',state='PAPER_CLOSED',cost='1',pnl='0'))
+        with self.engine.db:
+            self.engine.db.execute("INSERT INTO wallets VALUES('GOLD_15m','1000','1000',NULL)")
+            self.engine.db.execute("INSERT INTO positions VALUES('GOLD_15m','old-gold',?)",(archived,))
+        report=self.engine.report(NOW,True)
+        self.assertEqual(len(report['portfolios']),10)
+        self.assertNotIn('GOLD_15m',report['portfolios'])
+        self.assertEqual(self.engine.db.execute("SELECT payload FROM positions WHERE wallet='GOLD_15m'").fetchone()[0],archived)
+        self.assertEqual(self.engine.db.execute("SELECT cash FROM wallets WHERE name='GOLD_15m'").fetchone()[0],'1000')
+
     def test_new_entry_budget_and_legacy_policy_migration(self):
         from trading_bot.observed_paper import SETTINGS,LEGACY_SETTINGS
         from trading_bot.entry_limits import migrate

@@ -48,7 +48,7 @@ class TenStreamTests(unittest.TestCase):
         self.assertEqual(len(calls),3)
         collect(store,get,NOW+121)
         self.assertIn('eth-updown-15m',calls[3])
-        self.assertEqual(len(calls),13)
+        self.assertEqual(len(calls),11)
         store.db.close()
 
     def test_quote_requests_are_paced_in_real_clock_mode(self):
@@ -71,16 +71,16 @@ class TenStreamTests(unittest.TestCase):
             return fixture(url,params)
         first=collect(store,limited,NOW)
         self.assertTrue(first['recording_ready'])
-        self.assertFalse(first['collection_ready'])
-        self.assertEqual(first['coverage_mode'],'AVAILABLE_DATA_WITH_REPORTED_GAPS')
+        self.assertTrue(first['collection_ready'])
+        self.assertEqual(first['coverage_mode'],'ALL_FEEDS')
         calls=[]
         def get(url,params=None):
             calls.append(url)
             return fixture(url,params)
         second=collect(store,get,NOW+1)
         self.assertFalse(any('yahoo' in url for url in calls))
-        self.assertEqual(second['assets']['GOLD']['feed_error'],'RATE_LIMIT_COOLDOWN')
-        self.assertEqual(second['assets']['GOLD']['retry_after'],iso(NOW+1800))
+        self.assertNotIn('GOLD',second['assets'])
+        self.assertNotIn('SILVER',second['assets'])
         self.assertEqual(cooldown_until(HTTPError('url',429,'limited',{'Retry-After':'Wed, 01 Jan 2031 00:00:00 GMT'},None),NOW),1924992000)
         store.db.close()
 
@@ -118,9 +118,9 @@ class TenStreamTests(unittest.TestCase):
             return fixture(url,params)
         store=Store(':memory:')
         result=collect(store,get,NOW)
-        self.assertEqual(result['assets']['GOLD']['http_status'],429)
-        self.assertEqual(result['assets']['SILVER']['http_status'],429)
-        self.assertEqual(store.db.execute('SELECT count(*) FROM raw_quotes').fetchone()[0],10)
+        self.assertNotIn('GOLD',result['assets'])
+        self.assertNotIn('SILVER',result['assets'])
+        self.assertEqual(store.db.execute('SELECT count(*) FROM raw_quotes').fetchone()[0],8)
         store.db.close()
 
     def test_ten_streams_share_six_feeds_and_save_real_observation_times(self):
@@ -130,11 +130,11 @@ class TenStreamTests(unittest.TestCase):
             return fixture(url,params)
         store=Store(':memory:')
         result=collect(store,get,NOW)
-        self.assertEqual(len(STREAMS),10)
+        self.assertEqual(len(STREAMS),8)
         self.assertTrue(result['collection_ready'],result)
         self.assertFalse(result['simulation_ready'])
-        self.assertEqual(sum('kraken' in u or 'yahoo' in u for u in calls),6)
-        self.assertEqual(sum(s['predictions_saved'] for s in result['streams'].values()),10)
+        self.assertEqual(sum('kraken' in u or 'yahoo' in u for u in calls),4)
+        self.assertEqual(sum(s['predictions_saved'] for s in result['streams'].values()),8)
         self.assertEqual(store.db.execute('SELECT DISTINCT recorded_at FROM research_snapshots').fetchall(),[(iso(NOW),)])
         result=collect(store,get,NOW)
         self.assertEqual(sum(s['predictions_saved'] for s in result['streams'].values()),0)
@@ -147,9 +147,9 @@ class TenStreamTests(unittest.TestCase):
             return fixture(url,params)
         store=Store(':memory:')
         result=collect(store,get,NOW)
-        self.assertFalse(result['collection_ready'])
+        self.assertTrue(result['collection_ready'])
         self.assertEqual(sum(s['collection_ready'] for s in result['streams'].values()),8)
-        self.assertIn('feed_error',result['assets']['GOLD'])
+        self.assertNotIn('GOLD',result['assets'])
         store.db.close()
 
     def test_restart_validation_and_stale_status(self):
@@ -160,7 +160,7 @@ class TenStreamTests(unittest.TestCase):
             store.db.close()
             result=validate(path,NOW+60)
             self.assertTrue(result['collection_ready'])
-            self.assertEqual(result['total_prediction_snapshots'],10)
+            self.assertEqual(result['total_prediction_snapshots'],8)
             self.assertFalse(validate(path,NOW+181)['collection_ready'])
 
     def test_wrong_crypto_contract_cannot_save_prediction(self):

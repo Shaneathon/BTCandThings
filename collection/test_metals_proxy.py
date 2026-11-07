@@ -34,10 +34,9 @@ class MetalsProxyTests(unittest.TestCase):
         try:
             with patch.dict(os.environ,BTC_METALS_PROXY_URL='http://127.0.0.1:8770'):
                 result=collect(store,get,NOW)
-            self.assertTrue(result['streams']['GOLD_15m']['collection_ready'])
+            self.assertNotIn('GOLD_15m',result['streams'])
+            self.assertNotIn('SILVER_15m',result['streams'])
             rows=[json.loads(row[0]) for row in store.db.execute("SELECT payload FROM records WHERE kind='candle'")]
-            metals=[row for row in rows if row['asset'] in ('GOLD','SILVER')]
-            self.assertTrue(metals)
-            self.assertTrue(all(row['source_name']=='Gold-API sampled spot proxy' and row['is_official_settlement_feed'] is False for row in metals))
-            self.assertEqual({r['source_symbol'] for r in metals},{'XAU/USD','XAG/USD'})
+            self.assertTrue(rows)
+            self.assertTrue(all(row['asset'] not in ('GOLD','SILVER') for row in rows))
         finally: store.db.close()
