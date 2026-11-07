@@ -136,3 +136,28 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     assert any(central(current-600) in m.value for m in app.markdown)
     assert any('FIRST recorded' in c.value for c in app.caption)
     print('PASS PBot clickable wallets: overview retained, selected P/L and Central trade time shown, historical skips labeled')
+
+# Last trade details and the optional complete-history browser are explicit.
+from trading_bot.trade_history import trade_row
+last=trade_row('ETH_5m',dict(market_slug='eth-last-filled-fixture',asset='ETH',duration_seconds=300,model_version='fixture',
+    side='UP',quantity='5',entry_price='.24',fees='.05',cost='1.25',state='PAPER_CLOSED',payout='0',pnl='-1.25',
+    opened_at=current-600,closed_at=current-500,window_start=current-900,window_end=current-600),
+    'FILLED',dict(plan=dict(quantity='5')))
+click_data['portfolios']['ETH_5m']['activity']['last_trade']=last
+
+def history_fixture(url,token,wallet='*',page=1,as_of=None):
+    return dict(account=dict(mode='PAPER',venue='Polymarket US',live_orders_enabled=False),wallet=wallet,
+                as_of=as_of,page=1,page_count=1,page_size=50,total_filled_trades=1,trades=[last])
+st.cache_data.clear()
+with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status','PBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}),patch('trading_bot.status_client.read_status',return_value=click_data),patch('trading_bot.status_client.read_trades',side_effect=history_fixture):
+    app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
+    next(r for r in app.radio if r.label=='Click a market or model').set_value('ETH_5m').run(timeout=20)
+    assert not app.exception,[e.message for e in app.exception]
+    assert any('eth-last-filled-fixture' in m.value for m in app.markdown)
+    next(c for c in app.checkbox if c.label=='Show complete trade history').set_value(True).run(timeout=20)
+    assert not app.exception,[e.message for e in app.exception]
+    history_table=next(f.value for f in app.dataframe if 'Average entry ($)' in f.value.columns)
+    assert history_table.iloc[0]['Result']=='LOST'
+    assert history_table.iloc[0]['Net P/L ($)']=='-1.25'
+    assert any('Maximum entry cost: $10' in c.value for c in app.caption)
+    print('PASS PBot trade detail/history: last fill description, outcome/fees, complete-history control and $10 entry cap')

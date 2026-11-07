@@ -56,7 +56,7 @@ systemctl restart pbot-status pbot-dashboard
   cd "$task_release"
   "$task_release/venv/bin/python" - <<'PY'
 import os,time
-from trading_bot.status_client import read_status
+from trading_bot.status_client import read_status,read_trades
 from trading_bot.display_status import central
 for attempt in range(25):
     try:
@@ -64,7 +64,9 @@ for attempt in range(25):
         assert data['operation_mode']=='OBSERVED_BOOK_PAPER' and data['account']['live_orders_enabled'] is False
         assert not data.get('display_health_error') and 'display_health' in data
         for name,report in data['portfolios'].items():
-            assert 'activity' in report and 'display_state' in report
+            assert 'activity' in report and 'display_state' in report and 'last_trade' in report['activity']
+        history=read_trades('http://127.0.0.1:8765/status',os.environ['PBOT_READ_TOKEN'],wallet=next(iter(data['portfolios'])),as_of=time.time())
+        print('Read-only trade history ready:',history['total_filled_trades'],'filled trades in first wallet;',history['page_count'],'page(s).')
         print('Engine update (Central):',central(data['display_health']['engine_updated_at']))
         print('Input update (Central):',central(data['display_health']['input_updated_at']))
         print('Last filled trade (Central):',central(data['display_health']['last_filled_at']))

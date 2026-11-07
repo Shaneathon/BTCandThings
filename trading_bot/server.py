@@ -26,14 +26,30 @@ class Handler(BaseHTTPRequestHandler):
         super().__init__(*args,**kwargs)
 
     def do_GET(self):
-        if self.path!='/status':
+        from urllib.parse import urlsplit,parse_qs
+        target=urlsplit(self.path)
+        if target.path not in ('/status','/trades') or (target.path=='/status' and target.query):
             self.send_error(404)
             return
         if not hmac.compare_digest(self.headers.get('Authorization',''),'Bearer '+self.token):
             self.send_error(401)
             return
         try:
-            payload=json.dumps(self.reader(self.ledger)).encode()
+            if target.path=='/trades':
+                from trading_bot.trade_history import page
+                q=parse_qs(target.query,keep_blank_values=True)
+                if set(q)-{'wallet','page','limit','as_of'} or any(len(v)!=1 for v in q.values()): raise ValueError('Invalid query')
+                result=page(self.ledger,wallet=q.get('wallet',['*'])[0],number=int(q.get('page',['1'])[0]),
+                            limit=int(q.get('limit',['50'])[0]),as_of=float(q['as_of'][0]) if 'as_of' in q else None)
+            else: result=self.reader(self.ledger)
+            payload=json.dumps(result).encode()
+            if len(payload)>4_000_000: raise RuntimeError('Response exceeds byte limit')
+        except ValueError:
+            self.send_error(400,'Invalid request')
+            return
+        except LookupError:
+            self.send_error(404,'History unavailable')
+            return
         except Exception:
             self.send_error(503,'Status unavailable')
             return

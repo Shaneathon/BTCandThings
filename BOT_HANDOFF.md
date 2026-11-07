@@ -571,3 +571,30 @@ selected summary first, global freshness panel and preserved overview below,
 then selected positions/history. Existing click-through UI smoke checks pass.
 Rerun the same refresh-pbot-display.sh after fetching to deploy this layout;
 only status/UI restart, engine/exporter/collectors/ledgers unchanged.
+
+### Prepared PBot last-trade details and complete history — not yet deployed
+
+User asks WHAT last trade was, list of EVERY trade for each market, and current
+max entry amount. Confirmed Engine.SETTINGS max_trade_cost10 and risk budget10
+ALL-IN including primary modeledfees per wallet, maxone open/pending, can be
+smaller. No limit change authorized or implemented.
+
+New trade_history.py read-only page helper and authenticated GET /trades on
+existing status server, 50 rows/page UI(max100 API), selected-wallet/all-wallets,
+fixed as-of membership for stable browsing, full positions table not last30,
+joined requested quantity/order state. Strict source/version/parameters, no
+mutation or arbitrary file selection. Shared status_client adds bounded
+NoRedirect read_trades with same private token and explicit Polymarket PAPER
+role; Coinbase's unsupported ledger rejects route. Last-trade summary via
+existing read-only enrichment adds market,side,qty,avgprice,fees,cost,result,payout,
+netPnL and timestamps, excludes unfilled proposals. Complete history loaded
+only via checkbox; refresh gets newer fills. Main live packet does not grow
+with history. UI keeps overview/click-through/central clocks and displays$10cap.
+Docs research/execution/PBOT_TRADE_HISTORY.md. Same refresh-pbot-display.sh,
+only status/dashboard restart; readiness now also checks /trades. New tests
+pagination65rows, anchor prevents new fill shifting page2, auth/bad requests,
+read-only files, UI details/history; isolated package and CBot compatibility pass.
+
+Last user confirmed previous top-of-page update succeeded Nov7 08:45:21AM CST,
+freshinput08:45:20,lastfill08:43:52; Champion/B filled08:43:36, several await
+official settlement after08:45window. No trading/collector restart or reset.

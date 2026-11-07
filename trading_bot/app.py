@@ -6,7 +6,7 @@ import time
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import streamlit as st
 from trading_bot.core import STREAMS
-from trading_bot.status_client import read_status
+from trading_bot.status_client import read_status,read_trades
 
 st.set_page_config(page_title='PBot · Paper Trading',page_icon='◈',layout='wide')
 st.html('''<style>
@@ -40,6 +40,11 @@ def setting(name):
 @st.cache_data(ttl=5,show_spinner=False)
 def status(url,token):
     return read_status(url,token)
+
+
+@st.cache_data(ttl=10,show_spinner=False)
+def history(url,token,wallet,page,as_of):
+    return read_trades(url,token,wallet,page,as_of)
 
 
 def content():
@@ -83,7 +88,43 @@ def content():
             values[3].metric('Filled trades',activity.get('filled_trade_count','—'))
             st.markdown('**Last filled trade:** '+central(activity.get('last_filled_at'))+' · '+ago(activity.get('last_filled_at')))
             st.markdown('**Last settlement processed:** '+central(activity.get('last_settled_at'))+' · '+ago(activity.get('last_settled_at')))
-            st.caption('Last order proposed: '+central(activity.get('last_order_proposed_at'))+'. Proposals can remain unfilled; they are not counted as completed trades.')
+            st.caption('Last order proposed: '+central(activity.get('last_order_proposed_at'))+'. Unfilled proposals are excluded from filled-trade history.')
+            last_trade=activity.get('last_trade')
+            st.markdown('#### Last trade details')
+            if last_trade:
+                st.write('**'+str(last_trade['market_slug'])+'** · **'+str(last_trade['side'])+'** · '+str(last_trade['quantity'])+' contracts at average $'+format(float(last_trade['entry_price']),'.4f'))
+                net=('$'+str(last_trade['pnl'])) if last_trade.get('pnl') is not None else 'Pending settlement'
+                st.caption('Total entry cost including fees: $'+str(last_trade['cost'])+' · Modeled fees: $'+str(last_trade['fees'])+' · Result: '+last_trade['result']+' · Net P/L: '+net)
+                if last_trade.get('order_state'): st.caption('Order outcome: '+last_trade['order_state']+' · Requested quantity: '+str(last_trade.get('requested_quantity')))
+            else: st.info('No filled trades yet in this wallet.')
+            st.caption('Maximum entry cost: $'+str(data.get('configuration',{}).get('max_trade_cost','10'))+' including modeled fees, per wallet. One open or pending position per wallet; liquidity and risk limits may reduce size.')
+            if st.checkbox('Show complete trade history',key='pbot_show_trade_history'):
+                scope=st.radio('Trade history scope',('Selected wallet','All wallets'),horizontal=True,key='pbot_history_scope')
+                target=chosen if scope=='Selected wallet' else '*'
+                anchor_key='pbot_history_anchor_'+target;page_key='pbot_history_page_'+target
+                if anchor_key not in st.session_state: st.session_state[anchor_key]=time.time()
+                if st.button('Refresh trade list',key='pbot_history_refresh_'+target):
+                    st.session_state[anchor_key]=time.time()
+                    if page_key in st.session_state: del st.session_state[page_key]
+                anchor=st.session_state[anchor_key]
+                try:
+                    first=history(url,token,target,1,anchor)
+                    st.caption(str(first['total_filled_trades'])+' filled trades · History membership as of '+central(anchor)+'. Refresh to include newer fills. Unfilled proposals are excluded.')
+                    selected_page=st.selectbox('History page',range(1,first['page_count']+1),key=page_key,
+                                              format_func=lambda n:'Page '+str(n)+' of '+str(first['page_count']))
+                    result=first if selected_page==1 else history(url,token,target,selected_page,anchor)
+                    if result['trades']:
+                        formatted=[]
+                        for trade in result['trades']:
+                            formatted.append({'Filled (Central)':central(trade['opened_at']),'Wallet':trade['wallet'],
+                                'Market':trade['market_slug'],'Direction':trade['side'],'Contracts':trade['quantity'],
+                                'Average entry ($)':trade['entry_price'],'Fees ($)':trade['fees'],'Total cost ($)':trade['cost'],
+                                'Result':trade['result'],'Payout ($)':trade['payout'],'Net P/L ($)':trade['pnl'],
+                                'Settlement processed (Central)':central(trade['closed_at']),'Order outcome':trade['order_state']})
+                        st.dataframe(formatted,hide_index=True,width='stretch')
+                    else: st.info('No filled trades in this history selection yet.')
+                except Exception as error:
+                    st.error('Trade history unavailable ('+type(error).__name__+'). No trades were changed.')
             if account.get('halted_reason'): st.error(account['halted_reason'])
         st.info('OBSERVED-BOOK PAPER · New forward ledgers. Old fixed-price results are excluded. Real orders remain disabled.')
         st.caption('Input: '+data.get('input_status','UNKNOWN')+' · '+data.get('fee_basis',''))

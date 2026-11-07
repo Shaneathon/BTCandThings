@@ -107,7 +107,11 @@ def enrich(path,result,now=None,input_path=Path('/var/lib/pbot-input/dual-sandbo
             capacity=max(Decimal(0),min(Decimal(cfg.get('max_trade_cost','10')),cash-reserved,Decimal('10')-exposure-reserved,
                 Decimal(cfg.get('max_daily_loss','100'))+daily-exposure-reserved,
                 high*Decimal(cfg.get('max_drawdown','.10'))-(high-cash-exposure)-exposure-reserved))
-            report['activity']=dict(risk_capacity=str(capacity),last_filled_at=latest,last_settled_at=closed,last_order_proposed_at=proposed,
+            from trading_bot.trade_history import trade_row
+            last_position=max(positions,key=lambda p:p['opened_at']) if positions else None
+            last_entry=next(((state,record) for state,record in orders if last_position and record['plan']['market_slug']==last_position['market_slug']),None)
+            last_trade=trade_row(name,last_position,last_entry[0] if last_entry else None,last_entry[1] if last_entry else None) if last_position else None
+            report['activity']=dict(last_trade=last_trade,risk_capacity=str(capacity),last_filled_at=latest,last_settled_at=closed,last_order_proposed_at=proposed,
                 filled_trade_count=len(positions),pending_orders=pending,
                 open_windows=[p['window_end'] for p in positions if p.get('state')=='PAPER_OPEN'])
             report['display_state']=wallet_state(report,packet,health,now,Path(path).with_name('STOP-OBSERVED').exists(),orders=orders)
