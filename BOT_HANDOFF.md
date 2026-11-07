@@ -3,6 +3,28 @@
 Repository: Shaneathon/BTCandThings. Current preparation branch:
 `tracker/coinbase-research`.
 
+## Pending paper-execution realism migration — November 7, 2026
+
+User explicitly requests paper results based on actual market prices, with the
+same decisions/order instructions as a future live bot. NO REAL TRADING.
+Previous fixed-50c profits (user reported +$124) are not attainable-profit proof.
+
+Prepared, tested but NOT YET run on the droplet:
+`deploy/prepare-pbot-realism.sh --apply`. It pauses new artificial entries with
+STOP-SANDBOX, preserves all existing histories and ongoing settlements, then
+runs a public read-only exact-contract `/book` and metadata audit. No service
+restart, collector change or new realistic execution engine is implied.
+Private results: `/var/lib/pbot-execution-audit/latest.json` and per-stream raw
+metadata/book JSON. User should return the printed report. The environment
+cannot access DigitalOcean directly or the gateway under its network policy.
+
+Next: review mapping, quantity units, book freshness, fee formula/ticks/minimums
+using actual evidence, then build/validate the shared proposal and simulated
+execution adapter and publish a NEW forward ledger. Do not re-enable 50c entries
+or present the diagnostic as the finished replacement. Full requirements:
+`research/execution/REALISTIC_PAPER_PLAN.md`. CBot is unchanged and retains its
+sampled real quote/assumed-cost limitations.
+
 ## Current confirmed status — November 6, 2026
 
 This section supersedes historical preparation notes below. Last server evidence:
