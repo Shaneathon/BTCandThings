@@ -3,6 +3,49 @@
 Repository: Shaneathon/BTCandThings. Current preparation branch:
 `tracker/coinbase-research`.
 
+## Prepared independent Coinbase product wallets — NOT YET deployed
+
+User explicitly requests money NOT shared across four coins and selected coin's
+own P/L. Prepared deploy/isolate-cbot-wallets.sh --apply. Splits original$1,000
+starting allocation into$250 each for baseline AND fee-filter strategy, carries
+all per-coin closed P/L/history/holdings, reconciles summed cash exactly, and
+preserves untouched old shared ledgers as archives. No wallet resets/profit
+fabrication. New physical ledgers: /var/lib/cbot/products/baseline/BTC-USD.sqlite
+and ETH/XRP/SOL counterparts; parallel fee-filter directory. Aggregate status
+files /var/lib/cbot/product-baseline.sqlite and product-fee-filter.sqlite are
+transport summaries, NOT a pooled spendable account. New marker
+/var/lib/cbot/PRODUCT-WALLETS-ACTIVE written only after both engines are ready.
+
+Capital/risk isolation means original exposure200 and daily-loss100 budgets
+split into50 and25 per coin. Conservative worst-case-loss check caps new ticket
+cost at remaining25 daily budget (original50 ticket cap is an upper limit),
+with same fees/fills/entry/exit strategy. Inherited larger positions and SELLs
+managed normally; unsubmitted BUYs cancelled without fee. Existing risk halts
+retained. Per-coin high-water reconstructed from its own realized history.
+Negative allocation or cash mismatch aborts. New ledgers cannot overwrite.
+
+Two existing paper services updated to product_wallets watch with four isolated
+engines each. One local Coin status fetch per strategy; no new exchange calls.
+Original engines stop briefly for consistent migration; collectors/PBot untouched.
+Old service units restored on failure, partial new state preserved. Existing
+private tokens and live-disabled interlocks unchanged. Status/UI switch to root
+product mode and global Crypto selector; all cash/P&L/positions/trades/decision/
+chart fields switch together. Old conflicting chart radio removed in this mode.
+Per-coin fee-filter comparison restarts at allocation change, while historic
+wallet P/L and original experiment start remain. UI times America/Chicago.
+
+Private health and backup units use new source bundle; health follows aggregate
+files after marker, checks nested live flags; backup inventory includes8 known
+nested product wallets, and old archives. Shared paths in read-only review and
+CBot verification now detect active product layout. Documentation:
+research/execution/COINBASE_PRODUCT_WALLETS.md. Isolated migration/selector tests
+pass, including pending BUY cancellation, inherited SELL/holdings, source
+immutability, historical P/L, and no cross-product spending. Not user-run yet.
+
+User confirmed fee-filter started successfully before this request: statusage.9s,
+zero trades on both fresh forward rows, initial4STALE_BOOK warnings. Baseline
+engine was preserved on that deployment; no account/live activation authorized.
+
 ## Coinbase review and prepared fee-filter experiment — not yet deployed
 
 User approved review, then separate forward challenger while baseline stays

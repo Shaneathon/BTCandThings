@@ -71,6 +71,10 @@ def inventory():
     sources.append(Path('/var/lib/btc-metals-proxy/quotes.sqlite'))
     for folder in ('/var/lib/pbot','/var/lib/cbot'):
         sources.extend(sorted(Path(folder).glob('*.sqlite')))
+    for strategy in ('baseline','fee-filter'):
+        for product in ('BTC-USD','ETH-USD','XRP-USD','SOL-USD'):
+            path=Path('/var/lib/cbot/products')/strategy/(product+'.sqlite')
+            if path.is_file(): sources.append(path)
     sources.extend(Path('/root/BTCandThings/BTCandThings_Website/BTCandThings_Upload').glob('*.sqlite3'))
     return [p for p in sources if p.is_file() and not p.is_symlink()]
 
@@ -205,9 +209,9 @@ def health(folder,service_check=None,publish=True):
     databases=[('/var/lib/btcandthings-research/research.sqlite','collector_status',240,'Research collector'),
                ('/var/lib/coin/research.sqlite','tracker_status',180,'Coinbase tracker'),
                ('/var/lib/pbot/observed-v1.sqlite' if Path('/var/lib/pbot/OBSERVED-ACTIVE').is_file() else '/var/lib/pbot/comparison.sqlite','bot_snapshot',60,'Polymarket paper experiments'),
-               ('/var/lib/cbot/observed-v1.sqlite' if Path('/var/lib/cbot/OBSERVED-ACTIVE').is_file() else '/var/lib/cbot/paper.sqlite','bot_snapshot',180,'Coinbase paper bot')]
+               ('/var/lib/cbot/product-baseline.sqlite' if Path('/var/lib/cbot/PRODUCT-WALLETS-ACTIVE').is_file() else '/var/lib/cbot/observed-v1.sqlite' if Path('/var/lib/cbot/OBSERVED-ACTIVE').is_file() else '/var/lib/cbot/paper.sqlite','bot_snapshot',180,'Coinbase paper bot')]
     if challenger_installed:
-        databases.append(('/var/lib/cbot/fee-filter-v1.sqlite','bot_snapshot',180,'Coinbase fee-filter experiment'))
+        databases.append(('/var/lib/cbot/product-fee-filter.sqlite' if Path('/var/lib/cbot/PRODUCT-WALLETS-ACTIVE').is_file() else '/var/lib/cbot/fee-filter-v1.sqlite','bot_snapshot',180,'Coinbase fee-filter experiment'))
     freshness={}
     for source,table,limit,label in databases:
         try:
@@ -218,9 +222,11 @@ def health(folder,service_check=None,publish=True):
             if data.get('operation_mode')=='OBSERVED_BOOK_PAPER' and (data.get('input_status')!='FRESH' or data.get('input_error')):
                 issues.append(dict(level='critical',message='Polymarket execution input is stale or rejected: '+str(data.get('input_error') or data.get('input_status'))))
             if not 0<=elapsed<=limit: issues.append(dict(level='critical',message=label+' status is stale or clock is ahead'))
+            if data.get('operation_mode')=='PRODUCT_WALLETS_PAPER' and (data.get('input_error') or data.get('input_status')=='UNAVAILABLE'):
+                issues.append(dict(level='critical',message=label+' input rejected: '+str(data.get('input_error') or data.get('input_status'))))
             if data.get('real_trading') is True or data.get('orders_enabled') is True or data.get('account',{}).get('live_orders_enabled') is True:
                 issues.append(dict(level='critical',message=label+' reports live orders enabled'))
-            for portfolio in list(data.get('portfolios',{}).values())+list(data.get('market_portfolios',{}).values()):
+            for portfolio in list(data.get('portfolios',{}).values())+list(data.get('market_portfolios',{}).values())+list(data.get('product_wallets',{}).values()):
                 if portfolio.get('account',{}).get('live_orders_enabled') is True:
                     issues.append(dict(level='critical',message='A paper portfolio reports live orders enabled'))
             if data.get('cloud_sync',{}).get('errors',0)>0: issues.append(dict(level='warning',message='Research cloud upload errors reported'))

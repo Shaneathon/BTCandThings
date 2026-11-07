@@ -37,6 +37,13 @@ def tracker_report(path,now):
 
 
 def activity_report(ledger,now,hours):
+    if Path(ledger).name=='observed-v1.sqlite' and Path(ledger).with_name('PRODUCT-WALLETS-ACTIVE').is_file():
+        root=Path(ledger).parent
+        reports={product:activity_report(root/'products'/'baseline'/(product+'.sqlite'),now,hours) for product in PRODUCTS}
+        states=Counter()
+        for report in reports.values(): states.update(report['orders_created_in_period'])
+        return dict(hours=hours,independent_product_wallets=reports,orders_created_in_period=dict(states),
+                    trades_closed_in_period=sum(r['trades_closed_in_period'] for r in reports.values()))
     with sqlite3.connect(Path(ledger).resolve().as_uri()+'?mode=ro',uri=True) as db:
         db.execute('BEGIN')
         row=db.execute('SELECT payload FROM bot_snapshot WHERE id=1').fetchone()

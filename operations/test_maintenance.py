@@ -111,6 +111,19 @@ class MaintenanceTests(unittest.TestCase):
             self.assertTrue((root/'set-001').exists());self.assertTrue((root/'set-002').exists())
             self.assertEqual((foreign/'keep').read_text(),'untouched')
 
+    def test_same_named_product_wallets_are_backed_up_separately(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);sources=[]
+            for index,strategy in enumerate(('baseline','fee-filter')):
+                path=root/strategy/'BTC-USD.sqlite';path.parent.mkdir()
+                with sqlite3.connect(path) as db:
+                    db.execute('CREATE TABLE value(number INTEGER)');db.execute('INSERT INTO value VALUES(?)',(index,))
+                sources.append(path)
+            manifest=backup(root/'ops'/'sqlite',sources,minimum_free=0)
+            self.assertEqual(len(manifest['databases']),2)
+            self.assertEqual(len({r['archive'] for r in manifest['databases']}),2)
+            self.assertEqual({r['source'] for r in manifest['databases']},{str(p) for p in sources})
+
     def test_failed_backup_keeps_last_complete_set(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);source=root/'good.sqlite';bad=root/'bad.sqlite'

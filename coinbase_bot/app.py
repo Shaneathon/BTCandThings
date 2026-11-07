@@ -13,7 +13,7 @@ st.html('''<style>.stApp{background:#091326;color:#e8efff}.block-container{max-w
 .hero{padding:25px;border:1px solid #33568d;border-radius:18px;background:linear-gradient(115deg,#153d89,#111f3a);margin-bottom:20px}
 .title{font-size:38px;font-weight:800;color:#f7faff}.sub{color:#b0c9ed}.kicker{color:#8ebcff;letter-spacing:2px;font-size:12px;font-weight:800}
 [data-testid=stMetric]{background:#142643;padding:18px;border:1px solid #33568d;border-radius:14px}</style>''')
-st.html('<div class="hero"><div class="kicker">CBOT · COINBASE SPOT · PAPER ONLY</div><div class="title">Crypto. A separate paper portfolio.</div><div class="sub">BTC / USD · ETH / USD · XRP / USD · SOL / USD</div></div>')
+st.html('<div class="hero"><div class="kicker">CBOT · COINBASE SPOT · PAPER ONLY</div><div class="title">Crypto. Independent paper wallets.</div><div class="sub">BTC / USD · ETH / USD · XRP / USD · SOL / USD</div></div>')
 with st.sidebar:
     st.markdown('### CBot control room')
     st.caption('Target: cbot.shaneathon.com')
@@ -46,6 +46,29 @@ def render():
             if not 0<=time.time()-data.get('observed_at',0)<=120: st.warning('Coinbase paper status is stale.')
         except Exception as exc:
             st.error('Coinbase paper status unavailable ('+type(exc).__name__+').')
+    selected_product=None
+    if data.get('operation_mode')=='PRODUCT_WALLETS_PAPER':
+        root_data=data
+        selected_product=st.radio('Crypto',PRODUCTS,horizontal=True,key='cbot_wallet_product')
+        st.info('Independent paper wallets: each coin has its own cash and risk budget. Funds are not shared.')
+        if root_data.get('input_error'): st.error('Coin feed unavailable: '+root_data['input_error'])
+        data=dict(root_data.get('product_wallets',{}).get(selected_product,{}))
+        if not data:
+            st.info('Waiting for this coin’s wallet status.');return
+        st.markdown('### '+selected_product+' · Baseline paper wallet')
+        st.caption('Starting allocation: $'+data.get('wallet_initial_allocation','—')+' · Existing coin-specific history and P/L preserved.')
+        if data.get('input_status')=='UNAVAILABLE': st.warning('This coin does not currently have a usable fresh book; entries wait for valid data.')
+        per_coin=root_data.get('product_comparisons',{}).get(selected_product)
+        if per_coin and not per_coin.get('error'): data['paper_comparison']=per_coin
+        elif per_coin: data['paper_comparison_error']=per_coin['error']
+    account=data.get('account',{})
+    positions=account.get('positions',[])
+    tiles=st.columns(4)
+    for col,label,key in zip(tiles[:3],('Virtual USD cash','Open cost basis','Realized paper P/L'),('cash','open_exposure','realized_pnl')):
+        col.metric(label,f"${float(account[key]):,.2f}" if key in account else '—')
+    tiles[3].metric('Open spot positions',len(positions) if data else '—')
+    if selected_product and 'reserved_cash' in account:
+        st.caption('Reserved for pending orders: $'+str(account['reserved_cash'])+' · Available virtual cash: $'+str(account['available_cash']))
     if data.get('operation_mode')=='OBSERVED_LIMIT_PAPER':
         st.info('OBSERVED LIMIT PAPER · Separate new ledger, delayed frozen orders and size-limited FOK fills. Real orders disabled.')
         st.warning('Fees are estimated at 0.6% per side; your actual Coinbase account fee tier is not connected.')
@@ -57,6 +80,9 @@ def render():
     comparison=data.get('paper_comparison')
     if comparison:
         st.markdown('### Forward paper comparison')
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        st.caption('Comparison starts '+datetime.fromtimestamp(comparison['started_at'],ZoneInfo('America/Chicago')).strftime('%b %d, %Y %I:%M %p %Z'))
         st.caption(comparison['cohort_rule'])
         st.caption('Sample: '+comparison.get('sample_status','COLLECTING')+' — no automatic promotion to live trading.')
         if not comparison['challenger_status_fresh']: st.warning('Paper challenger status is stale; do not interpret it as an active comparison.')
@@ -67,24 +93,18 @@ def render():
             st.dataframe(comparison['challenger_market_pnl'],hide_index=True,width='stretch')
             st.dataframe(comparison['challenger_decisions'],hide_index=True,width='stretch')
     if data.get('paper_comparison_error'): st.warning('Paper comparison is not ready: '+data['paper_comparison_error'])
-    account=data.get('account',{})
-    positions=account.get('positions',[])
-    tiles=st.columns(4)
-    for col,label,key in zip(tiles[:3],('Virtual USD cash','Open cost basis','Realized paper P/L'),('cash','open_exposure','realized_pnl')):
-        col.metric(label,f"${float(account[key]):,.2f}" if key in account else '—')
-    tiles[3].metric('Open spot positions',len(positions) if data else '—')
     products,portfolio,journal,risk,live=st.tabs(['Coinbase markets','Spot portfolio','Decision journal','Strategy & risk','Live readiness'])
     with products:
         decisions={d['product_id']:d for d in data.get('decisions',[])}
         rows=[]
-        for product in PRODUCTS:
+        for product in ((selected_product,) if selected_product else PRODUCTS):
             decision=decisions.get(product,{})
             signal=decision.get('signal',{})
             rows.append(dict(Product=product,Signal=signal.get('direction','PENDING'),
                              Decision=decision.get('action','WAITING FOR DATA'),Reason=decision.get('reason','—'),
                              EMA9=signal.get('ema9','—'),EMA21=signal.get('ema21','—')))
         st.dataframe(rows,hide_index=True,width='stretch')
-        chosen=st.radio('Candle chart',PRODUCTS,horizontal=True)
+        chosen=selected_product or st.radio('Candle chart',PRODUCTS,horizontal=True)
         candles=data.get('market_candles',{}).get(chosen,[])
         if candles:
             from datetime import datetime,timezone
@@ -97,10 +117,8 @@ def render():
         if positions: st.dataframe(positions,hide_index=True,width='stretch')
         else: st.info('No paper crypto holdings yet.')
         if account.get('trades'): st.dataframe(account['trades'],hide_index=True,width='stretch')
-        st.caption('No leverage or shorting. Paper buys use ask plus slippage; sells use bid minus slippage. Fees apply on both sides.')
-        st.caption('Fills use sampled public quotes and assumed costs, not confirmed exchange executions. '
-                   'Checks run about once a minute; stop-loss exits are simulated at an observed bid, not guaranteed prices. '
-                   'All decisions and skips are retained in the separate paper ledger for review.')
+        st.caption('No leverage or shorting. Observed-mode orders freeze a limit, wait for a later sampled book, and require available size. Fees apply on both sides.')
+        st.caption('Fills and fee tiers remain simulated. Observed mode checks every five seconds; actual quote refresh follows the collector. Stops are modeled decisions, not guaranteed exchange fills.')
     with journal:
         if data.get('decisions'): st.dataframe(data['decisions'],hide_index=True,width='stretch')
         else: st.info('Waiting for Coinbase data and paper decisions.')

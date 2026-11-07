@@ -37,12 +37,17 @@ def aggregate(rows):
 
 
 def review(path,now,hours):
-    with sqlite3.connect(Path(path).resolve().as_uri()+'?mode=ro',uri=True) as db:
-        db.execute('BEGIN')
-        cfg=json.loads(db.execute('SELECT payload FROM settings WHERE id=1').fetchone()[0])
-        trades=[trade_metrics(json.loads(r[0])) for r in db.execute('SELECT payload FROM trades')]
-        orders=[dict(state=s,plan=json.loads(p),result=json.loads(r) if r else None) for s,p,r in db.execute('SELECT state,payload,result FROM execution_orders')]
-        decisions=[json.loads(r[0]) for r in db.execute('SELECT payload FROM decision_journal WHERE observed_at>=?',(now-hours*3600,))]
+    paths=[path] if isinstance(path,(str,Path)) else list(path)
+    trades=[];orders=[];decisions=[];cfg=None
+    for item in paths:
+        with sqlite3.connect(Path(item).resolve().as_uri()+'?mode=ro',uri=True) as db:
+            db.execute('BEGIN')
+            current=json.loads(db.execute('SELECT payload FROM settings WHERE id=1').fetchone()[0])
+            if cfg and current['fee_rate']!=cfg['fee_rate']: raise ValueError('Mixed fee bases in review')
+            cfg=current
+            trades.extend(trade_metrics(json.loads(r[0])) for r in db.execute('SELECT payload FROM trades'))
+            orders.extend(dict(state=s,plan=json.loads(p),result=json.loads(r) if r else None) for s,p,r in db.execute('SELECT state,payload,result FROM execution_orders'))
+            decisions.extend(json.loads(r[0]) for r in db.execute('SELECT payload FROM decision_journal WHERE observed_at>=?',(now-hours*3600,)))
     selected=[t for t in trades if t['closed_at']>=now-hours*3600]
     recent_orders=[o for o in orders if o['plan']['created_at']>=now-hours*3600]
     by=lambda key:{str(value):aggregate([r for r in selected if r[key]==value]) for value in sorted({r[key] for r in selected})}
@@ -67,10 +72,17 @@ def review(path,now,hours):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--ledger',type=Path,default=Path('/var/lib/cbot/observed-v1.sqlite'))
+    p.add_argument('--ledger',type=Path,help='Optional explicit single ledger; defaults to active baseline wallets')
     p.add_argument('--hours',type=int,default=6)
     args=p.parse_args()
     if not 1<=args.hours<=168: p.error('Choose 1–168 hours')
-    print(json.dumps(review(args.ledger,time.time(),args.hours),indent=2,allow_nan=False))
+    ledger=args.ledger
+    if ledger is None:
+        root=Path('/var/lib/cbot')
+        if (root/'PRODUCT-WALLETS-ACTIVE').is_file():
+            from coinbase_bot.market_data import PRODUCTS
+            ledger=[root/'products'/'baseline'/(p+'.sqlite') for p in PRODUCTS]
+        else: ledger=root/'observed-v1.sqlite'
+    print(json.dumps(review(ledger,time.time(),args.hours),indent=2,allow_nan=False))
 
 if __name__=='__main__': main()

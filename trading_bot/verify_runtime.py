@@ -80,6 +80,9 @@ def pbot_report(path,now):
 
 
 def cbot_report(path,now):
+    if Path(path).name=='observed-v1.sqlite' and Path(path).with_name('PRODUCT-WALLETS-ACTIVE').is_file():
+        from coinbase_bot.product_wallets import audit_products
+        return audit_products(Path(path).parent,now)
     with connect(path) as db:
         settings=json.loads(db.execute('SELECT payload FROM settings WHERE id=1').fetchone()[0])
         observed,payload=db.execute('SELECT observed_at,payload FROM bot_snapshot WHERE id=1').fetchone()

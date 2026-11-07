@@ -13,6 +13,9 @@ def compare(baseline,challenger,now=None):
     with sqlite3.connect(Path(challenger).resolve().as_uri()+'?mode=ro',uri=True) as db:
         db.execute('BEGIN')
         start=db.execute("SELECT value FROM experiment_metadata WHERE key='started_at'").fetchone()[0]
+        isolation=db.execute("SELECT value FROM experiment_metadata WHERE key='wallet_isolation_started_at'").fetchone()
+        original_start=start
+        if isolation: start=max(start,isolation[0])
         stamp,payload=db.execute('SELECT observed_at,payload FROM bot_snapshot WHERE id=1').fetchone()
         child=json.loads(payload)
     if (child.get('account',{}).get('mode')!='PAPER' or child['account'].get('live_orders_enabled') is not False
@@ -30,16 +33,19 @@ def compare(baseline,challenger,now=None):
     for row in rows:
         notional=Decimal(row['total_entry_notional'])
         row['net_return_on_entry_notional_percent']=str(100*Decimal(row['net_pnl'])/notional) if notional else None
-    return dict(started_at=start,baseline_prior_risk_state_preserved=True,
+    return dict(started_at=start,original_experiment_started_at=original_start,baseline_prior_risk_state_preserved=True,
                 sample_status='INSUFFICIENT_FORWARD_TRADES' if any(r['closed_trades']<30 for r in rows) else 'DESCRIPTIVE_COMPARISON_ONLY',
                 challenger_status_age_seconds=round(now-stamp,1),
                 challenger_status_fresh=0<=now-stamp<=30,aligned_closed_trade_results=rows,
                 challenger_market_pnl=child.get('market_pnl',[]),challenger_decisions=child.get('decisions',[]),
                 challenger_order_states=child.get('order_states',{}),note=child.get('experiment_note'),
-                cohort_rule='Only entries opened after challenger start. Earlier P/L and positions excluded. Baseline retains its prior cash/risk state; bankrolls are not perfectly matched. Open unrealized P/L excluded.')
+                cohort_rule='Only entries opened after comparison start: challenger launch, or a later wallet-isolation timestamp. Earlier history is retained in wallet P/L but excluded here. Baseline retains prior cash/risk state; starting balances are not perfectly matched. Open unrealized P/L excluded.')
 
 
 def dashboard_snapshot(path):
+    if Path(path).name=='product-baseline.sqlite':
+        from coinbase_bot.product_wallets import enrich_snapshot
+        return enrich_snapshot(path)
     result=snapshot(path)
     challenger=Path(path).with_name('fee-filter-v1.sqlite')
     if Path(path).name=='observed-v1.sqlite' and challenger.is_file():
