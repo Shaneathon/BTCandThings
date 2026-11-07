@@ -3,6 +3,41 @@
 Repository: Shaneathon/BTCandThings. Current preparation branch:
 `tracker/coinbase-research`.
 
+## Coinbase review and prepared fee-filter experiment — not yet deployed
+
+User approved review, then separate forward challenger while baseline stays
+unchanged. Review source useroutput41 totalclosedtrades:0netwins, gross-.6842971006,
+fees21.2577179432472, net-21.9420150438472. Last6h19closed: gross+.1064983940,
+fees9.3652330903308, net-9.2587346963308, allTREND_EXIT, medianhold13.87min.
+Fee-only break-even price move~1.20724%; sampled moves much smaller. This is
+cost churn, not a validated edge. Coinbase feed/API checks passed4ready,72KB
+status well below4MB, accountingexact and allservicesactive. No PBot-sized input
+failure was found in CBot. Paperfees stillestimated0.6% per side.
+
+Prepared `deploy/start-cbot-fee-filter.sh --apply`: new independent paper service
+cbot-fee-filter-paper, new ledger /var/lib/cbot/fee-filter-v1.sqlite. Entry-only
+fixed hypothesis: existing BUY +15mreturn>=.3%, EMAgap>=.1%, observed60m range
+above fee-onlyBE+2spread+2limitallowance+.3%buffer. Range is NOT a forecast.
+Shared delayed FOK fills/fees/exits/risk unchanged. Baseline engine/unit/config/
+wallet left running untouched. CBot status/UI updated to display forward
+comparison; aligns entries opened after persisted challenger start, excludes old
+P/L/positions, explicitly notes baseline prior risk state remains different.
+Low trade counts marked insufficient; fewer losses or zero trades not edge.
+No live trading, account connection or cheap-fee assumption changes.
+
+Source: coinbase_bot/fee_filter.py, comparison.py; baseline core gains default
+signal() hook with identical behavior. New challenger uses override. New report
+serverreader only enriches baseline response when known sibling ledger exists
+and validates PAPER/liveFalse/version. Dashboard samehostname no extra ports.
+Private health adds optional challenger service/freshness check; backs up new
+ledger by existingglob. Health workingdir points newCBotrelease after deployment;
+input-growth updater guard adjusted to accept that health root if used again.
+
+Tested isolated actual deployment bundle,19Coinbase tests,8operations tests,
+51PBot tests and comparison UI; deployment not yet run by user. Rules/limits in
+research/execution/COINBASE_FEE_FILTER_V1.md. User gets ONE fetch/archive/script
+command. Do not rerun over an existing challenger ledger/reset its history.
+
 ## Prepared live-input growth repair — not yet deployed
 
 User reports little PBot activity over six hours. At Nov7 12:55 UTC, activity

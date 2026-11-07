@@ -58,6 +58,8 @@ class PaperBot:
 
     def close(self): self.db.close()
 
+    def signal(self,source): return momentum(source)
+
     def pending(self,product,side): return None
 
     def reserved_cash(self,except_product): return Decimal(0)
@@ -105,7 +107,7 @@ class PaperBot:
                         checked.append((product,bar['start'],json.dumps({k:bar[k] for k in ('start','open','high','low','close','volume')})))
                     self.db.executemany('INSERT INTO market_candles VALUES (?,?,?) ON CONFLICT(product_id,start) DO UPDATE SET payload=excluded.payload',checked)
                     self.db.execute('INSERT OR IGNORE INTO market_books VALUES (?,?,?)',(product,source['book_time'],json.dumps({k:source[k] for k in ('product_id','book_time','bid','ask','bid_size','ask_size')})))
-                    signal=momentum(source)
+                    signal=self.signal(source)
                     if not 0<=now-signal['candle_end']<=120: raise ValueError('STALE_SIGNAL')
                     decision['signal']=signal
                     bid,ask=positive(source['bid']),positive(source['ask'])

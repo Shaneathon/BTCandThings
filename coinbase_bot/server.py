@@ -5,6 +5,7 @@ from http.server import ThreadingHTTPServer
 import os
 from pathlib import Path
 from trading_bot.server import Handler
+from coinbase_bot.comparison import dashboard_snapshot
 
 
 def main():
@@ -14,7 +15,7 @@ def main():
     args=parser.parse_args()
     token=os.environ.get('CBOT_READ_TOKEN','')
     if len(token)<32: parser.error('Configure a private CBOT_READ_TOKEN of at least 32 characters')
-    server=ThreadingHTTPServer(('127.0.0.1',args.port),partial(Handler,ledger=args.ledger,token=token))
+    server=ThreadingHTTPServer(('127.0.0.1',args.port),partial(Handler,ledger=args.ledger,token=token,reader=dashboard_snapshot))
     try: server.serve_forever()
     finally: server.server_close()
 

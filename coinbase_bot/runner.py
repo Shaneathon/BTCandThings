@@ -16,10 +16,15 @@ def main():
     parser.add_argument('--loop',action='store_true')
     parser.add_argument('--tracker-url',help='Optional coin tracker /status source instead of duplicate public requests')
     parser.add_argument('--observed',action='store_true',help='Separate delayed limit-order execution ledger')
+    parser.add_argument('--fee-filter',action='store_true',help='Separate entry-filter paper experiment; requires --observed')
     args=parser.parse_args()
+    if args.fee_filter and not args.observed: parser.error('--fee-filter requires --observed')
     if args.snapshots and args.tracker_url:
         parser.error('Choose tracker or offline snapshots, not both')
-    if args.observed:
+    if args.fee_filter:
+        from coinbase_bot.fee_filter import FeeFilterBot,FeeFilterConfig
+        bot=FeeFilterBot(args.ledger,FeeFilterConfig(**json.loads(args.config.read_text())))
+    elif args.observed:
         from coinbase_bot.observed import ObservedBot,ObservedConfig
         bot=ObservedBot(args.ledger,ObservedConfig(**json.loads(args.config.read_text())))
     else:

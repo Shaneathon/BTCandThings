@@ -193,10 +193,21 @@ def health(folder,service_check=None,publish=True):
             except subprocess.TimeoutExpired: active=False
         checks[name]='active' if active else 'NOT_ACTIVE'
         if not active: issues.append(dict(level='critical',message='Metals quote sampler is not active'))
+    challenger_unit='cbot-fee-filter-paper.service'
+    challenger_installed=Path('/etc/systemd/system/'+challenger_unit).is_file()
+    if challenger_installed:
+        if service_check: active=service_check(challenger_unit)
+        else:
+            try: active=subprocess.run(['systemctl','is-active','--quiet',challenger_unit],timeout=5).returncode==0
+            except subprocess.TimeoutExpired: active=False
+        checks[challenger_unit]='active' if active else 'NOT_ACTIVE'
+        if not active: issues.append(dict(level='critical',message='Coinbase fee-filter paper experiment is not active'))
     databases=[('/var/lib/btcandthings-research/research.sqlite','collector_status',240,'Research collector'),
                ('/var/lib/coin/research.sqlite','tracker_status',180,'Coinbase tracker'),
                ('/var/lib/pbot/observed-v1.sqlite' if Path('/var/lib/pbot/OBSERVED-ACTIVE').is_file() else '/var/lib/pbot/comparison.sqlite','bot_snapshot',60,'Polymarket paper experiments'),
                ('/var/lib/cbot/observed-v1.sqlite' if Path('/var/lib/cbot/OBSERVED-ACTIVE').is_file() else '/var/lib/cbot/paper.sqlite','bot_snapshot',180,'Coinbase paper bot')]
+    if challenger_installed:
+        databases.append(('/var/lib/cbot/fee-filter-v1.sqlite','bot_snapshot',180,'Coinbase fee-filter experiment'))
     freshness={}
     for source,table,limit,label in databases:
         try:

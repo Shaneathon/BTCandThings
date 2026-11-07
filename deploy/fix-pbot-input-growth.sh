@@ -7,7 +7,9 @@ task_source_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ -f /var/lib/pbot/OBSERVED-ACTIVE && -f /var/lib/pbot/observed-v1.sqlite ]]
 grep -Fq ' -m trading_bot.observed_paper ' /etc/systemd/system/pbot-paper.service
 for name in pbot-paper pbot-status pbot-dashboard pbot-sandbox-input shaneathon-health; do
-  grep -Eq '^WorkingDirectory=/opt/pbot/releases/[A-Za-z0-9_-]+$' "/etc/systemd/system/$name.service" || { echo "Unexpected $name unit; no changes made"; exit 1; }
+  task_allowed='^WorkingDirectory=/opt/pbot/releases/[A-Za-z0-9_-]+$'
+  if [[ "$name" == shaneathon-health ]]; then task_allowed='^WorkingDirectory=/opt/(pbot|cbot|shaneathon-ops)/releases/[A-Za-z0-9_-]+$'; fi
+  grep -Eq "$task_allowed" "/etc/systemd/system/$name.service" || { echo "Unexpected $name unit; no changes made"; exit 1; }
 done
 task_old_release="$(sed -n 's/^WorkingDirectory=//p' /etc/systemd/system/pbot-paper.service)"
 task_release="/opt/pbot/releases/input-$(date -u +%Y%m%dT%H%M%S)-$$"

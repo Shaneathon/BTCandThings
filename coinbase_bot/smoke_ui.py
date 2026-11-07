@@ -46,3 +46,23 @@ with patch.dict('os.environ',{'CBOT_STATUS_URL':'https://status.example/status',
     assert any('Fees are estimated' in item.value for item in app.warning)
     assert any('realized_net_pnl' in frame.value.columns and len(frame.value)==4 for frame in app.dataframe)
     print('PASS CBot observed mode: explicit estimated fees and per-product new-ledger P/L')
+
+# Forward comparison is separate, explicitly small-sample and baseline-preserving.
+from coinbase_bot.fee_filter import FeeFilterBot
+from coinbase_bot.comparison import compare
+import tempfile
+with tempfile.TemporaryDirectory() as folder:
+    a,b=Path(folder)/'observed-v1.sqlite',Path(folder)/'fee-filter-v1.sqlite'
+    base=ObservedBot(a);child=FeeFilterBot(b)
+    base_report=base.cycle({},NOW);child.cycle({},NOW)
+    base.close();child.close()
+    base_report['paper_comparison']=compare(a,b,NOW+1)
+    st.cache_data.clear()
+    with patch.dict('os.environ',{'CBOT_STATUS_URL':'https://status.example/status','CBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}), patch('trading_bot.status_client.read_status',return_value=base_report):
+        app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
+        assert not app.exception,[e.message for e in app.exception]
+        assert any('Forward paper comparison' in h.value for h in app.markdown)
+        assert any('INSUFFICIENT_FORWARD_TRADES' in c.value for c in app.caption)
+        table=next(frame.value for frame in app.dataframe if 'experiment' in frame.value.columns)
+        assert set(table['experiment'])=={'Baseline','Fee filter V1'}
+        print('PASS CBot forward experiment comparison: aligned period, separate rows, small-sample label')
