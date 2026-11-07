@@ -222,6 +222,10 @@ def health(folder,service_check=None,publish=True):
             if data.get('operation_mode')=='OBSERVED_BOOK_PAPER' and (data.get('input_status')!='FRESH' or data.get('input_error')):
                 issues.append(dict(level='critical',message='Polymarket execution input is stale or rejected: '+str(data.get('input_error') or data.get('input_status'))))
             if not 0<=elapsed<=limit: issues.append(dict(level='critical',message=label+' status is stale or clock is ahead'))
+            if data.get('operation_mode')=='OBSERVED_BOOK_PAPER' and Path('/etc/systemd/system/pbot-hourly-review.timer').is_file():
+                reviewed=(data.get('automatic_review') or {}).get('reviewed_at')
+                if reviewed is None or not 0<=now-reviewed<=5400:
+                    issues.append(dict(level='warning',message='PBot hourly paper review has no recent successful run'))
             if data.get('operation_mode')=='PRODUCT_WALLETS_PAPER' and (data.get('input_error') or data.get('input_status')=='UNAVAILABLE'):
                 issues.append(dict(level='critical',message=label+' input rejected: '+str(data.get('input_error') or data.get('input_status'))))
             if data.get('real_trading') is True or data.get('orders_enabled') is True or data.get('account',{}).get('live_orders_enabled') is True:

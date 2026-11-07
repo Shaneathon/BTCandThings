@@ -161,3 +161,15 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     assert history_table.iloc[0]['Net P/L ($)']=='-1.25'
     assert any('Proposed entry range: $0.50–$5' in c.value for c in app.caption)
     print('PASS PBot trade detail/history: last fill description, outcome/fees, complete-history control and $0.50–$5 proposed entry range')
+
+# A guard pause is distinct from a frozen engine and includes Central expiry.
+click_data['automatic_review']=dict(reviewed_at=current,wallets=[dict(wallet='ETH_5m',status='PAUSED_NEW',closed_trades=10,net_pnl='-20',entry_pause=dict(paused_until=current+21600))])
+click_data['portfolios']['ETH_5m']['automatic_entry_pause']=dict(paused_until=current+21600,reason='Hourly paper loss guard fixture')
+st.cache_data.clear()
+with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status','PBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}),patch('trading_bot.status_client.read_status',return_value=click_data):
+    app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
+    next(r for r in app.radio if r.label=='Click a market or model').set_value('ETH_5m').run(timeout=20)
+    assert not app.exception,[e.message for e in app.exception]
+    assert any('Automatic entry pause until '+central(current+21600) in w.value for w in app.warning)
+    assert any(e.label=='Hourly paper review and automatic entry pauses' for e in app.expander)
+    print('PASS hourly paper guard: review results and Central pause expiry shown without live controls')

@@ -44,6 +44,7 @@ def wallet_state(report,packet,health,now,paused=False,orders=()):
     a=report['account'];activity=report['activity'];stream=(a.get('market_pnl') or [{}])[0]
     if health['engine_age_seconds']<0 or health['engine_age_seconds']>30: return dict(state='ENGINE_STALE',severity='error')
     if health.get('input_error') or not health['input_fresh']: return dict(state='INPUT_BLOCKED',severity='error')
+    if report.get('automatic_entry_pause'): return dict(state='AUTOMATIC_ENTRY_PAUSE',severity='warning')
     if paused: return dict(state='ENTRIES_PAUSED',severity='warning')
     if a.get('halted_reason'): return dict(state='RISK_HALT',severity='warning')
     if activity['pending_orders']:

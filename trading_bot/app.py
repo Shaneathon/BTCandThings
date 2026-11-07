@@ -77,7 +77,7 @@ def content():
     if data.get('operation_mode') == 'OBSERVED_BOOK_PAPER':
         from trading_bot.display_status import central,ago,table_times
         health=data.get('display_health',{})
-        labels={'ENGINE_STALE':'Engine heartbeat stale','INPUT_BLOCKED':'Input unavailable — entries blocked',
+        labels={'AUTOMATIC_ENTRY_PAUSE':'Automatic paper loss guard — new entries paused','ENGINE_STALE':'Engine heartbeat stale','INPUT_BLOCKED':'Input unavailable — entries blocked',
                 'ENTRIES_PAUSED':'New entries paused','RISK_HALT':'Risk halt',
                 'RISK_BUDGET_EXHAUSTED':'Entry risk budget exhausted','ORDER_ALREADY_ATTEMPTED':'Order already attempted — waiting for next window','ORDER_PROCESSING_LATE':'Pending order overdue',
                 'ORDER_PENDING':'Order awaiting execution check','AWAITING_OFFICIAL_SETTLEMENT':'Waiting for official settlement',
@@ -145,6 +145,10 @@ def content():
                     else: st.info('No filled trades in this history selection yet.')
                 except Exception as error:
                     st.error('Trade history unavailable ('+type(error).__name__+'). No trades were changed.')
+            control=report.get('automatic_entry_pause')
+            if control:
+                st.warning('Automatic entry pause until '+central(control['paused_until'])+'. Existing positions still settle normally.')
+                st.caption(control['reason'])
             if account.get('halted_reason'): st.error(account['halted_reason'])
         st.info('OBSERVED-BOOK PAPER · New forward ledgers. Old fixed-price results are excluded. Real orders remain disabled.')
         st.caption('Input: '+data.get('input_status','UNKNOWN')+' · '+data.get('fee_basis',''))
@@ -182,6 +186,15 @@ def content():
             st.markdown('#### Historical skip reasons and order decisions')
             st.caption('These timestamps show when each distinct market/reason was FIRST recorded. Old rows are not a current alarm; use the live status above.')
             st.dataframe(table_times(report.get('decisions',[])),hide_index=True,width='stretch')
+        review=data.get('automatic_review')
+        with st.expander('Hourly paper review and automatic entry pauses'):
+            if review:
+                st.caption('Last review: '+central(review['reviewed_at'])+' · '+ago(review['reviewed_at']))
+                if time.time()-review['reviewed_at']>5400: st.warning('Hourly review is overdue; check its service. Existing entry protections remain active.')
+                st.caption('Each wallet: pause new entries for 6 hours after at least 10 current-policy settled trades lose $20 or more within 24 hours. After expiry, a new sample is required. Models and limits are never loosened automatically.')
+                st.dataframe([dict(wallet=r['wallet'],status=r['status'],closed_trades=r['closed_trades'],net_pnl=r['net_pnl'],
+                    paused_until=central((r.get('entry_pause') or {}).get('paused_until'))) for r in review['wallets']],hide_index=True,width='stretch')
+            else: st.caption('Hourly automatic review is not installed or has not completed its first run.')
         with st.expander('Execution rules and remaining assumptions'):
             for item in data.get('limitations',[]): st.write(item)
             st.json(data.get('configuration',{}))

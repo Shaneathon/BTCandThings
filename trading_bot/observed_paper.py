@@ -46,6 +46,8 @@ class Engine:
           CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value REAL);
           CREATE TABLE IF NOT EXISTS bot_snapshot(id INTEGER PRIMARY KEY,observed_at REAL,payload TEXT);
         ''')
+        from trading_bot.automatic_review import initialize
+        initialize(self.db)
         with self.db:
             self.db.execute('INSERT OR IGNORE INTO settings VALUES(1,?)',(expected,))
             for name in slots(): self.db.execute('INSERT OR IGNORE INTO wallets VALUES(?,?,?,NULL)',(name,'1000','1000'))
@@ -88,6 +90,8 @@ class Engine:
         reserve=sum((amount(p['reserve']) for p in pending),Decimal(0))
         capacity=min(Decimal(SETTINGS['max_trade_cost']),cash-reserve,Decimal(10)-exposure-reserve,
                      Decimal(100)+daily-exposure-reserve,high*Decimal('.10')-(high-cash-exposure)-exposure-reserve)
+        from trading_bot.automatic_review import pause
+        if pause(self.db,wallet,now): capacity=Decimal(0)
         if halted or any(p['state']=='PAPER_OPEN' for p in positions) or pending: capacity=Decimal(0)
         return max(Decimal(0),capacity)
 
@@ -139,6 +143,11 @@ class Engine:
         result['book_requested_at']=snapshot.get('request_started_at')
         if blocked: result.update(state='REJECTED',reason='PAUSED_OR_STALE_INPUT')
         with self.db:
+            self.db.execute('BEGIN IMMEDIATE')
+            from trading_bot.automatic_review import pause
+            if pause(self.db,wallet,now):
+                result=simulate(plan,{},now)
+                result.update(state='REJECTED',reason='AUTOMATIC_ENTRY_PAUSE')
             # Conditional transition is the exactly-once guard after restarts.
             updated=self.db.execute("UPDATE orders SET state=?,result=? WHERE wallet=? AND market_slug=? AND state='PROPOSED'",
                                     (result['state'],json.dumps(result),wallet,slug)).rowcount
@@ -173,7 +182,8 @@ class Engine:
             pending=[json.loads(r[0]) for r in self.db.execute("SELECT payload FROM orders WHERE wallet=? AND state='PROPOSED'",(name,))]
             states=dict(self.db.execute('SELECT state,count(*) FROM orders WHERE wallet=? GROUP BY state',(name,)))
             events=[dict(market_slug=s,reason=r,observed_at=t) for s,r,t in self.db.execute('SELECT market_slug,reason,observed_at FROM events WHERE wallet=? ORDER BY observed_at DESC LIMIT 10',(name,))]
-            reports[name]=dict(account=dict(cash=cash,high_water=high,halted_reason=halted,
+            from trading_bot.automatic_review import pause
+            reports[name]=dict(automatic_entry_pause=pause(self.db,name,now),account=dict(cash=cash,high_water=high,halted_reason=halted,
                     open_exposure=str(sum((amount(p['cost']) for p in opened),Decimal(0))),
                     reserved_cash=str(sum((amount(p['reserve']) for p in pending),Decimal(0))),
                     realized_pnl=str(sum((Decimal(p['pnl']) for p in positions if p['state']=='PAPER_CLOSED'),Decimal(0))),
@@ -191,6 +201,8 @@ class Engine:
                                  'Rule-template direction mapping requires both UP and DOWN resolved-contract corroboration.'])
         policy=self.db.execute('SELECT changed_at FROM configuration_history ORDER BY id DESC LIMIT 1').fetchone()
         report['entry_policy_changed_at']=policy[0] if policy else None
+        from trading_bot.automatic_review import latest
+        report['automatic_review']=latest(self.db)
         with self.db: self.db.execute('INSERT INTO bot_snapshot VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET observed_at=excluded.observed_at,payload=excluded.payload',(now,json.dumps(report)))
         return report
 
