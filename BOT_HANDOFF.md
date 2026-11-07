@@ -217,3 +217,23 @@ Resume phrase:
 The new Coinbase tracker code is prepared, not deployed. Its public REST archive
 does not capture every tick or L2 update. Account fee tiers/private fills,
 Coinbase-specific cloud upload and historical backfill are not connected.
+
+
+## Latest maintenance/metals follow-up
+
+Metals sampler installation was confirmed, with both sources receiving fresh
+quotes and warming up at 2026-11-07 00:20 UTC. Research release:
+`/opt/btcandthings-research/releases/20261107T001947-40910`; maintenance release
+then `/opt/shaneathon-ops/releases/20261107T002021-41210`. Hosted tracker data
+wiring is not confirmed by this backend installation. Paper slots require
+50 valid contiguous minute bars plus a current verified market.
+
+Health at 00:20:23 UTC flagged Coinbase status stale and the most recent local
+backup failed. Subsequent Coinbase logs at 00:22:36 and 00:22:55 show all four
+products healthy again; do not restart it merely because of the older report.
+Backup log: 00:00 run timed out after 120 seconds copying the actively written
+Coin database. Prior 18-database backup and cloud export remain intact.
+A pinned read-transaction backup fix with a five-minute deadline is prepared;
+eight maintenance tests pass, including concurrent writer commit/snapshot
+consistency. It is not yet confirmed deployed. Next action: update maintenance,
+retry only the backup job, then refresh health. No bots/collectors restart.

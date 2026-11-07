@@ -37,7 +37,7 @@ def atomic_json(path,data,group=None):
     finally: Path(temporary).unlink(missing_ok=True)
 
 
-def copy_database(source,destination,timeout=120):
+def copy_database(source,destination,timeout=300):
     source,destination=Path(source),Path(destination)
     if source.is_symlink() or not source.is_file(): raise ValueError('Source must be a regular database, not a symlink')
     if source.resolve()==destination.resolve(): raise ValueError('Backup destination must be separate')
@@ -45,13 +45,22 @@ def copy_database(source,destination,timeout=120):
     started=time.monotonic()
     def progress(status,remaining,total):
         if time.monotonic()-started>timeout: raise TimeoutError('Database backup deadline exceeded')
+    original=None
     try:
-        with sqlite3.connect(source.resolve().as_uri()+'?mode=ro',uri=True,timeout=5) as original:
+        original=sqlite3.connect(source.resolve().as_uri()+'?mode=ro',uri=True,timeout=5)
+        try:
+            # Pin one WAL read snapshot. Without it, frequent writer commits
+            # can repeatedly restart an incremental backup until its deadline.
+            original.execute('BEGIN')
+            original.execute('SELECT name FROM sqlite_master LIMIT 1').fetchone()
             target=sqlite3.connect(destination)
             try:
-                original.backup(target,pages=128,progress=progress,sleep=.05)
+                original.backup(target,pages=1024,progress=progress,sleep=.05)
                 if target.execute('PRAGMA quick_check').fetchall()!=[('ok',)]: raise ValueError('Restored database failed integrity check')
             finally: target.close()
+        finally:
+            if original.in_transaction: original.rollback()
+            original.close()
     except Exception:
         destination.unlink(missing_ok=True)
         raise

@@ -18,6 +18,14 @@ not an atomic full Supabase/schema/PITR backup. Existing table data is read only
 Credentials are neither printed nor included in these application archives.
 Provider full-droplet backups separately include the droplet's protected files.
 
+Busy WAL databases use an explicit pinned read transaction before incremental
+copy so concurrent writer commits do not repeatedly restart the snapshot. WAL
+writers can continue committing; checkpoints may retain extra WAL pages while
+the reader exists. The per-database deadline is five minutes, with a 15-minute
+service deadline. This is bounded consistent copying, not a request to stop the
+collector. A regression test commits a newer source version during the read
+snapshot and verifies that the restored backup retains the earlier version.
+
 Only generated completed sets with the tool's manifest marker are rotated:
 up to 24 SQLite sets / roughly 4 GiB and 7 cloud-data sets / roughly 1 GiB,
 always keeping at least the latest two. The size cap is therefore soft when

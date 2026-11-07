@@ -39,6 +39,34 @@ class MaintenanceTests(unittest.TestCase):
             link=root/'link';link.symlink_to(source)
             with self.assertRaises(ValueError): copy_database(link,root/'unused')
 
+    def test_snapshot_stays_fixed_while_another_wal_connection_commits(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);source=root/'live.sqlite';destination=root/'backup.sqlite'
+            writer=sqlite3.connect(source)
+            writer.execute('PRAGMA journal_mode=WAL')
+            writer.execute('CREATE TABLE sample (version INTEGER)')
+            writer.execute('INSERT INTO sample VALUES (1)');writer.commit()
+            commits=[]
+            real_connect=sqlite3.connect
+            class PinnedReader(sqlite3.Connection):
+                def execute(self,sql,*args,**kwargs):
+                    result=super().execute(sql,*args,**kwargs)
+                    if self.in_transaction and sql.startswith('SELECT') and not commits:
+                        # The read snapshot is established, but the writer
+                        # must still be able to commit a newer version.
+                        writer.execute('UPDATE sample SET version=2');writer.commit();commits.append(True)
+                    return result
+            def connect(path,*args,**kwargs):
+                if kwargs.get('uri'): kwargs['factory']=PinnedReader
+                return real_connect(path,*args,**kwargs)
+            with patch('operations.maintenance.sqlite3.connect',side_effect=connect):
+                copy_database(source,destination)
+            self.assertTrue(commits)
+            self.assertEqual(writer.execute('SELECT version FROM sample').fetchone()[0],2)
+            with real_connect(destination) as restored:
+                self.assertEqual(restored.execute('SELECT version FROM sample').fetchone()[0],1)
+            writer.close()
+
     def test_backup_set_is_private_checked_and_pruning_preserves_unknown_files(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);source=root/'data.sqlite'
