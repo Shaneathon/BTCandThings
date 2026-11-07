@@ -394,3 +394,19 @@ execution_model.taker_fee; no production coefficient selection or activation.
 Simulated level fills disclose ONE_SIMULATED_EXECUTION_PER_CONSUMED_PRICE_LEVEL:
 aggregate books cannot reveal actual execution partitions, hence rounding can
 differ from real exchange fees. Maker rebates not assumed for taker fills.
+
+### Cache probe succeeded; first update stopped safely at test packaging
+
+User ran fix-pbot-book-cache.sh. Fresh query for BTC15m0200z returned
+CF MISS, Age absent, Date/transaction current at 2026-11-07T02:07:04Z,
+58 bids/41 offers, fresh_response_verified true. Provider accepts this query.
+Then isolated release cache-20261107T020704-45982 failed test import because
+verify_runtime tests import coinbase_bot.observed but bundle copied only
+trading_bot. Failure occurred before unit edits/restarts, so old running bots,
+ledgers and balances were unchanged. No need to delete failed release or ledger.
+
+Fixed BOTH fix-pbot-book-cache.sh and start-pbot-sandbox.sh preparation copies
+to include coinbase_bot Python package required by diagnostic tests. Verified
+using the actual embedded copy code into an isolated temporary release (not
+checkout imports): all46 PBot tests plus UI smoke checks pass. User should fetch
+and rerun the same cache-fix command; fresh probe still gates any service change.

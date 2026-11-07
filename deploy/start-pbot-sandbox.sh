@@ -26,11 +26,12 @@ python3 - "$task_source_root" "$task_release" <<'PY'
 from pathlib import Path
 import shutil,sys
 source,target=map(Path,sys.argv[1:])
-for item in (source/'trading_bot').rglob('*.py'):
-    if '__pycache__' in item.parts: continue
-    dest=target/item.relative_to(source)
-    dest.parent.mkdir(parents=True,exist_ok=True)
-    shutil.copyfile(item,dest);dest.chmod(0o644)
+for package in ('trading_bot','coinbase_bot'):
+    for item in (source/package).rglob('*.py'):
+        if '__pycache__' in item.parts: continue
+        dest=target/item.relative_to(source)
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copyfile(item,dest);dest.chmod(0o644)
 PY
 python3 -m venv "$task_release/venv"
 "$task_release/venv/bin/python" -m pip install --disable-pip-version-check -r "$task_source_root/trading_bot/requirements.txt"

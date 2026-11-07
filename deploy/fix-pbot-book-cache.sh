@@ -18,10 +18,11 @@ python3 - "$task_source_root" "$task_release" <<'PY'
 from pathlib import Path
 import shutil,sys
 source,target=map(Path,sys.argv[1:])
-for item in (source/'trading_bot').rglob('*.py'):
-    if '__pycache__' in item.parts: continue
-    dest=target/item.relative_to(source);dest.parent.mkdir(parents=True,exist_ok=True)
-    shutil.copyfile(item,dest);dest.chmod(0o644)
+for package in ('trading_bot','coinbase_bot'):
+    for item in (source/package).rglob('*.py'):
+        if '__pycache__' in item.parts: continue
+        dest=target/item.relative_to(source);dest.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copyfile(item,dest);dest.chmod(0o644)
 PY
 # Reuse the installed dependencies; old release/venv is never edited.
 ln -s "$task_old_release/venv" "$task_release/venv"
