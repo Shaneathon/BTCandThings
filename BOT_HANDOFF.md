@@ -50,6 +50,18 @@ feeds, validated Level-2/replay, autonomous experiment review/promotion, optiona
 external notifications, full restore rehearsal. Betting Lab accordion change
 must be confirmed in its original app conversation. Keep manual steps minimal.
 
+Metals follow-up: user supplied live contract descriptions confirming Chainlink
+XAU/USD-Streams-ForexPrice (2 decimals) and XAG/USD-Streams-ForexPrice (3 decimals).
+User's two unauthenticated Gold-API checks returned USD/XAU 4072.100098 and
+USD/XAG 52.070999 with fresh source timestamps near 23:54 UTC November 6.
+Prepared in `metal_proxy/` and `deploy/install-metals-proxy.sh`, not deployed yet:
+a private sampled spot-quote cache/API, 50-contiguous-minute warm-up, no fake
+backfill/volume, strict source timestamp handling, explicit proxy provenance.
+Official targets/settlements remain Chainlink. Installer updates only the
+multiasset research reader plus maintenance code; Champion/Challenger, Coin
+and paper engines keep running. Separately hosted tracker wiring still needs
+verification; do not claim website charts were deployed by this script.
+
 ## Historical November 6 implementation notes (superseded above)
 
 Coin and PBot are deployed on the user's DigitalOcean droplet, with HTTPS

@@ -2,6 +2,7 @@
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import sys
 import time
@@ -98,8 +99,9 @@ def collect(store, get=get_json, now=None):
             feeds[asset] = frame
             rows = []
             for bar in frame.itertuples(index=False):
-                rows.append(dict(asset=asset, source_name='Kraken' if config['pair'] else 'Yahoo futures proxy',
-                    source_symbol=config['pair'] or {'GOLD':'GC=F','SILVER':'SI=F'}[asset], interval_seconds=60,
+                local_metal=not config['pair'] and bool(os.environ.get('BTC_METALS_PROXY_URL','').strip())
+                rows.append(dict(asset=asset, source_name='Kraken' if config['pair'] else 'Gold-API sampled spot proxy' if local_metal else 'Yahoo futures proxy',
+                    source_symbol=config['pair'] or ({'GOLD':'XAU/USD','SILVER':'XAG/USD'} if local_metal else {'GOLD':'GC=F','SILVER':'SI=F'})[asset], interval_seconds=60,
                     candle_open=bar.time.isoformat(), open_price=float(bar.open), high_price=float(bar.high),
                     low_price=float(bar.low), close_price=float(bar.close),
                     volume=float(bar.volume) if bar.volume == bar.volume else None,
@@ -175,7 +177,8 @@ def collect(store, get=get_json, now=None):
                         model_role='RESEARCH', predicted_up_probability=signal['probability'],
                         lean_direction=signal['direction'], source_timestamp=iso(signal['source_time']),
                         feature_snapshot=dict(asset=asset, duration_seconds=seconds, score=signal['score'],
-                                              swing=signal['swing'], spot=signal['price'], target=current['official_price_to_beat']))
+                                              swing=signal['swing'], spot=signal['price'], target=current['official_price_to_beat'],
+                                              price_source=source,is_official_price_source=False))
         with store.db:
             cursor = store.db.execute('INSERT OR IGNORE INTO research_snapshots VALUES (?,?,?,?)',
                 (snapshot['market_slug'], snapshot['recorded_at'], MODEL, json.dumps(snapshot, allow_nan=False)))

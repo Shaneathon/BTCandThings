@@ -6,6 +6,7 @@ reference or settlement feed. No API secrets, trades, or DB writes are used.
 from datetime import datetime, timezone
 from html import escape
 import math
+import os
 
 import pandas as pd
 
@@ -48,6 +49,19 @@ def load_candles(get_json, asset, pair, now):
         frame["time"] = pd.to_datetime(pd.to_numeric(frame["time"]), unit="s", utc=True)
         label = "Kraken crypto spot proxy (not official US settlement)"
     else:
+        proxy=os.environ.get('BTC_METALS_PROXY_URL','').strip().rstrip('/')
+        if proxy:
+            if proxy not in ('http://127.0.0.1:8770','http://localhost:8770'):
+                raise ValueError('Expected reviewed loopback metals source')
+            raw=get_json(proxy+'/candles',{'asset':asset})
+            symbol={'GOLD':'XAU/USD','SILVER':'XAG/USD'}.get(asset)
+            if (raw.get('asset')!=asset or raw.get('currency')!='USD' or raw.get('source_symbol')!=symbol
+                    or raw.get('is_official_settlement_feed') is not False):
+                raise ValueError('Metals proxy identity/currency unverified')
+            columns=['time','open','high','low','close','volume']
+            frame=pd.DataFrame(raw.get('candles',[]),columns=columns)
+            frame['time']=pd.to_datetime(frame['time'],unit='s',utc=True)
+            return clean_ohlc(frame,now),'Gold-API sampled '+symbol+' quote proxy (NOT official Chainlink; sampled candles)'
         symbol = METAL_FUTURES.get(asset)
         if symbol is None:
             raise ValueError("No configured market-data proxy")

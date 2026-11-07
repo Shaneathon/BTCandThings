@@ -59,6 +59,7 @@ def copy_database(source,destination,timeout=120):
 
 def inventory():
     sources=[Path('/var/lib/btcandthings-research/research.sqlite'),Path('/var/lib/coin/research.sqlite')]
+    sources.append(Path('/var/lib/btc-metals-proxy/quotes.sqlite'))
     for folder in ('/var/lib/pbot','/var/lib/cbot'):
         sources.extend(sorted(Path(folder).glob('*.sqlite')))
     sources.extend(Path('/root/BTCandThings/BTCandThings_Website/BTCandThings_Upload').glob('*.sqlite3'))
@@ -175,6 +176,14 @@ def health(folder,service_check=None,publish=True):
             except subprocess.TimeoutExpired: active=False
         checks[name]='active' if active else 'NOT_ACTIVE'
         if not active: issues.append(dict(level='critical',message=name+' is not active'))
+    if Path('/etc/systemd/system/btc-metals-proxy.service').is_file():
+        name='btc-metals-proxy.service'
+        if service_check: active=service_check(name)
+        else:
+            try: active=subprocess.run(['systemctl','is-active','--quiet',name],timeout=5).returncode==0
+            except subprocess.TimeoutExpired: active=False
+        checks[name]='active' if active else 'NOT_ACTIVE'
+        if not active: issues.append(dict(level='critical',message='Metals quote sampler is not active'))
     databases=[('/var/lib/btcandthings-research/research.sqlite','collector_status',240,'Research collector'),
                ('/var/lib/coin/research.sqlite','tracker_status',180,'Coinbase tracker'),
                ('/var/lib/pbot/comparison.sqlite','bot_snapshot',60,'Polymarket paper experiments'),
@@ -229,7 +238,7 @@ def health(folder,service_check=None,publish=True):
     atomic_json(folder/'health.json',report)
     portal=Path('/var/www/shaneathon-portal')
     if publish and portal.is_dir() and not portal.is_symlink():
-        content=('''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shaneathon health</title><link rel="stylesheet" href="/portal.css"></head><body><main><p class="eyebrow">SHANEATHON</p><h1>System health: '''+escape(report['state'])+'</h1><p class="intro">Checked '+escape(report['checked_at'])+'</p><section class="card"><h2>Checks</h2><ul>'+''.join('<li>'+escape(item['level']+': '+item['message'])+'</li>' for item in issues)+'</ul><p>'+str(len(SERVICES))+' services checked. '+str(report['root_free_gib'])+' GiB disk available.</p><p>Alerts are recorded here and in the server journal; external notifications are not configured.</p></section><p><a href="/">Back to portal</a></p></main></body></html>')
+        content=('''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shaneathon health</title><link rel="stylesheet" href="/portal.css"></head><body><main><p class="eyebrow">SHANEATHON</p><h1>System health: '''+escape(report['state'])+'</h1><p class="intro">Checked '+escape(report['checked_at'])+'</p><section class="card"><h2>Checks</h2><ul>'+''.join('<li>'+escape(item['level']+': '+item['message'])+'</li>' for item in issues)+'</ul><p>'+str(len(checks))+' services checked. '+str(report['root_free_gib'])+' GiB disk available.</p><p>Alerts are recorded here and in the server journal; external notifications are not configured.</p></section><p><a href="/">Back to portal</a></p></main></body></html>')
         fd,temporary=tempfile.mkstemp(dir=portal,prefix='.health-')
         try:
             with os.fdopen(fd,'w') as stream: stream.write(content)
