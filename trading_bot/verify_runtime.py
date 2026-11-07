@@ -98,15 +98,47 @@ def cbot_report(path,now):
                 fee_basis=snapshot.get('fee_basis'))
 
 
+def public_book_report(input_path,ledger,now):
+    """At most one unauthenticated GET, no retry, respect observed cooldown."""
+    from urllib.parse import quote
+    from urllib.request import Request,urlopen
+    with connect(ledger) as db: budget=dict(db.execute('SELECT key,value FROM meta'))
+    if budget.get('retry_until',0)>now or now-budget.get('last_request',0)<3:
+        return dict(state='SKIPPED_TO_RESPECT_BOT_REQUEST_BUDGET')
+    data=json.loads(Path(input_path).read_text())
+    rows=[m for m in data.get('markets',[]) if m.get('market_slug')==data.get('requested_market')]
+    if not rows: return dict(state='NO_CURRENT_BTC15_CONTRACT')
+    contract=rows[0]['contract_slug']
+    request=Request('https://gateway.polymarket.us/v1/markets/'+quote(contract,safe='')+'/book',
+                    headers={'User-Agent':'Shaneathon-ObservedPaper/1.0','Cache-Control':'no-cache'},method='GET')
+    try:
+        with urlopen(request,timeout=5) as response:
+            raw=response.read(4_000_001)
+            if len(raw)>4_000_000: raise ValueError('RESPONSE_TOO_LARGE')
+            payload=json.loads(raw);book=payload.get('marketData') or {}
+            headers={name:response.headers.get(name) for name in ('Date','Age','Cache-Control','CF-Cache-Status')}
+            return dict(state='PUBLIC_BOOK_OBSERVED',contract=contract,headers=headers,
+                        contract_matches=book.get('marketSlug')==contract,book_state=book.get('state'),
+                        bid_levels=len(book.get('bids') or []),offer_levels=len(book.get('offers') or []),
+                        last_transaction_at=book.get('transactTime'))
+    except Exception as error:
+        return dict(state='PUBLIC_BOOK_CHECK_FAILED',error=type(error).__name__,http_status=getattr(error,'code',None))
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--input',type=Path,default=Path('/var/lib/pbot-input/dual-sandbox.json'))
     parser.add_argument('--pbot',type=Path,default=Path('/var/lib/pbot/observed-v1.sqlite'))
     parser.add_argument('--cbot',type=Path,default=Path('/var/lib/cbot/observed-v1.sqlite'))
+    parser.add_argument('--public-book',action='store_true',help='One public unauthenticated quote-header check, no retries')
     args=parser.parse_args();now=time.time()
     for label,callback in [('INPUT',lambda:input_report(args.input,now)),('PBOT',lambda:pbot_report(args.pbot,now)),('CBOT',lambda:cbot_report(args.cbot,now))]:
         print(label)
         try: print(json.dumps(callback(),indent=2,allow_nan=False))
+        except Exception as error: print(json.dumps(dict(check_failed=type(error).__name__)))
+    if args.public_book:
+        print('PUBLIC BOOK HEADERS')
+        try: print(json.dumps(public_book_report(args.input,args.pbot,time.time()),indent=2))
         except Exception as error: print(json.dumps(dict(check_failed=type(error).__name__)))
     print('SERVICES')
     for name in ('btc-collector','btc-challenger','btc-multiasset-research','pbot-sandbox-input.timer','pbot-paper','pbot-status','pbot-dashboard','coin-collector','cbot-paper','cbot-status','cbot-dashboard'):
