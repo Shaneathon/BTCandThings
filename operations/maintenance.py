@@ -204,6 +204,8 @@ def health(folder,service_check=None,publish=True):
                 row=db.execute('SELECT observed_at,payload FROM '+table+' LIMIT 1').fetchone()
             elapsed=age(row[0],now);data=json.loads(row[1])
             freshness[label]=round(elapsed,1)
+            if data.get('operation_mode')=='OBSERVED_BOOK_PAPER' and (data.get('input_status')!='FRESH' or data.get('input_error')):
+                issues.append(dict(level='critical',message='Polymarket execution input is stale or rejected: '+str(data.get('input_error') or data.get('input_status'))))
             if not 0<=elapsed<=limit: issues.append(dict(level='critical',message=label+' status is stale or clock is ahead'))
             if data.get('real_trading') is True or data.get('orders_enabled') is True or data.get('account',{}).get('live_orders_enabled') is True:
                 issues.append(dict(level='critical',message=label+' reports live orders enabled'))

@@ -16,8 +16,14 @@ def stamp(t):
 
 
 def inspect(ledger,input_path,now,hours=6,source=None):
-    if Path(input_path).stat().st_size>8_000_000: raise ValueError('Input exceeds engine size limit')
-    data=json.loads(Path(input_path).read_text());cutoff=now-hours*3600
+    from trading_bot.input_packet import read_packet
+    input_bytes=Path(input_path).stat().st_size
+    input_error=None
+    try: data=read_packet(input_path)
+    except (OSError,ValueError) as error:
+        input_error='INPUT_TOO_LARGE' if str(error)=='INPUT_TOO_LARGE' else 'INPUT_UNREADABLE_OR_INVALID'
+        data={}
+    cutoff=now-hours*3600
     markets={m['market_slug']:m for m in data.get('markets',[])}
     rows=[]
     with sqlite3.connect(Path(ledger).resolve().as_uri()+'?mode=ro',uri=True) as db:
@@ -68,6 +74,7 @@ def inspect(ledger,input_path,now,hours=6,source=None):
         budget=dict(db.execute('SELECT key,value FROM meta'))
         lastbook=db.execute('SELECT observed_at FROM books ORDER BY id DESC LIMIT 1').fetchone()
     report=dict(checked_at=stamp(now),period_hours=hours,status_age_seconds=round(now-observed,1),
+                input_bytes=input_bytes,input_rejected_reason=input_error,
                 input_age_seconds=round(now-data.get('exported_at',0),1),
                 live_orders_enabled=snapshot.get('account',{}).get('live_orders_enabled'),
                 pause_file_present=Path(ledger).with_name('STOP-OBSERVED').exists(),

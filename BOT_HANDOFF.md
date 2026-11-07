@@ -3,6 +3,44 @@
 Repository: Shaneathon/BTCandThings. Current preparation branch:
 `tracker/coinbase-research`.
 
+## Prepared live-input growth repair — not yet deployed
+
+User reports little PBot activity over six hours. At Nov7 12:55 UTC, activity
+command failed INPUT exceeds8MB. Running observed engine uses the SAME8MB cap;
+its old handler silently substitutes an empty input, blocks new entries AND
+cannot process settlements until input returns. It can keep reporting a fresh
+engine heartbeat while input_status is STALE. This is a concrete fault, not
+proof that all earlier low activity was normal strategy selection.
+
+Exporter copied ALL historical market rows including full settlement_evidence
+contract JSON, unbounded with history. Source metadata also carried unnecessary
+charts/tags. Fix prepared in `deploy/fix-pbot-input-growth.sh --apply`:
+- source history and ledgers untouched; compact live packet, last24h markets plus
+  EVERY market referenced by an open position or pending proposal, even if old;
+- each transported settlement proof has SHA256/source archive locator instead
+  of duplicating full evidence. Status/winner/target/identity/times preserved;
+  complete original proof remains in collector records/evidence tables;
+- current/next30min metadata only, needed fields only; resolved cohort proof
+  still computed from original evidence. Strict8MB byte cap stays in place;
+  exporter validates before atomic replace, missing required market/read failures
+  abort instead of silently dropping an outstanding settlement;
+- input read uses one bounded descriptor; malformed/oversized inputs explicitly
+  appear in engine status/dashboard and trigger critical private health report;
+- diagnostic activity now survives oversized input and still reads ledger
+  activity (input_error is explicit), rather than crashing;
+- new immutable source bundle includes trading_bot, coinbase_bot and operations,
+  tested from isolated directory. Temporarily pauses ONLY PBot input export
+  timer/oneshot to avoid old export racing the bounded packet, updates bot and
+  health unit paths, restarts PBot components, resumes timer. Validates input
+  bytes plus FRESH engine input/liveFalse; restores old units on failure;
+- prints six-hour activity audit after successful repair. Keeps existing
+  balances, risk settings, strategy, cache bypass and live disabled interlocks.
+
+Validation:51 PBot tests including >12MB historical packet shrink to<1MB,
+required old settlement retention, read-only pins, missing-pin failure,
+existing-position compact-proof payout exactly once;8 ops tests;14 CBot tests;
+isolated deployment bundle and UI smoke checks pass. No server deployment yet.
+
 ## Latest user runtime evidence and prepared cache fix
 
 Observed migration completed successfully around 2026-11-07 01:32 UTC, user

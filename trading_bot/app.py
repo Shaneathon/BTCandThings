@@ -58,6 +58,7 @@ def content():
     if data.get('operation_mode') == 'OBSERVED_BOOK_PAPER':
         st.info('OBSERVED-BOOK PAPER · New forward ledgers. Old fixed-price results are excluded. Real orders remain disabled.')
         st.caption('Input: '+data.get('input_status','UNKNOWN')+' · '+data.get('fee_basis',''))
+        if data.get('input_error'): st.error('Execution input rejected: '+data['input_error']+' — new entries are blocked.')
         rows=[]
         for name,report in data.get('portfolios',{}).items():
             account=report['account']

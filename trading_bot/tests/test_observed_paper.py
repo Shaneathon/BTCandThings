@@ -79,6 +79,19 @@ class ObservedTests(unittest.TestCase):
         self.assertGreater(Decimal(closed['realized_pnl']),0)
         self.assertEqual(closed['market_pnl'][0]['closed_trades'],1)
 
+    def test_compact_settlement_evidence_pays_existing_position_once(self):
+        from trading_bot.input_packet import compact_markets
+        self.engine.propose('Champion',self.m,self.p,self.details,self.quotes(NOW),NOW,NOW-1)
+        payload=self.engine.db.execute('SELECT payload FROM orders').fetchone()[0]
+        self.engine.complete('Champion',self.m['market_slug'],payload,self.quotes(NOW+4),NOW+4)
+        self.m.update(settlement_status='VERIFIED',official_winner='UP',settled_at=iso(NOW+61),settlement_evidence='large official archive'*1000)
+        packet=compact_markets([self.m],NOW+62,{self.m['market_slug']})
+        self.engine.settle(packet,NOW+62)
+        cash=self.engine.report(NOW+62,True)['portfolios']['Champion']['account']['cash']
+        self.engine.settle(packet,NOW+63)
+        self.assertEqual(self.engine.report(NOW+63,True)['portfolios']['Champion']['account']['cash'],cash)
+        self.assertEqual(self.engine.report(NOW+63,True)['portfolios']['Champion']['account']['market_pnl'][0]['closed_trades'],1)
+
     def test_restart_reservation_expiry_and_pause_never_charge_fee(self):
         self.engine.propose('Champion',self.m,self.p,self.details,self.quotes(NOW),NOW,NOW-1)
         self.assertEqual(self.engine.risk('Champion',NOW),0)

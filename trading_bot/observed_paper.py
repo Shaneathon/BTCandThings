@@ -278,7 +278,11 @@ def cycle(engine,data,client,now,paused=False):
                 break
             except Exception as error:
                 engine.event(wallet,m['market_slug'],str(error) if isinstance(error,ValueError) else type(error).__name__,now)
-    return engine.report(time.time() if client.__class__ is BookClient else now,fresh)
+    result=engine.report(time.time() if client.__class__ is BookClient else now,fresh)
+    if data.get('input_error'):
+        result['input_error']=data['input_error']
+        with engine.db: engine.db.execute('UPDATE bot_snapshot SET payload=? WHERE id=1',(json.dumps(result),))
+    return result
 
 
 def main():
@@ -288,10 +292,11 @@ def main():
     args=parser.parse_args();engine=Engine(args.ledger);client=BookClient(engine)
     try:
         while True:
+            from trading_bot.input_packet import read_packet
             try:
-                if args.input.stat().st_size>8_000_000: raise ValueError('INPUT_TOO_LARGE')
-                data=json.loads(args.input.read_text())
-            except (OSError,ValueError): data={}
+                data=read_packet(args.input)
+            except (OSError,ValueError) as error:
+                data=dict(input_error='INPUT_TOO_LARGE' if str(error)=='INPUT_TOO_LARGE' else 'INPUT_UNREADABLE_OR_INVALID')
             report=cycle(engine,data,client,time.time(),paused=args.kill_file.exists())
             print(json.dumps(dict(mode=report['operation_mode'],input=report['input_status'],live_orders=False)),flush=True)
             time.sleep(1)

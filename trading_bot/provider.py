@@ -86,7 +86,7 @@ def directional_book(m,details,proof,response,request_started,received):
                         liquidation_bids=sorted(levels('offers',True),key=lambda r:amount(r['price']),reverse=True))}
 
 
-def evidence_packet(source):
+def evidence_packet(source,now=None):
     """Read-only, bounded latest evidence per contract; exported without secrets."""
     from pathlib import Path
     import sqlite3
@@ -106,5 +106,20 @@ def evidence_packet(source):
             row['total']+=1;row[winner]+=1;row['conflicts']+=int(not matches)
     # Keep full metadata only for recent unclosed contracts; past contracts are
     # represented by aggregate corroboration, not duplicated in each export.
-    metadata={k:v for k,v in metadata.items() if v.get('closed') is not True}
-    return dict(metadata=metadata,proofs=proofs)
+    keep={}
+    for slug,d in metadata.items():
+        if d.get('closed') is True: continue
+        terms=d.get('assetPriceTerms') or {}
+        if now is not None:
+            try:
+                if time_of(terms['windowEnd'])<now or time_of(terms['windowStart'])>now+1800: continue
+            except (KeyError,TypeError,ValueError): continue
+        # Charts, tags, provider tracking and price history are not needed for
+        # execution identity/mapping. Original evidence remains in the source DB.
+        compact={k:d[k] for k in ('slug','description','closed','status','orderPriceMinTickSize',
+                                 'minimumTradeQty','feeCoefficient') if k in d}
+        compact['assetPriceTerms']={k:terms[k] for k in ('asset','marketType','horizon','windowStart','windowEnd','priceToBeat') if k in terms}
+        compact['marketSides']=[{k:s[k] for k in ('identifier','description','long','tradable','price') if k in s}
+                                for s in d.get('marketSides',[])]
+        keep[slug]=compact
+    return dict(metadata=keep,proofs=proofs)

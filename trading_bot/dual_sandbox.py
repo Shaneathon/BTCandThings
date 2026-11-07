@@ -170,13 +170,18 @@ class Sandbox(PaperBot):
             raise
 
 
-def export(source, output, group, all_markets=False, execution_evidence=False):
+def export(source, output, group, all_markets=False, execution_evidence=False, execution_ledger=Path('/var/lib/pbot/observed-v1.sqlite')):
     now = time.time()
     start = int(now)//900*900
     slug = 'btc-updown-15m-'+datetime.fromtimestamp(start,timezone.utc).strftime('%Y-%m-%d-%H%M')+'z'
     with sqlite3.connect(Path(source).resolve().as_uri()+'?mode=ro',uri=True) as db:
         db.execute('BEGIN')
-        markets=[json.loads(row[0]) for row in db.execute("SELECT payload FROM records WHERE kind='market'")]
+        market_rows=(json.loads(row[0]) for row in db.execute("SELECT payload FROM records WHERE kind='market'"))
+        if execution_evidence:
+            from trading_bot.input_packet import compact_markets,required_markets
+            markets=compact_markets(market_rows,now,required_markets(execution_ledger))
+        else:
+            markets=list(market_rows)
         research=[]
         if all_markets:
             cutoff=datetime.fromtimestamp(now-180,timezone.utc).isoformat()
@@ -209,11 +214,13 @@ def export(source, output, group, all_markets=False, execution_evidence=False):
     data=dict(exported_at=time.time(),markets=markets,predictions=predictions+research,requested_market=slug,feed_errors=feed_errors)
     if execution_evidence:
         from trading_bot.provider import evidence_packet
-        data['execution_evidence']=evidence_packet(source)
+        data['execution_evidence']=evidence_packet(source,now=now)
+    from trading_bot.input_packet import encode_packet
+    encoded=encode_packet(data) if execution_evidence else json.dumps(data,allow_nan=False).encode()
     fd,temporary=tempfile.mkstemp(dir=Path(output).parent,prefix='.sandbox-')
     try:
-        with os.fdopen(fd,'w') as stream:
-            json.dump(data,stream,allow_nan=False);stream.flush();os.fsync(stream.fileno())
+        with os.fdopen(fd,'wb') as stream:
+            stream.write(encoded);stream.flush();os.fsync(stream.fileno())
         os.chown(temporary,0,group);os.chmod(temporary,0o640)
         os.replace(temporary,output)
     finally:
