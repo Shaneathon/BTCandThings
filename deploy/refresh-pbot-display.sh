@@ -64,6 +64,10 @@ for attempt in range(25):
         assert data['operation_mode']=='OBSERVED_BOOK_PAPER' and data['account']['live_orders_enabled'] is False
         assert not data.get('display_health_error') and 'display_health' in data
         for name,report in data['portfolios'].items():
+            assert set(report['performance_periods'])=={'current','earlier','all'}
+            from decimal import Decimal
+            periods=report['performance_periods']
+            assert Decimal(periods['current']['realized_pnl'])+Decimal(periods['earlier']['realized_pnl'])==Decimal(periods['all']['realized_pnl'])
             assert 'activity' in report and 'display_state' in report and 'last_trade' in report['activity']
         history=read_trades('http://127.0.0.1:8765/status',os.environ['PBOT_READ_TOKEN'],wallet=next(iter(data['portfolios'])),as_of=time.time())
         print('Read-only trade history ready:',history['total_filled_trades'],'filled trades in first wallet;',history['page_count'],'page(s).')
@@ -80,6 +84,6 @@ PY
 )
 systemctl is-active --quiet pbot-status pbot-dashboard
 task_done=1
-echo 'PBot overview retained; clickable wallets, full-history last-trade times and live freshness indicators added.'
+echo 'PBot now defaults to current $0.50–$5 entry-policy results. Earlier entries and all-history views remain available.'
 echo 'Refresh https://pbot.shaneathon.com . All displayed activity times are Central (CST/CDT).'
-echo 'No engine/collector restart, financial rule change, wallet reset, or live trading.'
+echo 'Actual cash and all history preserved. No engine/collector restart, hourly-review change, wallet reset, or live trading.'

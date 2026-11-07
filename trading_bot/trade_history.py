@@ -8,10 +8,11 @@ import time
 
 
 def trade_row(wallet,p,order_state=None,order_record=None):
+    from trading_bot.performance_periods import label
     closed=p.get('state')=='PAPER_CLOSED'
     payout=p.get('payout')
     result=('WON' if Decimal(str(payout))>0 else 'LOST') if closed and payout is not None else 'OPEN'
-    return dict(wallet=wallet,market_slug=p.get('market_slug'),asset=p.get('asset'),duration_seconds=p.get('duration_seconds'),
+    return dict(entry_policy=label(p),wallet=wallet,market_slug=p.get('market_slug'),asset=p.get('asset'),duration_seconds=p.get('duration_seconds'),
                 model_version=p.get('model_version'),side=p.get('side'),quantity=p.get('quantity'),entry_price=p.get('entry_price'),
                 fees=p.get('fees'),cost=p.get('cost'),result=result,payout=payout,pnl=p.get('pnl'),
                 opened_at=p.get('opened_at'),closed_at=p.get('closed_at'),window_start=p.get('window_start'),window_end=p.get('window_end'),

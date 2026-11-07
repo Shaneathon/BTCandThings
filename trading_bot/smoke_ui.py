@@ -131,7 +131,7 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     selector=next(r for r in app.radio if r.label=='Click a market or model')
     selector.set_value('ETH_5m').run(timeout=20)
     assert not app.exception,[e.message for e in app.exception]
-    assert [m.value for m in app.metric if m.label=='Wallet virtual cash']==['$998.75']
+    assert [m.value for m in app.metric if m.label=='Wallet virtual cash · all history']==['$998.75']
     assert [m.value for m in app.metric if m.label=='Wallet realized paper P/L']==['$-1.25']
     assert any(central(current-600) in m.value for m in app.markdown)
     assert any('FIRST recorded' in c.value for c in app.caption)
@@ -173,3 +173,25 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     assert any('Automatic entry pause until '+central(current+21600) in w.value for w in app.warning)
     assert any(e.label=='Hourly paper review and automatic entry pauses' for e in app.expander)
     print('PASS hourly paper guard: review results and Central pause expiry shown without live controls')
+
+# Performance selector defaults to current tagged entries, without resetting cash.
+from trading_bot.performance_periods import breakdown,CURRENT
+for name,r in click_data['portfolios'].items():
+    market=r['account']['market_pnl'][0]
+    r['performance_periods']=breakdown([],streams=[(market['asset'],market['duration_seconds'])])
+old=dict(market_slug='old-profit',asset='ETH',duration_seconds=300,state='PAPER_CLOSED',cost='1',fees='0',payout='11',pnl='10')
+new=dict(old,market_slug='new-loss',cost='2',payout='0',pnl='-2',entry_limits=dict(version=CURRENT))
+click_data['portfolios']['ETH_5m']['performance_periods']=breakdown([old,new],streams=[('ETH',300)])
+st.cache_data.clear()
+with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status','PBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}),patch('trading_bot.status_client.read_status',return_value=click_data):
+    app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
+    next(r for r in app.radio if r.label=='Click a market or model').set_value('ETH_5m').run(timeout=20)
+    assert not app.exception,[e.message for e in app.exception]
+    assert [m.value for m in app.metric if m.label=='Wallet realized paper P/L']==['$-2.00']
+    assert [m.value for m in app.metric if m.label=='Wallet virtual cash · all history']==['$998.75']
+    next(r for r in app.radio if r.label=='Performance results').set_value('Earlier entries').run(timeout=20)
+    assert not app.exception,[e.message for e in app.exception]
+    assert [m.value for m in app.metric if m.label=='Wallet realized paper P/L']==['$10.00']
+    next(r for r in app.radio if r.label=='Performance results').set_value('All history').run(timeout=20)
+    assert [m.value for m in app.metric if m.label=='Wallet realized paper P/L']==['$8.00']
+    print('PASS policy performance selector: current/earlier/all totals separate; actual wallet cash preserved')

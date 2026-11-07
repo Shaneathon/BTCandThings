@@ -94,6 +94,8 @@ def enrich(path,result,now=None,input_path=Path('/var/lib/pbot-input/dual-sandbo
         for name,report in result.get('portfolios',{}).items():
             positions=[json.loads(p[0]) for p in db.execute('SELECT payload FROM positions WHERE wallet=?',(name,))]
             orders=[(state,json.loads(payload)) for state,payload in db.execute('SELECT state,payload FROM orders WHERE wallet=?',(name,))]
+            from trading_bot.performance_periods import breakdown
+            report['performance_periods']=breakdown(positions,streams=[(r['asset'],r['duration_seconds']) for r in report['account'].get('market_pnl',[])])
             latest=max((p['opened_at'] for p in positions),default=None)
             closed=max((p['closed_at'] for p in positions if p.get('state')=='PAPER_CLOSED'),default=None)
             proposed=max((p['plan']['created_at'] for _,p in orders),default=None)

@@ -85,6 +85,11 @@ def content():
                 'WAITING_FOR_ENTRY_WINDOW':'Waiting for entry window','ENTRY_WINDOW_CLOSED':'Waiting for next window',
                 'WAITING_FOR_FRESH_SIGNAL':'Waiting for fresh prediction','WAITING_FOR_PAIRED_SIGNAL':'Waiting for both control predictions',
                 'EVALUATING_BOOK_AND_EDGE':'Checking quotes and net edge'}
+        has_periods=all('performance_periods' in r for r in data.get('portfolios',{}).values())
+        period_options=('Current $0.50–$5 entries','Earlier entries','All history') if has_periods else ('All history',)
+        period_choice=st.radio('Performance results',period_options,horizontal=True,key='pbot_performance_period')
+        period_key={'Current $0.50–$5 entries':'current','Earlier entries':'earlier','All history':'all'}[period_choice]
+        st.caption('Performance view: '+period_choice+'. Trades are grouped by the policy used at entry, including partial fills. Wallet cash and activity times always include full history.')
         choices=list(data.get('portfolios',{}))
         if choices:
             chosen=st.radio('Click a market or model',choices,horizontal=True,key='pbot_wallet_choice',
@@ -95,11 +100,13 @@ def content():
             (st.error if state.get('severity')=='error' else st.warning if state.get('severity')=='warning' else st.info)(description)
             if state.get('window_end'):
                 st.caption('Current market closes '+central(state['window_end'])+' · approximately '+str(int(state['seconds_remaining']))+' seconds remaining. Entries are evaluated in the final 90–30 seconds.')
+            performance=report.get('performance_periods',{}).get(period_key,{})
             values=st.columns(4)
-            values[0].metric('Wallet virtual cash',f"${float(account['cash']):,.2f}")
-            values[1].metric('Wallet realized paper P/L',f"${float(account['realized_pnl']):,.2f}")
-            values[2].metric('Wallet open cost',f"${float(account['open_exposure']):,.2f}")
-            values[3].metric('Filled trades',activity.get('filled_trade_count','—'))
+            values[0].metric('Wallet virtual cash · all history',f"${float(account['cash']):,.2f}")
+            values[1].metric('Wallet realized paper P/L',f"${float(performance.get('realized_pnl',account['realized_pnl'])):,.2f}")
+            values[2].metric('Wallet open cost',f"${float(performance.get('open_cost',account['open_exposure'])):,.2f}")
+            values[3].metric('Filled trades',performance.get('filled_trades',activity.get('filled_trade_count','—')))
+            st.caption('P/L, open cost and filled-trade count above use '+period_choice+'. Cash is the actual wallet balance; it has not been reset.')
             st.markdown('**Last filled trade:** '+central(activity.get('last_filled_at'))+' · '+ago(activity.get('last_filled_at')))
             st.markdown('**Last settlement processed:** '+central(activity.get('last_settled_at'))+' · '+ago(activity.get('last_settled_at')))
             st.caption('Last order proposed: '+central(activity.get('last_order_proposed_at'))+'. Unfilled proposals are excluded from filled-trade history.')
@@ -108,7 +115,7 @@ def content():
             if last_trade:
                 st.write('**'+str(last_trade['market_slug'])+'** · **'+str(last_trade['side'])+'** · '+str(last_trade['quantity'])+' contracts at average $'+format(float(last_trade['entry_price']),'.4f'))
                 net=('$'+str(last_trade['pnl'])) if last_trade.get('pnl') is not None else 'Pending settlement'
-                st.caption('Total entry cost including fees: $'+str(last_trade['cost'])+' · Modeled fees: $'+str(last_trade['fees'])+' · Result: '+last_trade['result']+' · Net P/L: '+net)
+                st.caption('Entry policy: '+last_trade.get('entry_policy','Unclassified')+' · Total entry cost including fees: $'+str(last_trade['cost'])+' · Modeled fees: $'+str(last_trade['fees'])+' · Result: '+last_trade['result']+' · Net P/L: '+net)
                 if last_trade.get('order_state'): st.caption('Order outcome: '+last_trade['order_state']+' · Requested quantity: '+str(last_trade.get('requested_quantity')))
             else: st.info('No filled trades yet in this wallet.')
             limits=data.get('configuration',{})
@@ -129,7 +136,7 @@ def content():
                 anchor=st.session_state[anchor_key]
                 try:
                     first=history(url,token,target,1,anchor)
-                    st.caption(str(first['total_filled_trades'])+' filled trades · History membership as of '+central(anchor)+'. Refresh to include newer fills. Unfilled proposals are excluded.')
+                    st.caption(str(first['total_filled_trades'])+' filled trades across all entry policies (labeled per row) · History membership as of '+central(anchor)+'. Refresh to include newer fills. Unfilled proposals are excluded.')
                     selected_page=st.selectbox('History page',range(1,first['page_count']+1),key=page_key,
                                               format_func=lambda n:'Page '+str(n)+' of '+str(first['page_count']))
                     result=first if selected_page==1 else history(url,token,target,selected_page,anchor)
@@ -137,7 +144,7 @@ def content():
                         formatted=[]
                         for trade in result['trades']:
                             formatted.append({'Filled (Central)':central(trade['opened_at']),'Wallet':trade['wallet'],
-                                'Market':trade['market_slug'],'Direction':trade['side'],'Contracts':trade['quantity'],
+                                'Entry policy':trade.get('entry_policy','Unclassified'),'Market':trade['market_slug'],'Direction':trade['side'],'Contracts':trade['quantity'],
                                 'Average entry ($)':trade['entry_price'],'Fees ($)':trade['fees'],'Total cost ($)':trade['cost'],
                                 'Result':trade['result'],'Payout ($)':trade['payout'],'Net P/L ($)':trade['pnl'],
                                 'Settlement processed (Central)':central(trade['closed_at']),'Order outcome':trade['order_state']})
@@ -171,18 +178,20 @@ def content():
         rows=[]
         for name,report in data.get('portfolios',{}).items():
             account=report['account'];activity=report.get('activity',{})
-            for row in account.get('market_pnl',[]):
+            for row in report.get('performance_periods',{}).get(period_key,{}).get('market_pnl',account.get('market_pnl',[])):
                 rows.append(dict(wallet=name,**row,cash=account['cash'],reserved_cash=account['reserved_cash'],
                                  order_states=str(report.get('order_states',{})),
                                  last_trade_central=central(activity.get('last_filled_at')),
                                  current_status=labels.get(report.get('display_state',{}).get('state'),'Unverified')))
-        st.markdown('### New paper P/L by market and wallet')
-        st.caption('Each wallet starts with $1,000 independently. These balances are not one pooled funded account.')
+        st.markdown('### Paper P/L by market and wallet · '+period_choice)
+        st.caption('Each wallet originally started with $1,000 independently. Cash includes all history; performance columns use the selected entry policy. These balances are not pooled.')
         if rows: st.dataframe(rows,hide_index=True,width='stretch')
         if choices:
             report=data['portfolios'][chosen];account=report['account']
-            st.markdown('#### Recent positions')
-            st.dataframe(table_times(account['positions']),hide_index=True,width='stretch')
+            st.markdown('#### Recent positions · '+period_choice)
+            from trading_bot.performance_periods import period,label
+            st.dataframe(table_times([dict(p,entry_policy=label(p)) for p in account['positions'] if period_key=='all' or period(p)==period_key]),hide_index=True,width='stretch')
+            st.caption('Recent positions are a bounded preview. Full trade history retains both policies, labeled per trade.')
             st.markdown('#### Historical skip reasons and order decisions')
             st.caption('These timestamps show when each distinct market/reason was FIRST recorded. Old rows are not a current alarm; use the live status above.')
             st.dataframe(table_times(report.get('decisions',[])),hide_index=True,width='stretch')
