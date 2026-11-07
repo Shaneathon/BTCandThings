@@ -22,8 +22,8 @@ def frame(n=40):
 
 class CandleTests(unittest.TestCase):
     def test_all_twelve_views_have_a_feed_configuration(self):
-        self.assertEqual(len(ASSETS)*len(DURATIONS), 12)
-        self.assertEqual(set(ASSETS), {"BTC","ETH","XRP","SOL","GOLD","SILVER"})
+        self.assertEqual(len(ASSETS)*len(DURATIONS), 8)
+        self.assertEqual(set(ASSETS), {"BTC","ETH","XRP","SOL"})
         for asset, config in ASSETS.items():
             self.assertTrue(config["pair"] or asset in ("GOLD","SILVER"))
 

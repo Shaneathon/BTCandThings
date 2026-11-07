@@ -12,8 +12,6 @@ ASSETS = (
     ("ETH", "Ethereum", "eth", ("eth",)),
     ("XRP", "XRP", "xrp", ("xrp",)),
     ("SOL", "Solana", "sol", ("sol",)),
-    ("GOLD", "Gold", "gold", ("gold", "xau")),
-    ("SILVER", "Silver", "silver", ("silver", "xag")),
 )
 
 

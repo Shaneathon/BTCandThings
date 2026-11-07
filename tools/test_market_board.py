@@ -10,7 +10,7 @@ from market_board import ASSETS, market_slug, typed_reference, format_price
 
 class MarketBoardTests(unittest.TestCase):
     def test_six_assets_and_slug(self):
-        self.assertEqual([a[0] for a in ASSETS], ["BTC","ETH","XRP","SOL","GOLD","SILVER"])
+        self.assertEqual([a[0] for a in ASSETS], ["BTC","ETH","XRP","SOL"])
         t = int(datetime(2026,11,4,20,15,tzinfo=timezone.utc).timestamp())
         self.assertEqual(market_slug("silver",t),"silver-updown-15m-2026-11-04-2015z")
 
