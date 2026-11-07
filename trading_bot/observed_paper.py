@@ -205,8 +205,8 @@ class BookClient:
             if used>1024**3 or shutil.disk_usage(path.parent).free<4*1024**3: raise ValueError('QUOTE_ARCHIVE_STORAGE_BUDGET')
         requested=time.time()
         with self.engine.db: self.engine.db.execute("INSERT INTO meta VALUES('last_request',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(requested,))
-        request=Request('https://gateway.polymarket.us/v1/markets/'+quote(m['contract_slug'],safe='')+'/book',
-                        headers={'User-Agent':'Shaneathon-ObservedPaper/1.0','Cache-Control':'no-cache'},method='GET')
+        from trading_bot.book_request import request as make_book_request
+        request=make_book_request(m['contract_slug'])
         try:
             with urlopen(request,timeout=5) as response:
                 raw=response.read(4_000_001)

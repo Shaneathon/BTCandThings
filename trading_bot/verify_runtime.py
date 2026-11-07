@@ -98,7 +98,7 @@ def cbot_report(path,now):
                 fee_basis=snapshot.get('fee_basis'))
 
 
-def public_book_report(input_path,ledger,now):
+def public_book_report(input_path,ledger,now,bypass=False):
     """At most one unauthenticated GET, no retry, respect observed cooldown."""
     from urllib.parse import quote
     from urllib.request import Request,urlopen
@@ -109,15 +109,23 @@ def public_book_report(input_path,ledger,now):
     rows=[m for m in data.get('markets',[]) if m.get('market_slug')==data.get('requested_market')]
     if not rows: return dict(state='NO_CURRENT_BTC15_CONTRACT')
     contract=rows[0]['contract_slug']
-    request=Request('https://gateway.polymarket.us/v1/markets/'+quote(contract,safe='')+'/book',
-                    headers={'User-Agent':'Shaneathon-ObservedPaper/1.0','Cache-Control':'no-cache'},method='GET')
+    from trading_bot.book_request import request as make_request
+    request=make_request(contract,bypass=bypass)
     try:
         with urlopen(request,timeout=5) as response:
             raw=response.read(4_000_001)
             if len(raw)>4_000_000: raise ValueError('RESPONSE_TOO_LARGE')
             payload=json.loads(raw);book=payload.get('marketData') or {}
             headers={name:response.headers.get(name) for name in ('Date','Age','Cache-Control','CF-Cache-Status')}
-            return dict(state='PUBLIC_BOOK_OBSERVED',contract=contract,headers=headers,
+            from email.utils import parsedate_to_datetime
+            from trading_bot.execution_audit import book_summary
+            received=time.time()
+            book_summary(payload,contract,received)
+            current=rows[0]
+            fresh=(headers['Date'] is not None and -5<=received-parsedate_to_datetime(headers['Date']).timestamp()<=5
+                   and 0<=float(headers['Age'] or '0')<=5
+                   and time_of(current['window_start'])<=received<time_of(current['window_end']))
+            return dict(cache_bypass_requested=bypass,fresh_response_verified=fresh,state='PUBLIC_BOOK_OBSERVED',contract=contract,headers=headers,
                         contract_matches=book.get('marketSlug')==contract,book_state=book.get('state'),
                         bid_levels=len(book.get('bids') or []),offer_levels=len(book.get('offers') or []),
                         last_transaction_at=book.get('transactTime'))
@@ -130,8 +138,14 @@ def main():
     parser.add_argument('--input',type=Path,default=Path('/var/lib/pbot-input/dual-sandbox.json'))
     parser.add_argument('--pbot',type=Path,default=Path('/var/lib/pbot/observed-v1.sqlite'))
     parser.add_argument('--cbot',type=Path,default=Path('/var/lib/cbot/observed-v1.sqlite'))
+    parser.add_argument('--cache-probe',action='store_true',help='Only probe a unique-query fresh public book; does not modify services')
     parser.add_argument('--public-book',action='store_true',help='One public unauthenticated quote-header check, no retries')
     args=parser.parse_args();now=time.time()
+    if args.cache_probe:
+        result=public_book_report(args.input,args.pbot,now,bypass=True)
+        print(json.dumps(result,indent=2))
+        if not result.get('fresh_response_verified'): raise SystemExit(1)
+        return
     for label,callback in [('INPUT',lambda:input_report(args.input,now)),('PBOT',lambda:pbot_report(args.pbot,now)),('CBOT',lambda:cbot_report(args.cbot,now))]:
         print(label)
         try: print(json.dumps(callback(),indent=2,allow_nan=False))

@@ -3,6 +3,45 @@
 Repository: Shaneathon/BTCandThings. Current preparation branch:
 `tracker/coinbase-research`.
 
+## Latest user runtime evidence and prepared cache fix
+
+Observed migration completed successfully around 2026-11-07 01:32 UTC, user
+visually confirmed both dashboards. CBot release /opt/cbot/releases/20261107T013213-44072.
+User later reported SOL5m observed paper partially-filled remainder-cancelled
+order settled loss1.00 + fee.06 = net loss1.06, wallet998.94, no open position.
+
+User requested verification after seeing historical PBot skip events. Read-only
+`trading_bot.verify_runtime` added and run by user. Returned excerpt confirms:
+CBot status age1.8s, four FILLED orders, no overdue proposals, accounting exactly
+reconciles: cash900.0192095358722 + open99.3259410950354 =1000-0.6548493690924.
+LiveFalse, all listed original collectors and bot services active. User pasted
+only tail of PBot report; cannot certify all its wallet accounting from that tail.
+
+Important public book evidence: exact BTC15m contract response has 50 bid and47
+ask levels, OPEN, CF-Cache-Status HIT, Cache-Control public,max-age=30, Age16.
+Thus strict five-second freshness rejection is appropriate. Request no-cache
+headers alone did not prevent cached responses. Old skip table records distinct
+first observations, not present health/retry counts. Paired-control check can
+log missing signal before entry window, so don't infer a broken bot from it.
+
+Prepared but not yet user-applied: `deploy/fix-pbot-book-cache.sh --apply`.
+It first sends ONE public cache-keyed query probe via verify_runtime --cache-probe;
+requires exact-contract valid book, current window and fresh Date/Age <=5s before
+any service modification. Respects known bot request cooldown/spacing; if skipped
+or invalid exits with services untouched. If successful prepares immutable PBot
+source release reusing installed venv through a symlink, tests it, changes only
+PBot unit paths and restarts engine/status/UI. Same ledger/config and limits;
+no wallet reset or financial rule changes. Falls back to prior units on startup
+failure. Coinbase/collectors/ops health unit unaffected. Existing freshness
+checks remain strict for every request, even after probe success.
+
+New helper `trading_bot.book_request.request` adds an opaque UUID query key and
+standard no-cache headers. This ordinary HTTP cache-key technique is conditional
+on the actual provider accepting it; never claim guaranteed bypass from code
+alone. Root development environment cannot reach gateway; user-run probe proves
+response behavior. If unsupported/ignored and stale, stop and investigate another
+provider-supported fresh transport; do not loosen quote ages or allow stale fills.
+
 ## Prepared observed-price migration — NOT YET deployed
 
 User explicitly expanded realism work to BOTH Polymarket and Coinbase. Future
