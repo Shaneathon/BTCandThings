@@ -6,7 +6,7 @@ Repository: Shaneathon/BTCandThings. Current preparation branch:
 ## Current confirmed status — November 6, 2026
 
 This section supersedes historical preparation notes below. Last server evidence:
-2026-11-06 23:47:54 UTC (5:47 PM Central). Do not infer current runtime health
+2026-11-07 00:33:28 UTC (November 6, 6:33 PM Central). Do not infer current runtime health
 forever from this timestamp; recheck before deploying or reporting live status.
 
 - btc.shaneathon.com, coin.shaneathon.com, pbot.shaneathon.com and
@@ -16,7 +16,7 @@ forever from this timestamp; recheck before deploying or reporting live status.
 - shaneathon.com portal works with server-side password protection. Username
   is Shaneathon; password is private and never belongs in chat/Git. Portal
   protection does not restrict direct access to individual dashboards.
-- All 14 monitored services were active in the latest health output. Original
+- All 15 monitored services, including the metals sampler, were active in the latest health output. Original
   btc-collector and btc-challenger remained running and Champion unchanged.
 - PBot preserves Champion/B BTC15m control ledgers and has ten additional
   independent research wallets. Eight crypto streams monitor fresh predictions;
@@ -29,14 +29,15 @@ forever from this timestamp; recheck before deploying or reporting live status.
 - DigitalOcean automated daily backups were enabled by user and confirmed in
   screenshot. First completed provider backup is not yet evidenced.
 - Maintenance deployment is confirmed: seven server tests passed, first local
-  set successfully backed up and integrity-checked **18 databases** at
-  23:47:52 UTC. No backup failure recorded. Hourly SQLite snapshots, daily
+  set successfully backed up and integrity-checked **19 databases**, including
+  the metals cache, at 2026-11-07 00:33:28 UTC. The pinned-snapshot fix resolved
+  the earlier Coinbase copy timeout; latest backup and health states are OK. Hourly SQLite snapshots, daily
   Supabase public-data exports and five-minute health timers are enabled.
 - First cloud export subsequently completed successfully at 23:48:07 UTC:
   402 btc_markets rows, 24,226 btc_predictions rows and 5,205 Challenger rows.
   Its earlier pending-export warning should clear at the next health run.
   These are private local exports of cloud rows, not a full Supabase schema/PITR backup.
-- Root disk had 40.46 GiB free and memory 954 MiB available in that output.
+- Root disk had 40.12 GiB free and memory 933 MiB available in that output.
 - Private health report: https://shaneathon.com/health.html. Alerts are local
   journal/report only; no email/SMS/webhook notifications are configured.
 - **Real trading is disabled and not authorized.** User authorizes autonomous
@@ -237,3 +238,12 @@ A pinned read-transaction backup fix with a five-minute deadline is prepared;
 eight maintenance tests pass, including concurrent writer commit/snapshot
 consistency. It is not yet confirmed deployed. Next action: update maintenance,
 retry only the backup job, then refresh health. No bots/collectors restart.
+
+
+Confirmed follow-up: pinned-snapshot maintenance update deployed at
+`/opt/shaneathon-ops/releases/20261107T003139-41781`. Eight server tests passed.
+Backup retry completed 19 databases at 00:33:28 UTC; health state OK, all 15
+services active, fresh status ages (research 68.3s, Coin 9.5s, PBot 1.0s,
+CBot 53.7s). Only GOLD_15m/SILVER_15m paused notices remain. Sampler started
+near 00:20 UTC, so warm-up had not completed; actual candle counts/readiness
+and valid current contracts still need checking after sufficient history.
