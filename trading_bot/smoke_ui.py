@@ -107,3 +107,32 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     assert len(table)==12
     assert all(value=='0' for value in table['realized_net_pnl'])
     print('PASS PBot observed execution: 12 separate new ledgers, zero inherited artificial profit')
+
+# Click-through views and Central last-trade times retain the original overview.
+import copy,time
+from trading_bot.display_status import central
+click_data=copy.deepcopy(observed);current=time.time()
+click_data['observed_at']=current
+click_data['display_health']=dict(engine_updated_at=current,input_updated_at=current-1,input_fresh=True,input_error=None,
+                                 last_filled_at=current-600,last_settled_at=current-500)
+for name,state in click_data['portfolios'].items():
+    state['activity']=dict(last_filled_at=None,last_settled_at=None,last_order_proposed_at=None,filled_trade_count=0)
+    state['display_state']=dict(state='WAITING_FOR_ENTRY_WINDOW',severity='info')
+eth=click_data['portfolios']['ETH_5m']
+eth['account'].update(cash='998.75',realized_pnl='-1.25')
+eth['activity'].update(last_filled_at=current-600,last_settled_at=current-500,filled_trade_count=1)
+st.cache_data.clear()
+with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status','PBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}),patch('trading_bot.status_client.read_status',return_value=click_data):
+    app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
+    assert not app.exception,[e.message for e in app.exception]
+    table=next(frame.value for frame in app.dataframe if 'reserved_cash' in frame.value.columns)
+    assert len(table)==12
+    assert 'last_trade_central' in table.columns
+    selector=next(r for r in app.radio if r.label=='Click a market or model')
+    selector.set_value('ETH_5m').run(timeout=20)
+    assert not app.exception,[e.message for e in app.exception]
+    assert [m.value for m in app.metric if m.label=='Wallet virtual cash']==['$998.75']
+    assert [m.value for m in app.metric if m.label=='Wallet realized paper P/L']==['$-1.25']
+    assert any(central(current-600) in m.value for m in app.markdown)
+    assert any('FIRST recorded' in c.value for c in app.caption)
+    print('PASS PBot clickable wallets: overview retained, selected P/L and Central trade time shown, historical skips labeled')

@@ -59,24 +59,66 @@ def content():
         st.info('OBSERVED-BOOK PAPER · New forward ledgers. Old fixed-price results are excluded. Real orders remain disabled.')
         st.caption('Input: '+data.get('input_status','UNKNOWN')+' · '+data.get('fee_basis',''))
         if data.get('input_error'): st.error('Execution input rejected: '+data['input_error']+' — new entries are blocked.')
+        from trading_bot.display_status import central,ago,table_times
+        health=data.get('display_health',{})
+        if data.get('display_health_error'): st.error('Activity details could not be verified: '+data['display_health_error'])
+        panels=st.columns(4)
+        age=time.time()-health.get('engine_updated_at',data.get('observed_at',0))
+        input_age=time.time()-health['input_updated_at'] if health.get('input_updated_at') is not None else None
+        input_fresh=input_age is not None and 0<=input_age<=45 and not health.get('input_error')
+        panels[0].metric('Engine heartbeat','Active' if 0<=age<=30 else 'STALE')
+        panels[0].caption(central(health.get('engine_updated_at',data.get('observed_at'))))
+        panels[1].metric('Execution input','Fresh' if input_fresh else 'Blocked' if health else 'Unverified')
+        panels[1].caption(central(health['input_updated_at']) if health.get('input_updated_at') is not None else 'Input timestamp unavailable')
+        panels[2].metric('Last filled trade · all wallets',ago(health.get('last_filled_at')))
+        panels[2].caption(central(health.get('last_filled_at')))
+        panels[3].metric('Last settlement processed',ago(health.get('last_settled_at')))
+        panels[3].caption(central(health.get('last_settled_at')))
+        st.caption('All times use America/Chicago Central time (CST/CDT). A waiting wallet can be healthy; heartbeat and input freshness are separate from trading activity.')
+        if health.get('input_error'): st.error('Input check: '+health['input_error'])
+        labels={'ENGINE_STALE':'Engine heartbeat stale','INPUT_BLOCKED':'Input unavailable — entries blocked',
+                'ENTRIES_PAUSED':'New entries paused','RISK_HALT':'Risk halt',
+                'RISK_BUDGET_EXHAUSTED':'Entry risk budget exhausted','ORDER_ALREADY_ATTEMPTED':'Order already attempted — waiting for next window','ORDER_PROCESSING_LATE':'Pending order overdue',
+                'ORDER_PENDING':'Order awaiting execution check','AWAITING_OFFICIAL_SETTLEMENT':'Waiting for official settlement',
+                'POSITION_OPEN':'Paper position open','NO_CURRENT_MARKET':'Waiting for current market',
+                'WAITING_FOR_ENTRY_WINDOW':'Waiting for entry window','ENTRY_WINDOW_CLOSED':'Waiting for next window',
+                'WAITING_FOR_FRESH_SIGNAL':'Waiting for fresh prediction','WAITING_FOR_PAIRED_SIGNAL':'Waiting for both control predictions',
+                'EVALUATING_BOOK_AND_EDGE':'Checking quotes and net edge'}
         rows=[]
         for name,report in data.get('portfolios',{}).items():
-            account=report['account']
+            account=report['account'];activity=report.get('activity',{})
             for row in account.get('market_pnl',[]):
                 rows.append(dict(wallet=name,**row,cash=account['cash'],reserved_cash=account['reserved_cash'],
-                                 order_states=str(report.get('order_states',{}))))
+                                 order_states=str(report.get('order_states',{})),
+                                 last_trade_central=central(activity.get('last_filled_at')),
+                                 current_status=labels.get(report.get('display_state',{}).get('state'),'Unverified')))
         st.markdown('### New paper P/L by market and wallet')
         st.caption('Each wallet starts with $1,000 independently. These balances are not one pooled funded account.')
         if rows: st.dataframe(rows,hide_index=True,width='stretch')
         choices=list(data.get('portfolios',{}))
         if choices:
-            chosen=st.selectbox('Inspect execution wallet',choices)
-            report=data['portfolios'][chosen]
-            if report['account'].get('halted_reason'): st.error(report['account']['halted_reason'])
+            chosen=st.radio('Click a market or model',choices,horizontal=True,key='pbot_wallet_choice',
+                            format_func=lambda name: 'BTC 15m · '+name if name in ('Champion','Challenger B') else name.replace('_',' · ')+' Research')
+            report=data['portfolios'][chosen];account=report['account'];activity=report.get('activity',{})
+            state=report.get('display_state',{});description=labels.get(state.get('state'),'Activity status not yet verified')
+            st.markdown('### '+chosen)
+            (st.error if state.get('severity')=='error' else st.warning if state.get('severity')=='warning' else st.info)(description)
+            if state.get('window_end'):
+                st.caption('Current market closes '+central(state['window_end'])+' · approximately '+str(int(state['seconds_remaining']))+' seconds remaining. Entries are evaluated in the final 90–30 seconds.')
+            values=st.columns(4)
+            values[0].metric('Wallet virtual cash',f"${float(account['cash']):,.2f}")
+            values[1].metric('Wallet realized paper P/L',f"${float(account['realized_pnl']):,.2f}")
+            values[2].metric('Wallet open cost',f"${float(account['open_exposure']):,.2f}")
+            values[3].metric('Filled trades',activity.get('filled_trade_count','—'))
+            st.markdown('**Last filled trade:** '+central(activity.get('last_filled_at'))+' · '+ago(activity.get('last_filled_at')))
+            st.markdown('**Last settlement processed:** '+central(activity.get('last_settled_at'))+' · '+ago(activity.get('last_settled_at')))
+            st.caption('Last order proposed: '+central(activity.get('last_order_proposed_at'))+'. Proposals can remain unfilled; they are not counted as completed trades.')
+            if account.get('halted_reason'): st.error(account['halted_reason'])
             st.markdown('#### Recent positions')
-            st.dataframe(report['account']['positions'],hide_index=True,width='stretch')
-            st.markdown('#### Latest skips and order decisions')
-            st.dataframe(report.get('decisions',[]),hide_index=True,width='stretch')
+            st.dataframe(table_times(account['positions']),hide_index=True,width='stretch')
+            st.markdown('#### Historical skip reasons and order decisions')
+            st.caption('These timestamps show when each distinct market/reason was FIRST recorded. Old rows are not a current alarm; use the live status above.')
+            st.dataframe(table_times(report.get('decisions',[])),hide_index=True,width='stretch')
         with st.expander('Execution rules and remaining assumptions'):
             for item in data.get('limitations',[]): st.write(item)
             st.json(data.get('configuration',{}))

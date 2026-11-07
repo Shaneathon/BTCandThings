@@ -12,7 +12,12 @@ import sqlite3
 def snapshot(path):
     with sqlite3.connect(Path(path).resolve().as_uri()+'?mode=ro',uri=True) as db:
         row=db.execute('SELECT payload FROM bot_snapshot WHERE id=1').fetchone()
-        return json.loads(row[0]) if row else {'account':{'mode':'PAPER','live_orders_enabled':False},'status':'AWAITING_FIRST_CYCLE'}
+        result=json.loads(row[0]) if row else {'account':{'mode':'PAPER','live_orders_enabled':False},'status':'AWAITING_FIRST_CYCLE'}
+    if result.get('operation_mode')=='OBSERVED_BOOK_PAPER':
+        from trading_bot.display_status import enrich
+        try: return enrich(path,result)
+        except Exception as error: result['display_health_error']=type(error).__name__
+    return result
 
 
 class Handler(BaseHTTPRequestHandler):

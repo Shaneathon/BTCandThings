@@ -3,6 +3,40 @@
 Repository: Shaneathon/BTCandThings. Current preparation branch:
 `tracker/coinbase-research`.
 
+## Prepared PBot click-through/activity UI — NOT YET deployed
+
+User wants existing PBot overview retained, clickable individual wallets, last
+trade time in Central so they can distinguish waiting from a frozen bot.
+Prepared deploy/refresh-pbot-display.sh --apply: immutable source bundle with
+PBot/CBot dependencies, reuses installed venv, tests isolated package and UI,
+updates/restarts ONLY pbot-status and pbot-dashboard. No engine, input exporter,
+collector, CBot, wallet, strategy or risk change. Uses private local read-token
+for API readiness without printing it. Restores prior UI/status units on error.
+
+Source trading_bot/display_status.py read-only enrichment for ObservedBook mode
+only; shared server snapshot guard leaves Coinbase and other modes unchanged.
+All ledger history is scanned for actual last fill/last settlement/last proposal,
+not just displayed30 rows. New top heartbeat/input clocks + all-wallet activity,
+preserved overview gets last-trade/status columns, clickable horizontal wallet/
+model picker, selected own cash/P&L/fill count and Central-time positions/events.
+Historical events explicitly first-seen rather than current alarm. Central zone
+America/Chicago handles CST/CDT; trade vs proposal vs settlement time labeled.
+Live display state flags stale engine/input, intentional pause, risk halt/budget,
+queued order, open holding, waiting official outcome, no current market, entry
+window closed/not yet open, missing signal/pair, already attempted market, or
+eligible for book/edge checks. No order enforcement/action occurs in this layer.
+Details/permissions failures show unverified/error rather than healthy guesses.
+Docs research/execution/PBOT_ACTIVITY_DISPLAY.md. Not yet user-applied.
+
+Latest CBot user evidence: independent-wallet migration SUCCEEDED Nov7 14:19UTC
+(8:19AM CST). Both strategy groups have$250 allocations per product. Baseline
+historical P/L preserved: BTC-5.8035565745226, ETH-6.7790669722506,
+XRP-4.8369577168236, SOL-4.5224337802504. ETH open cost28.0812477087080,
+XRP49.9577958511812; BTC/SOL no holdings. Fee-filter wallets each250,no trades.
+All prior migration tests/selector UI passed, original ledger archives retained;
+CBot collectors/PBot not restarted, no real trading. Prior section below was
+written before that successful deployment and is historical.
+
 ## Prepared independent Coinbase product wallets — NOT YET deployed
 
 User explicitly requests money NOT shared across four coins and selected coin's
