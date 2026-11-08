@@ -53,7 +53,7 @@ def inspect(ledger,source):
             check_failures=sum(bool(r['checks']) for r in rows),
             directions={side:dict(positions=len(part),winning_claims=sum(r['winning_claim'] for r in part),
                 net_pnl=str(sum((Decimal(r['net_pnl']) for r in part),Decimal(0)))) for side in ('UP','DOWN') if (part:=[r for r in rows if r['side']==side])}))
-    return dict(policy='Current $0.50–$5 entries only',wallets=summaries,
+    return dict(policy='Current $1.50-target entries only',wallets=summaries,
         integrity_findings=[r for r in examples if r['checks']],
         largest_net_losses=sorted(examples,key=lambda r:Decimal(r['net_pnl']))[:12],
         note='Read-only. Signal probabilities are model estimates, not established accuracy. Filled-trade selection differs from all tracker forecasts. Shared market windows are correlated. No live-profitability claim.')

@@ -15,10 +15,10 @@ class ReviewTests(unittest.TestCase):
 
     def tearDown(self): self.engine.close();self.tmp.cleanup()
 
-    def seed(self,count=10,version=None,offset=0):
+    def seed(self,count=14,version=None,offset=0):
         with self.engine.db:
             for i in range(count):
-                p=dict(market_slug='old'+str(i)+str(offset),asset='BTC',duration_seconds=300,fees='0',payout='0',state='PAPER_CLOSED',pnl='-2',cost='2',opened_at=NOW-1000+i+offset,closed_at=NOW-500+i+offset,
+                p=dict(market_slug='old'+str(i)+str(offset),asset='BTC',duration_seconds=300,fees='0',payout='0',state='PAPER_CLOSED',pnl='-1.5',cost='1.5',opened_at=NOW-1000+i+offset,closed_at=NOW-500+i+offset,
                        entry_limits=dict(version=version or SETTINGS['version']))
                 self.engine.db.execute('INSERT INTO positions VALUES(?,?,?)',('BTC_5m','old'+str(i)+str(offset),json.dumps(p)))
 
@@ -28,7 +28,7 @@ class ReviewTests(unittest.TestCase):
         row=next(r for r in report['wallets'] if r['wallet']=='BTC_5m')
         self.assertEqual(row['status'],'PAUSED_NEW')
         self.assertEqual(self.engine.risk('BTC_5m',NOW),0)
-        self.assertEqual(self.engine.risk('ETH_5m',NOW),Decimal('5'))
+        self.assertEqual(self.engine.risk('ETH_5m',NOW),Decimal('1.50'))
         self.assertEqual(self.engine.db.execute('SELECT * FROM wallets').fetchall(),before)
         self.assertEqual(review(self.path,NOW+10)['state'],'SKIPPED_RECENT_REVIEW')
         until=row['entry_pause']['paused_until']
@@ -38,7 +38,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(row['status'],'INSUFFICIENT_NEW_TRADES')
         self.assertTrue(row['previous_pause_expired'])
         self.assertIsNone(pause(self.engine.db,'BTC_5m',until+1))
-        self.assertEqual(self.engine.risk('BTC_5m',until+1),Decimal('5'))
+        self.assertEqual(self.engine.risk('BTC_5m',until+1),Decimal('1.50'))
 
     def test_small_samples_and_old_entry_policy_do_not_trigger(self):
         self.seed(9);report=review(self.path,NOW)

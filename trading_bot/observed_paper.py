@@ -20,7 +20,8 @@ LEGACY_SETTINGS=dict(version='OBSERVED_PAPER_V1',initial_cash='1000',max_trade_c
               max_daily_loss='100',max_drawdown='.10',minimum_edge='.03',latency_seconds=2,
               max_signal_age=90,quote_limit_allowance='.01',participation='.25',fee='.06',
               fee_basis=FEE_BASIS,entry_seconds_remaining=[30,90],order_ttl_seconds=15)
-SETTINGS=dict(LEGACY_SETTINGS,version='OBSERVED_PAPER_V2_050_5',min_trade_cost='0.50',max_trade_cost='5')
+PREVIOUS_SETTINGS=dict(LEGACY_SETTINGS,version='OBSERVED_PAPER_V2_050_5',min_trade_cost='0.50',max_trade_cost='5')
+SETTINGS=dict(PREVIOUS_SETTINGS,version='OBSERVED_PAPER_V3_FIXED_150',target_trade_cost='1.50',max_trade_cost='1.50')
 
 
 def slots():
@@ -127,7 +128,7 @@ class Engine:
         plan.validate()
         reserve=quantity*(limit+Decimal('.020'))
         payload=dict(plan=asdict(plan),market=m,reserve=str(reserve),signal=p,available_at=available_at,initial_book=book,
-                     entry_limits=dict(version=SETTINGS['version'],minimum_proposed_cost=SETTINGS['min_trade_cost'],maximum_total_cost=SETTINGS['max_trade_cost'],estimated_proposed_cost=str(proposed_cost)),
+                     entry_limits=dict(version=SETTINGS['version'],minimum_proposed_cost=SETTINGS['min_trade_cost'],maximum_total_cost=SETTINGS['max_trade_cost'],target_cost=SETTINGS.get('target_trade_cost'),estimated_proposed_cost=str(proposed_cost)),
                      api_fee_coefficient=details.get('feeCoefficient'),provider_minimum_quantity=str(provider_min),
                      legacy_feature_time_unknown=not bool(p.get('source_timestamp')))
         with self.db:

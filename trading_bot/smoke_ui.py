@@ -159,8 +159,8 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     history_table=next(f.value for f in app.dataframe if 'Average entry ($)' in f.value.columns)
     assert history_table.iloc[0]['Result']=='LOST'
     assert history_table.iloc[0]['Net P/L ($)']=='-1.25'
-    assert any('Proposed entry range: $0.50–$5' in c.value for c in app.caption)
-    print('PASS PBot trade detail/history: last fill description, outcome/fees, complete-history control and $0.50–$5 proposed entry range')
+    assert any('Entry target and maximum: $1.50' in c.value for c in app.caption)
+    print('PASS PBot trade detail/history: last fill description, outcome/fees, complete-history control and $1.50 maximum entry target')
 
 # A guard pause is distinct from a frozen engine and includes Central expiry.
 click_data['automatic_review']=dict(reviewed_at=current,wallets=[dict(wallet='ETH_5m',status='PAUSED_NEW',closed_trades=10,net_pnl='-20',entry_pause=dict(paused_until=current+21600))])

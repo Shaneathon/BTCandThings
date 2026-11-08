@@ -86,9 +86,9 @@ def content():
                 'WAITING_FOR_FRESH_SIGNAL':'Waiting for fresh prediction','WAITING_FOR_PAIRED_SIGNAL':'Waiting for both control predictions',
                 'EVALUATING_BOOK_AND_EDGE':'Checking quotes and net edge'}
         has_periods=all('performance_periods' in r for r in data.get('portfolios',{}).values())
-        period_options=('Current $0.50–$5 entries','Earlier entries','All history') if has_periods else ('All history',)
+        period_options=('Current $1.50 target entries','Earlier entries','All history') if has_periods else ('All history',)
         period_choice=st.radio('Performance results',period_options,horizontal=True,key='pbot_performance_period')
-        period_key={'Current $0.50–$5 entries':'current','Earlier entries':'earlier','All history':'all'}[period_choice]
+        period_key={'Current $1.50 target entries':'current','Earlier entries':'earlier','All history':'all'}[period_choice]
         st.caption('Performance view: '+period_choice+'. Trades are grouped by the policy used at entry, including partial fills. Wallet cash and activity times always include full history.')
         choices=list(data.get('portfolios',{}))
         if choices:
@@ -119,7 +119,9 @@ def content():
                 if last_trade.get('order_state'): st.caption('Order outcome: '+last_trade['order_state']+' · Requested quantity: '+str(last_trade.get('requested_quantity')))
             else: st.info('No filled trades yet in this wallet.')
             limits=data.get('configuration',{})
-            if limits.get('min_trade_cost'):
+            if limits.get('target_trade_cost'):
+                st.caption('Entry target and maximum: $'+limits['target_trade_cost']+' including modeled fees, per wallet. Whole-contract sizing, available depth and partial fills can reduce actual cost. No wallet may exceed this cap on a new entry.')
+            elif limits.get('min_trade_cost'):
                 st.caption('Proposed entry range: $'+limits['min_trade_cost']+'–$'+limits['max_trade_cost']+' including modeled fees, per wallet. Partial fills or price improvement may cost less than the minimum proposed amount.')
             else:
                 st.caption('Maximum entry cost: $'+str(limits.get('max_trade_cost','10'))+' including modeled fees, per wallet.')

@@ -46,10 +46,10 @@ class ObservedTests(unittest.TestCase):
         from trading_bot.entry_limits import migrate
         self.engine.propose('Champion',self.m,self.p,self.details,self.quotes(NOW),NOW,NOW-1)
         record=json.loads(self.engine.db.execute('SELECT payload FROM orders').fetchone()[0])
-        self.assertLessEqual(Decimal(record['reserve']),Decimal('5'))
+        self.assertLessEqual(Decimal(record['reserve']),Decimal('1.50'))
         self.assertGreaterEqual(Decimal(record['entry_limits']['estimated_proposed_cost']),Decimal('.50'))
         self.engine.complete('Champion',self.m['market_slug'],json.dumps(record),self.quotes(NOW+4),NOW+4)
-        self.assertLessEqual(Decimal(json.loads(self.engine.db.execute('SELECT payload FROM positions').fetchone()[0])['cost']),Decimal('5'))
+        self.assertLessEqual(Decimal(json.loads(self.engine.db.execute('SELECT payload FROM positions').fetchone()[0])['cost']),Decimal('1.50'))
         financial=self.engine.db.execute('SELECT * FROM wallets').fetchall()
         positions=self.engine.db.execute('SELECT * FROM positions').fetchall()
         with self.engine.db:

@@ -46,7 +46,7 @@ def review(path,now=None):
         db.execute('BEGIN IMMEDIATE')
         prior=latest(db)
         if prior and now<prior['reviewed_at']: raise ValueError('Review clock rollback; no automatic actions')
-        if prior and now-prior['reviewed_at']<1800:
+        if prior and prior.get('entry_policy_version')==SETTINGS['version'] and now-prior['reviewed_at']<1800:
             return dict(state='SKIPPED_RECENT_REVIEW',reviewed_at=prior['reviewed_at'])
         policy_row=db.execute('SELECT max(changed_at) FROM configuration_history').fetchone()
         policy_start=policy_row[0] or 0
@@ -77,7 +77,7 @@ def review(path,now=None):
             rows.append(dict(wallet=wallet,status=status,closed_trades=len(trades),wins=wins,net_pnl=str(net),cohort_start=start,
                 excluded_other_entry_policies=excluded,entry_pause=active,
                 previous_pause_expired=bool(control and control[1]<=now and (not prior or prior['reviewed_at']<control[1]))))
-        report=dict(state='OK',reviewed_at=now,policy=POLICY,wallets=rows,live_orders_enabled=False,
+        report=dict(state='OK',entry_policy_version=SETTINGS['version'],reviewed_at=now,policy=POLICY,wallets=rows,live_orders_enabled=False,
                     note='A loss guard, not automatic strategy optimization. Paper profits do not establish live profitability.')
         db.execute('INSERT INTO automatic_reviews(reviewed_at,payload) VALUES(?,?)',(now,json.dumps(report,allow_nan=False)))
     return report
