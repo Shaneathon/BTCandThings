@@ -20,7 +20,7 @@ def inspect(ledger,source):
             p=json.loads(encoded)
             if period(p)!='current' or p.get('state')!='PAPER_CLOSED': continue
             o=json.loads(order) if order else {};signal=o.get('signal',{});plan=o.get('plan',{})
-            q=Decimal(p['quantity']);cost=Decimal(p['cost']);fee=Decimal(p['fees']);pnl=Decimal(p['pnl']);payout=Decimal(p['payout'])
+            q=Decimal(p['quantity']);cost=Decimal(p['cost']);fee=Decimal(p['fees'])+Decimal(p.get('exit_fees','0'));pnl=Decimal(p['pnl']);payout=Decimal(p['payout'])
             probability=signal.get('predicted_up_probability')
             probability=Decimal(str(probability)) if probability is not None else None
             chosen_probability=(probability if p['side']=='UP' else 1-probability) if probability is not None else None
@@ -28,7 +28,9 @@ def inspect(ledger,source):
             checks=[]
             if not o: checks.append('MISSING_ORDER')
             if payout-cost!=pnl: checks.append('PNL_MISMATCH')
-            if m.get('settlement_status')!='VERIFIED': checks.append('OFFICIAL_RECORD_UNAVAILABLE_OR_UNVERIFIED')
+            if p.get('close_reason')=='MODEL_PROBABILITY_TRAILING_EXIT':
+                if not p.get('exit_order_id') or Decimal(p.get('exit_fees','0'))<0: checks.append('INVALID_EARLY_EXIT_RECORD')
+            elif m.get('settlement_status')!='VERIFIED': checks.append('OFFICIAL_RECORD_UNAVAILABLE_OR_UNVERIFIED')
             else:
                 expected=q if m.get('official_winner')==p['side'] else Decimal(0)
                 if payout!=expected: checks.append('PAYOUT_WINNER_MISMATCH')
@@ -37,7 +39,7 @@ def inspect(ledger,source):
             if probability is not None and p['side']!=('UP' if probability>Decimal('.5') else 'DOWN'): checks.append('SIGNAL_DIRECTION_MISMATCH')
             record=dict(wallet=wallet,market=slug,side=p['side'],entry_price=str(p['entry_price']),
                 cost=str(cost),fees=str(fee),net_pnl=str(pnl),chosen_signal_probability=str(chosen_probability) if chosen_probability is not None else None,
-                break_even_probability=str(cost/q),winning_claim=payout>0,official_winner=m.get('official_winner'),checks=checks,
+                break_even_probability=str(cost/q),winning_claim=payout>cost if p.get('close_reason')=='MODEL_PROBABILITY_TRAILING_EXIT' else payout>0,close_reason=p.get('close_reason','OFFICIAL_SETTLEMENT'),official_winner=m.get('official_winner'),checks=checks,
                 seconds_remaining_at_proposal=round(p['window_end']-plan['created_at'],1) if plan.get('created_at') else None)
             groups[wallet].append(record)
             if checks or pnl<0: examples.append(record)
@@ -53,7 +55,7 @@ def inspect(ledger,source):
             check_failures=sum(bool(r['checks']) for r in rows),
             directions={side:dict(positions=len(part),winning_claims=sum(r['winning_claim'] for r in part),
                 net_pnl=str(sum((Decimal(r['net_pnl']) for r in part),Decimal(0)))) for side in ('UP','DOWN') if (part:=[r for r in rows if r['side']==side])}))
-    return dict(policy='Current $1.50-target entries only',wallets=summaries,
+    return dict(policy='Current all-window / model-probability trailing entries only',wallets=summaries,
         integrity_findings=[r for r in examples if r['checks']],
         largest_net_losses=sorted(examples,key=lambda r:Decimal(r['net_pnl']))[:12],
         note='Read-only. Signal probabilities are model estimates, not established accuracy. Filled-trade selection differs from all tracker forecasts. Shared market windows are correlated. No live-profitability claim.')

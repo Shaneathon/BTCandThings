@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import sqlite3
 import time
-from trading_bot.observed_paper import SETTINGS,LEGACY_SETTINGS,PREVIOUS_SETTINGS
+from trading_bot.observed_paper import SETTINGS,LEGACY_SETTINGS,PREVIOUS_SETTINGS,RANGE_SETTINGS
 
 
 def migrate(path,rollback=False):
@@ -19,9 +19,9 @@ def migrate(path,rollback=False):
             if json.loads(current)!=SETTINGS or not prior or json.loads(prior[1])!=SETTINGS:
                 raise ValueError('Unexpected policy; do not reset or overwrite this ledger')
             replacement=prior[0]
-            if json.loads(replacement) not in (LEGACY_SETTINGS,PREVIOUS_SETTINGS): raise ValueError('Unknown rollback policy')
+            if json.loads(replacement) not in (LEGACY_SETTINGS,RANGE_SETTINGS,PREVIOUS_SETTINGS): raise ValueError('Unknown rollback policy')
         else:
-            if json.loads(current) not in (LEGACY_SETTINGS,PREVIOUS_SETTINGS):
+            if json.loads(current) not in (LEGACY_SETTINGS,RANGE_SETTINGS,PREVIOUS_SETTINGS):
                 saved=json.loads(current)
                 raise ValueError('Unexpected policy; preserving ledger. Saved policy: '+json.dumps({key:saved.get(key) for key in ('version','min_trade_cost','max_trade_cost','target_trade_cost')},sort_keys=True))
             replacement=new
@@ -32,7 +32,7 @@ def migrate(path,rollback=False):
                 (json.dumps(dict(state='CANCELLED',reason='ENTRY_LIMIT_POLICY_CHANGED_BEFORE_FILL',filled_quantity='0',fees='0',total_cost='0',fills=[],simulated_only=True,live_orders_enabled=False)),)).rowcount
         db.execute('UPDATE settings SET payload=? WHERE id=1',(replacement,))
         db.execute('INSERT INTO configuration_history(changed_at,previous,current,reason) VALUES(?,?,?,?)',
-                   (time.time(),current,replacement,'ROLLBACK_ENTRY_POLICY' if rollback else 'USER_REQUESTED_FIXED_150_PAPER_ENTRY_CAP'))
+                   (time.time(),current,replacement,'ROLLBACK_ENTRY_POLICY' if rollback else 'USER_REQUESTED_ALL_WINDOW_PROBABILITY_TRAILING_EXITS'))
     return dict(policy=json.loads(replacement),policy_changed=True,unfilled_proposals_cancelled_without_fee=cancelled,balances_and_positions_preserved=True)
 
 if __name__=='__main__':

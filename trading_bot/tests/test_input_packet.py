@@ -47,9 +47,9 @@ class InputTests(unittest.TestCase):
             self.assertEqual(required_markets(path),set())
             with sqlite3.connect(path) as db:
                 db.execute('CREATE TABLE positions(market_slug TEXT,payload TEXT)')
-                db.execute('CREATE TABLE orders(market_slug TEXT,state TEXT)')
+                db.execute('CREATE TABLE orders(market_slug TEXT,state TEXT,payload TEXT)')
                 db.executemany('INSERT INTO positions VALUES(?,?)',[('open',json.dumps(dict(state='PAPER_OPEN'))),('closed',json.dumps(dict(state='PAPER_CLOSED')))])
-                db.executemany('INSERT INTO orders VALUES(?,?)',[('pending','PROPOSED'),('rejected','REJECTED')])
+                db.executemany('INSERT INTO orders VALUES(?,?,?)',[('pending::entry2','PROPOSED',json.dumps(dict(plan=dict(market_slug='pending')))),('rejected','REJECTED','{}')])
             before=path.read_bytes()
             self.assertEqual(required_markets(path),{'open','pending'})
             self.assertEqual(path.read_bytes(),before)

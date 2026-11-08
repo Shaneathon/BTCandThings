@@ -20,6 +20,8 @@ class ObservedTests(unittest.TestCase):
         self.details.update(description='This market will settle to Up if the price is greater than or equal to the starting price. Otherwise, this market will settle to Down.',orderPriceMinTickSize='.01',minimumTradeQty='.01')
         for side in self.details['marketSides']: side.update(identifier='exact-contract',tradable=True)
         self.proof=dict(total=4,UP=2,DOWN=2,conflicts=0)
+        with self.engine.db:
+            self.engine.db.execute('INSERT INTO signal_observations VALUES(?,?,?,?,?)',('Champion',self.m['market_slug'],NOW-30,NOW-29,'.1'))
         self.p=dict(market_slug=self.m['market_slug'],recorded_at=iso(NOW-5),model_version='Pixel V13.5 Headless Baseline',predicted_up_probability='.9')
 
     def tearDown(self): self.engine.close();self.tmp.cleanup()

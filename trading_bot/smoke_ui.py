@@ -195,3 +195,18 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     next(r for r in app.radio if r.label=='Performance results').set_value('All history').run(timeout=20)
     assert [m.value for m in app.metric if m.label=='Wallet realized paper P/L']==['$8.00']
     print('PASS policy performance selector: current/earlier/all totals separate; actual wallet cash preserved')
+
+# Probability trailing and pending sell status are explicit, not market-price stops.
+click_data['portfolios']['ETH_5m']['probability_trails']=[dict(entry_key='eth-fixture',peak='.72',current='.67',signal_at=current,triggered_at=current)]
+click_data['portfolios']['ETH_5m']['exit_order_states']={'PROPOSED':1}
+click_data['portfolios']['ETH_5m']['display_state']=dict(state='EXIT_ORDER_PENDING',severity='info')
+st.cache_data.clear()
+with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status','PBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}),patch('trading_bot.status_client.read_status',return_value=click_data):
+    app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
+    next(r for r in app.radio if r.label=='Click a market or model').set_value('ETH_5m').run(timeout=20)
+    assert not app.exception,[e.message for e in app.exception]
+    assert any('Trailing exit awaiting' in i.value for i in app.info)
+    trail=next(f.value for f in app.dataframe if 'Peak model probability' in f.value.columns)
+    assert trail.iloc[0]['Peak model probability']=='72.0%'
+    assert trail.iloc[0]['5-point trailing level']=='67.0%'
+    print('PASS probability trailing display: model peak/current/5-point level and pending bid-exit status')

@@ -57,7 +57,7 @@ def inspect(ledger,input_path,now,hours=6,source=None):
                                 0<=now-time_of(p['recorded_at'])<=90 for p in data.get('predictions',[]))
                         for name,version in MODELS.items()}
             current_state=('RISK_HALT' if halted else 'OPEN_POSITION_BLOCKS_NEW_ENTRIES' if opened else
-                           'NO_CURRENT_MARKET' if not m else 'WAITING_FOR_ENTRY_WINDOW' if not 30<=remaining<=90 else
+                           'NO_CURRENT_MARKET' if not m else 'WAITING_FOR_ENTRY_WINDOW' if not snapshot.get('configuration',{}).get('entry_seconds_remaining',[30,90])[0]<=remaining<=min(snapshot.get('configuration',{}).get('entry_seconds_remaining',[30,90])[1],duration) else
                            'NO_FRESH_SIGNAL' if signal_age is None or not 0<=signal_age<=90 else
                            'MISSING_PAIRED_CONTROL_SIGNAL' if paired and not all(paired.values()) else 'IN_ENTRY_WINDOW_CHECK_BOOK_AND_EDGE')
             fills=[o for o in recent if Decimal(o['result'].get('filled_quantity','0'))>0]

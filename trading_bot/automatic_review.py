@@ -69,7 +69,7 @@ def review(path,now=None):
             net=sum(trades,Decimal(0));wins=sum(p>0 for p in trades)
             status='PAUSED' if active else 'INSUFFICIENT_NEW_TRADES' if len(trades)<POLICY['minimum_closed_trades'] else 'MONITORING'
             if not active and len(trades)>=POLICY['minimum_closed_trades'] and net<=-Decimal(POLICY['net_loss_trigger']):
-                reason='At least 10 current-policy settled paper trades and net loss of $20 or more within 24 hours.'
+                reason='At least 10 current-policy closed paper trades and net loss of $20 or more within 24 hours.'
                 until=now+POLICY['pause_hours']*3600
                 db.execute('INSERT INTO automatic_entry_pauses VALUES(?,?,?,?) ON CONFLICT(wallet) DO UPDATE SET created_at=excluded.created_at,paused_until=excluded.paused_until,reason=excluded.reason',
                            (wallet,now,until,reason))

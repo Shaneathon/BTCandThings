@@ -53,10 +53,12 @@ class OrderPlan:
     execution_version: str = 'OBSERVED_DEPTH_V1'
 
     def validate(self):
-        if (self.side not in ('UP', 'DOWN') or self.intent not in ('ORDER_INTENT_BUY_LONG', 'ORDER_INTENT_BUY_SHORT')
+        if (self.side not in ('UP', 'DOWN') or self.intent not in ('ORDER_INTENT_BUY_LONG', 'ORDER_INTENT_BUY_SHORT','ORDER_INTENT_SELL_LONG','ORDER_INTENT_SELL_SHORT')
                 or not all(isinstance(s, str) and s for s in (self.market_slug,self.contract_slug,self.strategy_version,self.asset,
                                                              self.mapping_evidence,self.fee_evidence))):
             raise ValueError('MISSING_ORDER_IDENTITY_OR_EVIDENCE')
+        expected_intents=('ORDER_INTENT_BUY_LONG','ORDER_INTENT_SELL_LONG') if self.side=='UP' else ('ORDER_INTENT_BUY_SHORT','ORDER_INTENT_SELL_SHORT')
+        if self.intent not in expected_intents: raise ValueError('SIDE_INTENT_MISMATCH')
         q, p, tick, minimum = map(amount, (self.quantity,self.limit_price,self.tick,self.minimum_quantity))
         if not 0 < p < 1 or tick <= 0 or p % tick != 0 or minimum <= 0 or q < minimum or q % minimum != 0:
             raise ValueError('INVALID_TICK_OR_QUANTITY')
@@ -126,20 +128,21 @@ def simulate(plan, snapshot, now, *, participation='0.25'):
         raise ValueError('PARTICIPATION_MUST_BE_AT_MOST_25_PERCENT')
     limit, increment = amount(plan.limit_price),amount(plan.minimum_quantity)
     wanted=amount(plan.quantity)
-    levels=snapshot.get('offers')
+    selling=plan.intent in ('ORDER_INTENT_SELL_LONG','ORDER_INTENT_SELL_SHORT')
+    levels=snapshot.get('bids' if selling else 'offers')
     if not isinstance(levels,list) or not levels:
         return reject('NO_AVAILABLE_DEPTH')
-    previous=Decimal(0)
+    previous=Decimal(1) if selling else Decimal(0)
     remaining=wanted
     gross=Decimal(0)
     fee=Decimal(0)
     fills=[]
     for level in levels:
         px, visible = amount(level['price']),amount(level['quantity'])
-        if not 0 < px < 1 or px<=previous or visible<=0:
+        if not 0 < px < 1 or (px>=previous if selling else px<=previous) or visible<=0:
             return reject('INVALID_OR_DUPLICATE_BOOK_LEVEL')
         previous=px
-        if px > limit:
+        if (px<limit if selling else px>limit):
             continue
         available=(visible*factor/increment).to_integral_value(rounding=ROUND_DOWN)*increment
         filled=min(remaining,available)
@@ -159,4 +162,6 @@ def simulate(plan, snapshot, now, *, participation='0.25'):
     result.update(state='FILLED' if remaining==0 else 'PARTIALLY_FILLED_CANCELLED',
                   filled_quantity=str(wanted-remaining),gross_cost=str(gross),fees=str(fee),
                   total_cost=str(gross+fee),fills=fills,reason='SIMULATED_TAKER_DEPTH')
+    if selling:
+        result.update(gross_cost='0',total_cost='0',gross_proceeds=str(gross),net_proceeds=str(gross-fee))
     return result

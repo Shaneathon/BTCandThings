@@ -2,7 +2,7 @@
 from decimal import Decimal
 from trading_bot.market_pnl import summarize
 
-CURRENT='OBSERVED_PAPER_V3_FIXED_150'
+CURRENT='OBSERVED_PAPER_V4_TRAILING_150'
 
 
 def period(position):
@@ -11,7 +11,7 @@ def period(position):
 
 def label(position):
     version=(position.get('entry_limits') or {}).get('version')
-    return {CURRENT:'$1.50 target / maximum entry policy','OBSERVED_PAPER_V2_050_5':'$0.50–$5 entry policy'}.get(version,'Earlier / untagged entry policy')
+    return {CURRENT:'All-window entries / model-probability trailing exits', 'OBSERVED_PAPER_V3_FIXED_150':'$1.50 prior entry policy','OBSERVED_PAPER_V2_050_5':'$0.50–$5 entry policy'}.get(version,'Earlier / untagged entry policy')
 
 
 def breakdown(positions,streams=()):

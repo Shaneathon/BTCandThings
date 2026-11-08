@@ -11,8 +11,8 @@ def trade_row(wallet,p,order_state=None,order_record=None):
     from trading_bot.performance_periods import label
     closed=p.get('state')=='PAPER_CLOSED'
     payout=p.get('payout')
-    result=('WON' if Decimal(str(payout))>0 else 'LOST') if closed and payout is not None else 'OPEN'
-    return dict(entry_policy=label(p),wallet=wallet,market_slug=p.get('market_slug'),asset=p.get('asset'),duration_seconds=p.get('duration_seconds'),
+    result=('WON' if Decimal(str(p.get('pnl','0')))>0 else 'LOST' if Decimal(str(p.get('pnl','0')))<0 else 'BREAKEVEN') if closed and payout is not None else 'OPEN'
+    return dict(close_reason=p.get('close_reason'),exit_price=p.get('exit_price'),exit_fees=p.get('exit_fees','0'),entry_policy=label(p),wallet=wallet,market_slug=p.get('market_slug'),asset=p.get('asset'),duration_seconds=p.get('duration_seconds'),
                 model_version=p.get('model_version'),side=p.get('side'),quantity=p.get('quantity'),entry_price=p.get('entry_price'),
                 fees=p.get('fees'),cost=p.get('cost'),result=result,payout=payout,pnl=p.get('pnl'),
                 opened_at=p.get('opened_at'),closed_at=p.get('closed_at'),window_start=p.get('window_start'),window_end=p.get('window_end'),
@@ -31,7 +31,7 @@ def page(path,wallet='*',number=1,limit=50,as_of=None,now=None):
         if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='wallets'").fetchone():
             raise LookupError('History unavailable for this ledger')
         config=json.loads(db.execute('SELECT payload FROM settings WHERE id=1').fetchone()[0])
-        if config.get('version') not in ('OBSERVED_PAPER_V1','OBSERVED_PAPER_V2_050_5','OBSERVED_PAPER_V3_FIXED_150'): raise LookupError('Wrong ledger version')
+        if config.get('version') not in ('OBSERVED_PAPER_V1','OBSERVED_PAPER_V2_050_5','OBSERVED_PAPER_V3_FIXED_150','OBSERVED_PAPER_V4_TRAILING_150'): raise LookupError('Wrong ledger version')
         if wallet!='*' and not db.execute('SELECT 1 FROM wallets WHERE name=?',(wallet,)).fetchone():
             raise ValueError('Unknown wallet')
         clauses=["CAST(json_extract(p.payload,'$.opened_at') AS REAL)<=?"]

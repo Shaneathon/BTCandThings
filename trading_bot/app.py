@@ -77,18 +77,18 @@ def content():
     if data.get('operation_mode') == 'OBSERVED_BOOK_PAPER':
         from trading_bot.display_status import central,ago,table_times
         health=data.get('display_health',{})
-        labels={'AUTOMATIC_ENTRY_PAUSE':'Automatic paper loss guard — new entries paused','ENGINE_STALE':'Engine heartbeat stale','INPUT_BLOCKED':'Input unavailable — entries blocked',
+        labels={'EXIT_ORDER_PENDING':'Trailing exit awaiting delayed bid execution','EXIT_WAITING_FOR_BOOK':'Trailing exit triggered — waiting for executable bids','AUTOMATIC_ENTRY_PAUSE':'Automatic paper loss guard — new entries paused','ENGINE_STALE':'Engine heartbeat stale','INPUT_BLOCKED':'Input unavailable — entries blocked',
                 'ENTRIES_PAUSED':'New entries paused','RISK_HALT':'Risk halt',
                 'RISK_BUDGET_EXHAUSTED':'Entry risk budget exhausted','ORDER_ALREADY_ATTEMPTED':'Order already attempted — waiting for next window','ORDER_PROCESSING_LATE':'Pending order overdue',
                 'ORDER_PENDING':'Order awaiting execution check','AWAITING_OFFICIAL_SETTLEMENT':'Waiting for official settlement',
                 'POSITION_OPEN':'Paper position open','NO_CURRENT_MARKET':'Waiting for current market',
                 'WAITING_FOR_ENTRY_WINDOW':'Waiting for entry window','ENTRY_WINDOW_CLOSED':'Waiting for next window',
                 'WAITING_FOR_FRESH_SIGNAL':'Waiting for fresh prediction','WAITING_FOR_PAIRED_SIGNAL':'Waiting for both control predictions',
-                'EVALUATING_BOOK_AND_EDGE':'Checking quotes and net edge'}
+                'EVALUATING_BOOK_AND_EDGE':'Checking quotes and net edge','LATE_REVERSAL_CHECK':'Final two minutes — strong model reversal required','ENTRY_QUOTA_REACHED':'Three entries used/reserved — rolling market limit','ENTRY_RETRY_WAIT':'Waiting between entry attempts'}
         has_periods=all('performance_periods' in r for r in data.get('portfolios',{}).values())
-        period_options=('Current $1.50 target entries','Earlier entries','All history') if has_periods else ('All history',)
+        period_options=('Current trailing-exit experiment','Earlier entries','All history') if has_periods else ('All history',)
         period_choice=st.radio('Performance results',period_options,horizontal=True,key='pbot_performance_period')
-        period_key={'Current $1.50 target entries':'current','Earlier entries':'earlier','All history':'all'}[period_choice]
+        period_key={'Current trailing-exit experiment':'current','Earlier entries':'earlier','All history':'all'}[period_choice]
         st.caption('Performance view: '+period_choice+'. Trades are grouped by the policy used at entry, including partial fills. Wallet cash and activity times always include full history.')
         choices=list(data.get('portfolios',{}))
         if choices:
@@ -99,7 +99,7 @@ def content():
             st.markdown('### '+chosen)
             (st.error if state.get('severity')=='error' else st.warning if state.get('severity')=='warning' else st.info)(description)
             if state.get('window_end'):
-                st.caption('Current market closes '+central(state['window_end'])+' · approximately '+str(int(state['seconds_remaining']))+' seconds remaining. Entries are evaluated in the final 90–30 seconds.')
+                st.caption('Current market closes '+central(state['window_end'])+' · approximately '+str(int(state['seconds_remaining']))+' seconds remaining. Entries are evaluated throughout the window; final two minutes require a strong model reversal. No new entries in the final 15 seconds.')
             performance=report.get('performance_periods',{}).get(period_key,{})
             values=st.columns(4)
             values[0].metric('Wallet virtual cash · all history',f"${float(account['cash']):,.2f}")
@@ -125,7 +125,11 @@ def content():
                 st.caption('Proposed entry range: $'+limits['min_trade_cost']+'–$'+limits['max_trade_cost']+' including modeled fees, per wallet. Partial fills or price improvement may cost less than the minimum proposed amount.')
             else:
                 st.caption('Maximum entry cost: $'+str(limits.get('max_trade_cost','10'))+' including modeled fees, per wallet.')
-            st.caption('One open or pending position per wallet; cash, liquidity and risk limits can reduce size or cause a skip.')
+            st.caption('One open or pending position per wallet; maximum 3 filled entries per market stream across wallets in a rolling 15 minutes. Unfilled attempts do not count. Cash, liquidity and risk limits can reduce size or cause a skip.')
+            st.caption('Exit rule: trail the model probability of your held side winning by 5 percentage points from its peak. No fixed profit target. Exits require fresh bids, modeled sell fees and full visible size; immediate fills are not guaranteed.')
+            with st.expander('Probability trail and paper exit activity'):
+                st.dataframe([{'Entry':r['entry_key'],'Peak model probability':f"{float(r['peak'])*100:.1f}%",'Latest model probability':f"{float(r['current'])*100:.1f}%",'5-point trailing level':f"{(float(r['peak'])-.05)*100:.1f}%",'Signal (Central)':central(r['signal_at']),'Exit triggered (Central)':central(r['triggered_at'])} for r in report.get('probability_trails',[])],hide_index=True,width='stretch')
+                st.write(report.get('exit_order_states',{}))
             if data.get('entry_policy_changed_at'): st.caption('New entry limits applied '+central(data['entry_policy_changed_at'])+'. Older trades retain their original amounts.')
             if st.checkbox('Show complete trade history',key='pbot_show_trade_history'):
                 scope=st.radio('Trade history scope',('Selected wallet','All wallets'),horizontal=True,key='pbot_history_scope')
@@ -149,7 +153,7 @@ def content():
                                 'Entry policy':trade.get('entry_policy','Unclassified'),'Market':trade['market_slug'],'Direction':trade['side'],'Contracts':trade['quantity'],
                                 'Average entry ($)':trade['entry_price'],'Fees ($)':trade['fees'],'Total cost ($)':trade['cost'],
                                 'Result':trade['result'],'Payout ($)':trade['payout'],'Net P/L ($)':trade['pnl'],
-                                'Settlement processed (Central)':central(trade['closed_at']),'Order outcome':trade['order_state']})
+                                'Settlement processed (Central)':central(trade['closed_at']),'Close reason':trade.get('close_reason'),'Exit price':trade.get('exit_price'),'Exit fees':trade.get('exit_fees'),'Order outcome':trade['order_state']})
                         st.dataframe(formatted,hide_index=True,width='stretch')
                     else: st.info('No filled trades in this history selection yet.')
                 except Exception as error:
@@ -202,7 +206,7 @@ def content():
             if review:
                 st.caption('Last review: '+central(review['reviewed_at'])+' · '+ago(review['reviewed_at']))
                 if time.time()-review['reviewed_at']>5400: st.warning('Hourly review is overdue; check its service. Existing entry protections remain active.')
-                st.caption('Each wallet: pause new entries for 6 hours after at least 10 current-policy settled trades lose $20 or more within 24 hours. After expiry, a new sample is required. Models and limits are never loosened automatically.')
+                st.caption('Each wallet: pause new entries for 6 hours after at least 10 current-policy closed trades lose $20 or more within 24 hours. After expiry, a new sample is required. Models and limits are never loosened automatically.')
                 st.dataframe([dict(wallet=r['wallet'],status=r['status'],closed_trades=r['closed_trades'],net_pnl=r['net_pnl'],
                     paused_until=central((r.get('entry_pause') or {}).get('paused_until'))) for r in review['wallets']],hide_index=True,width='stretch')
             else: st.caption('Hourly automatic review is not installed or has not completed its first run.')

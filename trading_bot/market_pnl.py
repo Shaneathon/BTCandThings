@@ -9,12 +9,12 @@ from trading_bot.core import amount
 def summarize(positions, streams=()):
     def empty(key):
         return dict(asset=key[0],duration_seconds=key[1],closed_trades=0,wins=0,losses=0,
-                    realized_gross_pnl=Decimal(0),entry_fees=Decimal(0),realized_net_pnl=Decimal(0),
+                    realized_gross_pnl=Decimal(0),entry_fees=Decimal(0),exit_fees=Decimal(0),realized_net_pnl=Decimal(0),
                     open_positions=0,open_cost=Decimal(0))
     groups={key:empty(key) for key in streams}
     seen=set()
     for p in positions:
-        identity=(p['market_slug'],p.get('model_version'))
+        identity=(p.get('order_id',p['market_slug']),p.get('model_version'))
         if identity in seen:
             raise ValueError('Duplicate position in market report')
         seen.add(identity)
@@ -29,7 +29,9 @@ def summarize(positions, streams=()):
             row['wins']+=int(net>0)
             row['losses']+=int(net<0)
             row['realized_net_pnl']+=net
-            row['realized_gross_pnl']+=payout-(cost-fee)
+            exit_fee=amount(p.get('exit_fees','0'))
+            row['realized_gross_pnl']+=payout-(cost-fee)+exit_fee
+            row['exit_fees']+=exit_fee
             row['entry_fees']+=fee
         elif p['state']=='PAPER_OPEN':
             row['open_positions']+=1

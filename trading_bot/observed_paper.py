@@ -20,8 +20,11 @@ LEGACY_SETTINGS=dict(version='OBSERVED_PAPER_V1',initial_cash='1000',max_trade_c
               max_daily_loss='100',max_drawdown='.10',minimum_edge='.03',latency_seconds=2,
               max_signal_age=90,quote_limit_allowance='.01',participation='.25',fee='.06',
               fee_basis=FEE_BASIS,entry_seconds_remaining=[30,90],order_ttl_seconds=15)
-PREVIOUS_SETTINGS=dict(LEGACY_SETTINGS,version='OBSERVED_PAPER_V2_050_5',min_trade_cost='0.50',max_trade_cost='5')
-SETTINGS=dict(PREVIOUS_SETTINGS,version='OBSERVED_PAPER_V3_FIXED_150',target_trade_cost='1.50',max_trade_cost='1.50')
+RANGE_SETTINGS=dict(LEGACY_SETTINGS,version='OBSERVED_PAPER_V2_050_5',min_trade_cost='0.50',max_trade_cost='5')
+PREVIOUS_SETTINGS=dict(RANGE_SETTINGS,version='OBSERVED_PAPER_V3_FIXED_150',target_trade_cost='1.50',max_trade_cost='1.50')
+SETTINGS=dict(PREVIOUS_SETTINGS,version='OBSERVED_PAPER_V4_TRAILING_150',entry_seconds_remaining=[15,900],
+              late_entry_seconds=120,reversal_confidence='.65',reversal_minimum_edge='.10',
+              max_entries_per_stream=3,entry_budget_seconds=900,trailing_probability_drop='.05')
 
 
 def slots():
@@ -49,6 +52,10 @@ class Engine:
         ''')
         from trading_bot.automatic_review import initialize
         initialize(self.db)
+        from trading_bot.entry_policy import initialize as entry_initialize
+        entry_initialize(self.db)
+        from trading_bot.paper_exits import initialize as exit_initialize
+        exit_initialize(self.db)
         with self.db:
             self.db.execute('INSERT OR IGNORE INTO settings VALUES(1,?)',(expected,))
             for name in slots(): self.db.execute('INSERT OR IGNORE INTO wallets VALUES(?,?,?,NULL)',(name,'1000','1000'))
@@ -63,7 +70,7 @@ class Engine:
         lookup={m['market_slug']:m for m in markets}
         with self.db:
             for wallet,slug,payload in self.db.execute('SELECT wallet,market_slug,payload FROM positions').fetchall():
-                p=json.loads(payload);m=lookup.get(slug)
+                p=json.loads(payload);m=lookup.get(p['market_slug'])
                 if p['state']!='PAPER_OPEN' or not m: continue
                 try:
                     if (not verified(m,now) or m['contract_slug']!=p['contract_slug'] or m['asset']!=p['asset']
@@ -72,7 +79,7 @@ class Engine:
                             or amount(m['official_price_to_beat'])!=amount(p['price_to_beat'])): continue
                 except (KeyError,ValueError,TypeError,ArithmeticError): continue
                 payout=amount(p['quantity']) if m['official_winner']==p['side'] else Decimal(0)
-                p.update(state='PAPER_CLOSED',payout=str(payout),pnl=str(payout-amount(p['cost'])),closed_at=now)
+                p.update(state='PAPER_CLOSED',close_reason='OFFICIAL_SETTLEMENT',payout=str(payout),pnl=str(payout-amount(p['cost'])),closed_at=now)
                 cash=amount(self.db.execute('SELECT cash FROM wallets WHERE name=?',(wallet,)).fetchone()[0])
                 self.db.execute('UPDATE wallets SET cash=? WHERE name=?',(str(cash+payout),wallet))
                 self.db.execute('UPDATE positions SET payload=? WHERE wallet=? AND market_slug=?',(json.dumps(p),wallet,slug))
@@ -97,11 +104,13 @@ class Engine:
         return max(Decimal(0),capacity)
 
     def propose(self,wallet,m,p,details,books,now,available_at):
-        if self.db.execute('SELECT 1 FROM orders WHERE wallet=? AND market_slug=?',(wallet,m['market_slug'])).fetchone(): return
+        if wallet not in slots() or slots()[wallet][:2]!=(m.get('asset'),m.get('duration_seconds')): raise ValueError('WALLET_MARKET_MISMATCH')
         when=time_of(p['recorded_at']);end=time_of(m['window_end']);start=time_of(m['window_start'])
         if not 0<=now-available_at<=45 or not start<=when<=available_at<=now or not 0<=now-when<=90:
             raise ValueError('STALE_OR_FUTURE_SIGNAL')
-        if not 30<=end-now<=90 or m.get('settlement_status')!='PENDING': raise ValueError('ENTRY_WINDOW')
+        if m.get('settlement_status')!='PENDING': raise ValueError('ENTRY_WINDOW')
+        from trading_bot.entry_policy import phase
+        rule=phase(self.db,wallet,m,p,now,SETTINGS)
         if p.get('source_timestamp') and not start<=time_of(p['source_timestamp'])<=when: raise ValueError('INVALID_SOURCE_TIME')
         if p.get('source_timestamp') and now-time_of(p['source_timestamp'])>120: raise ValueError('STALE_FEATURES')
         up=amount(p['predicted_up_probability'])
@@ -121,18 +130,22 @@ class Engine:
         proposed_cost=quantity*best+taker_fee('.06',quantity,best)
         if proposed_cost<Decimal(SETTINGS['min_trade_cost']): raise ValueError('BELOW_MINIMUM_PROPOSED_TRADE_COST')
         estimated=taker_fee('.06',quantity,limit)
-        if probability-limit-estimated/quantity<Decimal('.03'): raise ValueError('NO_NET_EDGE')
+        if probability-limit-estimated/quantity-Decimal('.02')<Decimal(rule['minimum_edge']): raise ValueError('NO_NET_EDGE')
         plan=OrderPlan(m['market_slug'],m['contract_slug'],p['model_version'],m['asset'],m['duration_seconds'],side,
               book['intent'],str(quantity),str(limit),str(tick),'1',now,when,now+2,min(now+15,end-1),end,
               'TIME_IN_FORCE_IMMEDIATE_OR_CANCEL',book['mapping_evidence'],QUADRATIC_TAKER_RULE,'.06',FEE_BASIS)
         plan.validate()
         reserve=quantity*(limit+Decimal('.020'))
-        payload=dict(plan=asdict(plan),market=m,reserve=str(reserve),signal=p,available_at=available_at,initial_book=book,
-                     entry_limits=dict(version=SETTINGS['version'],minimum_proposed_cost=SETTINGS['min_trade_cost'],maximum_total_cost=SETTINGS['max_trade_cost'],target_cost=SETTINGS.get('target_trade_cost'),estimated_proposed_cost=str(proposed_cost)),
+        payload=dict(entry_rule=rule,plan=asdict(plan),market=m,reserve=str(reserve),signal=p,available_at=available_at,initial_book=book,
+                     estimated_round_trip_fee_allowance_per_share='.02',entry_limits=dict(version=SETTINGS['version'],minimum_proposed_cost=SETTINGS['min_trade_cost'],maximum_total_cost=SETTINGS['max_trade_cost'],target_cost=SETTINGS.get('target_trade_cost'),estimated_proposed_cost=str(proposed_cost)),
                      api_fee_coefficient=details.get('feeCoefficient'),provider_minimum_quantity=str(provider_min),
                      legacy_feature_time_unknown=not bool(p.get('source_timestamp')))
         with self.db:
-            self.db.execute('INSERT INTO orders VALUES(?,?,?,?,NULL)',(wallet,m['market_slug'],'PROPOSED',json.dumps(payload)))
+            self.db.execute('BEGIN IMMEDIATE')
+            from trading_bot.entry_policy import reserve_slot
+            entry_key=reserve_slot(self.db,wallet,m,now,SETTINGS)
+            payload['entry_key']=entry_key
+            self.db.execute('INSERT INTO orders VALUES(?,?,?,?,NULL)',(wallet,entry_key,'PROPOSED',json.dumps(payload)))
         self.event(wallet,m['market_slug'],'PROPOSED_OBSERVED_LIMIT',now)
 
     def complete(self,wallet,slug,payload,books,now,blocked=False):
@@ -149,6 +162,11 @@ class Engine:
             if pause(self.db,wallet,now):
                 result=simulate(plan,{},now)
                 result.update(state='REJECTED',reason='AUTOMATIC_ENTRY_PAUSE')
+            try:
+                from trading_bot.entry_policy import phase
+                phase(self.db,wallet,record['market'],record['signal'],now,SETTINGS)
+            except ValueError as error:
+                result=simulate(plan,{},now);result.update(state='REJECTED',reason=str(error))
             # Conditional transition is the exactly-once guard after restarts.
             updated=self.db.execute("UPDATE orders SET state=?,result=? WHERE wallet=? AND market_slug=? AND state='PROPOSED'",
                                     (result['state'],json.dumps(result),wallet,slug)).rowcount
@@ -162,7 +180,7 @@ class Engine:
                 sensitivity=None
                 if alternate is not None:
                     sensitivity=str(sum((taker_fee(alternate,f['quantity'],f['price']) for f in result['fills']),Decimal(0)))
-                position=dict(market_slug=slug,contract_slug=m['contract_slug'],asset=m['asset'],duration_seconds=m['duration_seconds'],
+                position=dict(entry_key=slug,market_slug=m['market_slug'],contract_slug=m['contract_slug'],asset=m['asset'],duration_seconds=m['duration_seconds'],
                               model_version=plan.strategy_version,entry_limits=record.get('entry_limits'),side=plan.side,state='PAPER_OPEN',quantity=str(qty),
                               entry_price=str(amount(result['gross_cost'])/qty),fees=result['fees'],cost=str(cost),opened_at=now,
                               window_start=time_of(m['window_start']),window_end=time_of(m['window_end']),
@@ -184,7 +202,7 @@ class Engine:
             states=dict(self.db.execute('SELECT state,count(*) FROM orders WHERE wallet=? GROUP BY state',(name,)))
             events=[dict(market_slug=s,reason=r,observed_at=t) for s,r,t in self.db.execute('SELECT market_slug,reason,observed_at FROM events WHERE wallet=? ORDER BY observed_at DESC LIMIT 10',(name,))]
             from trading_bot.automatic_review import pause
-            reports[name]=dict(automatic_entry_pause=pause(self.db,name,now),account=dict(cash=cash,high_water=high,halted_reason=halted,
+            reports[name]=dict(wallet_name=name,entry_timing=dict(earliest=900,latest=15,late_seconds=120),automatic_entry_pause=pause(self.db,name,now),account=dict(cash=cash,high_water=high,halted_reason=halted,
                     open_exposure=str(sum((amount(p['cost']) for p in opened),Decimal(0))),
                     reserved_cash=str(sum((amount(p['reserve']) for p in pending),Decimal(0))),
                     realized_pnl=str(sum((Decimal(p['pnl']) for p in positions if p['state']=='PAPER_CLOSED'),Decimal(0))),
@@ -204,6 +222,8 @@ class Engine:
         report['entry_policy_changed_at']=policy[0] if policy else None
         from trading_bot.automatic_review import latest
         report['automatic_review']=latest(self.db)
+        from trading_bot.paper_exits import annotate
+        annotate(self.db,reports)
         with self.db: self.db.execute('INSERT INTO bot_snapshot VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET observed_at=excluded.observed_at,payload=excluded.payload',(now,json.dumps(report)))
         return report
 
@@ -260,11 +280,13 @@ def cycle(engine,data,client,now,paused=False):
     def get(m,after=0):
         if m['market_slug'] not in metadata: raise ValueError('MISSING_CURRENT_CONTRACT_EVIDENCE')
         return client.load(m,metadata[m['market_slug']],proofs.get(m['asset']+'_'+str(m['duration_seconds']//60)+'m',{}),after)
+    from trading_bot.paper_exits import manage
+    manage(engine,data,get,now,fresh,lambda:time.time() if client.__class__ is BookClient else now)
     for wallet,slug,payload in engine.db.execute("SELECT wallet,market_slug,payload FROM orders WHERE state='PROPOSED'").fetchall():
         plan=OrderPlan(**json.loads(payload)['plan'])
         if now<plan.eligible_at: continue
         try:
-            books={} if paused or not fresh or now>=plan.expires_at else get(lookup[slug],plan.eligible_at)
+            books={} if paused or not fresh or now>=plan.expires_at else get(lookup[plan.market_slug],plan.eligible_at)
             engine.complete(wallet,slug,payload,books,time.time() if client.__class__ is BookClient else now,blocked=paused or not fresh)
         except Exception as error:
             reason=str(error) if isinstance(error,ValueError) else type(error).__name__
@@ -285,8 +307,11 @@ def cycle(engine,data,client,now,paused=False):
                     and 0<=now-time_of(other['recorded_at'])<=90 for other in data.get('predictions',[])) for control in MODELS.values()):
                 engine.event(wallet,m['market_slug'],'MISSING_PAIRED_CONTROL_SIGNAL',now)
                 continue
-            if not 30<=time_of(m['window_end'])-now<=90: continue
-            if engine.db.execute('SELECT 1 FROM orders WHERE wallet=? AND market_slug=?',(wallet,m['market_slug'])).fetchone(): continue
+            from trading_bot.entry_policy import observe,phase
+            observe(engine.db,wallet,m,p,now,data['exported_at'])
+            try: phase(engine.db,wallet,m,p,now,SETTINGS)
+            except ValueError as error:
+                engine.event(wallet,m['market_slug'],str(error),now);continue
             previous=engine.db.execute('SELECT MAX(observed_at) FROM events WHERE wallet=?',(wallet,)).fetchone()[0] or 0
             candidates.append((previous,wallet,m,p))
         for _,wallet,m,p in sorted(candidates,key=lambda c:c[0]):

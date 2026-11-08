@@ -6,7 +6,7 @@ umask 022
 task_source_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ -f /var/lib/pbot/OBSERVED-ACTIVE && -f /etc/pbot.env ]]
 grep -Fq ' -m trading_bot.observed_paper ' /etc/systemd/system/pbot-paper.service
-for name in pbot-paper pbot-status pbot-dashboard pbot-hourly-review shaneathon-health; do
+for name in pbot-paper pbot-status pbot-dashboard pbot-hourly-review pbot-sandbox-input shaneathon-health; do
   grep -Eq '^WorkingDirectory=/opt/(pbot|cbot|shaneathon-ops)/releases/[A-Za-z0-9_-]+$' "/etc/systemd/system/$name.service"
 done
 task_old="$(sed -n 's/^WorkingDirectory=//p' /etc/systemd/system/pbot-paper.service)"
@@ -27,24 +27,28 @@ ln -s "$task_old/venv" "$task_release/venv"
 (cd "$task_release"; "$task_release/venv/bin/python" trading_bot/smoke_ui.py)
 task_backup="$(mktemp -d /opt/pbot/display-unit-backup.XXXXXX)"
 chmod 700 "$task_backup"
-for name in pbot-paper pbot-status pbot-dashboard pbot-hourly-review shaneathon-health; do cp "/etc/systemd/system/$name.service" "$task_backup/$name.service"; done
+for name in pbot-paper pbot-status pbot-dashboard pbot-hourly-review pbot-sandbox-input shaneathon-health; do cp "/etc/systemd/system/$name.service" "$task_backup/$name.service"; done
 task_done=0
 task_migrated=0
+task_stop_existed=0
+[[ ! -f /var/lib/pbot/STOP-OBSERVED ]] || task_stop_existed=1
 restore_display_on_failure() {
   if [[ "$task_done" == 0 ]]; then
     systemctl stop pbot-paper || true
     if [[ "$task_migrated" == 1 ]]; then
       (cd "$task_release"; "$task_release/venv/bin/python" -m trading_bot.entry_limits --ledger /var/lib/pbot/observed-v1.sqlite --rollback) || { echo 'Policy rollback failed; paper engine left stopped.' >&2; return; }
     fi
-    for name in pbot-paper pbot-status pbot-dashboard pbot-hourly-review shaneathon-health; do cp "$task_backup/$name.service" "/etc/systemd/system/$name.service"; done
+    for name in pbot-paper pbot-status pbot-dashboard pbot-hourly-review pbot-sandbox-input shaneathon-health; do cp "$task_backup/$name.service" "/etc/systemd/system/$name.service"; done
     systemctl daemon-reload
     systemctl restart pbot-paper pbot-status pbot-dashboard || true
-    systemctl start pbot-hourly-review.timer || true
+    systemctl start pbot-hourly-review.timer pbot-sandbox-input.timer || true
+    if [[ "$task_stop_existed" == 0 ]]; then rm -f /var/lib/pbot/STOP-OBSERVED; fi
     echo 'Prior units/policy restored; financial history preserved.' >&2
   fi
 }
 trap restore_display_on_failure EXIT
-systemctl stop pbot-hourly-review.timer pbot-hourly-review.service
+touch /var/lib/pbot/STOP-OBSERVED
+systemctl stop pbot-hourly-review.timer pbot-hourly-review.service pbot-sandbox-input.timer pbot-sandbox-input.service
 systemctl stop pbot-paper
 python3 - "$task_backup/observed.sqlite" <<'PYBACKUP'
 import sqlite3,sys
@@ -65,12 +69,14 @@ if [[ "$task_policy_already_current" == 0 ]]; then task_migrated=1; fi
 python3 - "$task_release" <<'PY'
 from pathlib import Path
 import sys
-for name in ('pbot-paper','pbot-status','pbot-dashboard','pbot-hourly-review','shaneathon-health'):
+for name in ('pbot-paper','pbot-status','pbot-dashboard','pbot-hourly-review','pbot-sandbox-input','shaneathon-health'):
     path=Path('/etc/systemd/system')/(name+'.service');text=path.read_text()
     old=next(line.split('=',1)[1] for line in text.splitlines() if line.startswith('WorkingDirectory='))
     path.write_text(text.replace(old,sys.argv[1]))
 PY
 systemctl daemon-reload
+systemctl start pbot-sandbox-input.service
+systemctl start pbot-sandbox-input.timer
 systemctl restart pbot-paper pbot-status pbot-dashboard
 (
   set +x
@@ -86,8 +92,10 @@ for attempt in range(25):
     try:
         data=read_status('http://127.0.0.1:8765/status',os.environ['PBOT_READ_TOKEN'])
         assert data['operation_mode']=='OBSERVED_BOOK_PAPER' and data['account']['live_orders_enabled'] is False
-        assert data['configuration']['version']=='OBSERVED_PAPER_V3_FIXED_150'
+        assert data['configuration']['version']=='OBSERVED_PAPER_V4_TRAILING_150'
         assert data['configuration']['min_trade_cost']=='0.50' and data['configuration']['max_trade_cost']=='1.50'
+        assert data['configuration']['max_entries_per_stream']==3 and data['configuration']['trailing_probability_drop']=='.05'
+        assert len(data['portfolios'])==10
         assert not data.get('display_health_error') and 'display_health' in data
         for name,report in data['portfolios'].items():
             assert 'activity' in report and 'display_state' in report and 'last_trade' in report['activity']
@@ -108,8 +116,11 @@ systemctl start pbot-hourly-review.service
 systemctl start pbot-hourly-review.timer
 systemctl is-active --quiet pbot-paper pbot-status pbot-dashboard pbot-hourly-review.timer
 task_done=1
-echo 'PBot now targets at most $1.50 per new entry including modeled fees, in every wallet.'
+if [[ "$task_stop_existed" == 0 ]]; then rm -f /var/lib/pbot/STOP-OBSERVED; fi
+echo 'PBot: all eight market streams, $1.50 entry cap, at most 3 filled entries per stream across wallets in rolling 15 minutes.'
 echo 'Whole-contract sizing and partial fills may cost less than $1.50. Existing holdings and balances preserved.'
-echo 'Current $1.50-policy results separated from earlier entries; history available at https://pbot.shaneathon.com .'
+echo 'Entries scan the full window. Final two minutes need a strong fresh model reversal plus 10-point modeled net edge; final 15 seconds block entries.'
+echo 'Exits trail held-side MODEL probability by 5 points from its peak. No fixed profit target. Delayed full-size bid fills and sell fees modeled; exits may not fill.'
+echo 'New experiment results separated from earlier entries at https://pbot.shaneathon.com .'
 echo 'Hourly review updated for the new cohort; existing wallet pauses and manual stop files preserved.'
-echo 'Collectors, Coinbase and input exporter unchanged. Real trading remains disabled.'
+echo 'All eight source collectors and Coinbase unchanged; input exporter retains all markets and outstanding settlements. Real trading remains disabled.'

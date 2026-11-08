@@ -29,8 +29,8 @@ def required_markets(ledger):
     with sqlite3.connect(ledger.resolve().as_uri()+'?mode=ro',uri=True) as db:
         db.execute('BEGIN')
         for slug,payload in db.execute('SELECT market_slug,payload FROM positions'):
-            if json.loads(payload).get('state')=='PAPER_OPEN': result.add(slug)
-        result.update(r[0] for r in db.execute("SELECT market_slug FROM orders WHERE state='PROPOSED'"))
+            if json.loads(payload).get('state')=='PAPER_OPEN': result.add(json.loads(payload).get('market_slug',slug))
+        result.update(json.loads(r[0])['plan']['market_slug'] for r in db.execute("SELECT payload FROM orders WHERE state='PROPOSED'"))
     return result
 
 

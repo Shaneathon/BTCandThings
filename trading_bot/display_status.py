@@ -44,6 +44,8 @@ def wallet_state(report,packet,health,now,paused=False,orders=()):
     a=report['account'];activity=report['activity'];stream=(a.get('market_pnl') or [{}])[0]
     if health['engine_age_seconds']<0 or health['engine_age_seconds']>30: return dict(state='ENGINE_STALE',severity='error')
     if health.get('input_error') or not health['input_fresh']: return dict(state='INPUT_BLOCKED',severity='error')
+    if report.get('exit_order_states',{}).get('PROPOSED',0): return dict(state='EXIT_ORDER_PENDING',severity='info')
+    if report.get('open_exit_triggers',0): return dict(state='EXIT_WAITING_FOR_BOOK',severity='warning')
     if report.get('automatic_entry_pause'): return dict(state='AUTOMATIC_ENTRY_PAUSE',severity='warning')
     if paused: return dict(state='ENTRIES_PAUSED',severity='warning')
     if a.get('halted_reason'): return dict(state='RISK_HALT',severity='warning')
@@ -53,6 +55,8 @@ def wallet_state(report,packet,health,now,paused=False,orders=()):
     if activity['open_windows']:
         overdue=any(end<=now for end in activity['open_windows'])
         return dict(state='AWAITING_OFFICIAL_SETTLEMENT' if overdue else 'POSITION_OPEN',severity='info')
+    if report.get('entry_budget_state')=='ROLLING_MARKET_ENTRY_LIMIT': return dict(state='ENTRY_QUOTA_REACHED',severity='info')
+    if report.get('entry_budget_state')=='ENTRY_RETRY_SPACING': return dict(state='ENTRY_RETRY_WAIT',severity='info')
     if Decimal(activity.get('risk_capacity','1'))<=0: return dict(state='RISK_BUDGET_EXHAUSTED',severity='warning')
     markets=[m for m in packet.get('markets',[]) if m.get('asset')==stream.get('asset')
              and m.get('duration_seconds')==stream.get('duration_seconds')
@@ -60,11 +64,13 @@ def wallet_state(report,packet,health,now,paused=False,orders=()):
     if not markets: return dict(state='NO_CURRENT_MARKET',severity='warning')
     m=max(markets,key=lambda m:m['window_start']);end=time_of(m['window_end']);remaining=end-now
     previous=[state for state,payload in orders if payload['plan']['market_slug']==m['market_slug']]
-    if previous: return dict(state='ORDER_ALREADY_ATTEMPTED',severity='info',market_slug=m['market_slug'],window_end=end,seconds_remaining=round(remaining,1))
+    # Multiple sequential entries are now permitted; old attempts are not a permanent blocker.
     result=dict(state='EVALUATING_BOOK_AND_EDGE',severity='info',market_slug=m['market_slug'],
                 window_end=end,seconds_remaining=round(remaining,1))
-    if remaining>90: result['state']='WAITING_FOR_ENTRY_WINDOW';return result
-    if remaining<30: result['state']='ENTRY_WINDOW_CLOSED';return result
+    earliest=report.get('entry_timing',{}).get('earliest',90);latest_allowed=report.get('entry_timing',{}).get('latest',30)
+    if remaining>min(earliest,stream.get('duration_seconds',earliest)): result['state']='WAITING_FOR_ENTRY_WINDOW';return result
+    if remaining<latest_allowed: result['state']='ENTRY_WINDOW_CLOSED';return result
+    if remaining<=report.get('entry_timing',{}).get('late_seconds',0): result['state']='LATE_REVERSAL_CHECK'
     signals=[p for p in packet.get('predictions',[]) if p.get('market_slug')==m['market_slug'] and p.get('model_version')==report.get('model_version')]
     latest=max(signals,key=lambda p:p['recorded_at']) if signals else None
     age=now-time_of(latest['recorded_at']) if latest else None
@@ -112,11 +118,18 @@ def enrich(path,result,now=None,input_path=Path('/var/lib/pbot-input/dual-sandbo
                 high*Decimal(cfg.get('max_drawdown','.10'))-(high-cash-exposure)-exposure-reserved))
             from trading_bot.trade_history import trade_row
             last_position=max(positions,key=lambda p:p['opened_at']) if positions else None
-            last_entry=next(((state,record) for state,record in orders if last_position and record['plan']['market_slug']==last_position['market_slug']),None)
+            last_entry=next(((state,record) for state,record in orders if last_position and record.get('entry_key',record['plan']['market_slug'])==last_position.get('entry_key',last_position['market_slug'])),None)
             last_trade=trade_row(name,last_position,last_entry[0] if last_entry else None,last_entry[1] if last_entry else None) if last_position else None
             report['activity']=dict(last_trade=last_trade,risk_capacity=str(capacity),last_filled_at=latest,last_settled_at=closed,last_order_proposed_at=proposed,
                 filled_trade_count=len(positions),pending_orders=pending,
                 open_windows=[p['window_end'] for p in positions if p.get('state')=='PAPER_OPEN'])
+            if result.get('configuration',{}).get('max_entries_per_stream'):
+                from trading_bot.entry_policy import reserve_slot
+                stream=(report['account'].get('market_pnl') or [{}])[0]
+                current=[m for m in packet.get('markets',[]) if m.get('asset')==stream.get('asset') and m.get('duration_seconds')==stream.get('duration_seconds') and time_of(m['window_start'])<=now<time_of(m['window_end'])]
+                if current:
+                    try: reserve_slot(db,name,max(current,key=lambda m:m['window_start']),now,result['configuration'])
+                    except ValueError as error: report['entry_budget_state']=str(error)
             report['display_state']=wallet_state(report,packet,health,now,Path(path).with_name('STOP-OBSERVED').exists(),orders=orders)
             last_filled.append(latest);last_closed.append(closed);last_order.append(proposed)
     maximum=lambda values:max((v for v in values if v is not None),default=None)
