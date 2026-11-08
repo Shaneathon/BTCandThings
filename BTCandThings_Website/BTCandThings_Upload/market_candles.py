@@ -198,3 +198,101 @@ def stage_progress(st, duration, now, start, end):
             progress = max(0, min(1, (elapsed-begin)/(finish-begin)))
             st.caption(f"{name} · {begin//60}–{finish//60} min")
             st.progress(progress)
+
+
+def streaming_candles_html(frame, asset, interval, reference=None):
+    """Browser-only Kraken v2 OHLC stream; never changes completed model bars."""
+    import json
+    symbols={'BTC':'BTC/USD','ETH':'ETH/USD','XRP':'XRP/USD','SOL':'SOL/USD'}
+    if asset not in symbols or interval not in ('1m','5m'):
+        raise ValueError('Unsupported streaming chart instrument or interval')
+    source=frame.reset_index() if 'time' not in frame.columns else frame
+    seed=[]
+    for row in source.tail(120).itertuples(index=False):
+        stamp=pd.Timestamp(row.time)
+        if stamp.tzinfo is None: raise ValueError('Chart seed timestamps require timezone')
+        values={key:float(getattr(row,key)) for key in ('open','high','low','close')}
+        if (not all(math.isfinite(v) and v>0 for v in values.values()) or
+                values['high']<max(values.values()) or values['low']>min(values.values())): continue
+        seed.append(dict(time=int(stamp.timestamp()),**values))
+    target=float(reference) if reference is not None else None
+    if target is not None and (not math.isfinite(target) or target<=0): target=None
+    cfg=json.dumps(dict(symbol=symbols[asset],interval=int(interval[:-1]),seed=seed,target=target),allow_nan=False).replace('</','<\\/')
+    return '''<!doctype html><html><head><meta charset="utf-8"><style>
+    html,body{margin:0;background:#151f32;color:#b6c6da;font:11px system-ui}#chart{height:210px}
+    .status{display:flex;justify-content:space-between;gap:8px;padding:3px 5px;min-height:17px}.status a{color:#819ab9}
+    #feed{color:#fbbf24}#price{color:#e8efff;font-variant-numeric:tabular-nums}
+    </style></head><body><div class="status"><span id="feed" role="status">Loading streaming chart…</span><span id="price"></span></div>
+    <div id="chart"></div><div class="status"><span>Kraken spot · forming candle included · Central time</span><a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">Charts by TradingView</a></div>
+    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script>
+    <script>
+    const cfg=__CONFIG__,feed=document.getElementById('feed'),price=document.getElementById('price');
+    const central=new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',hour:'numeric',minute:'2-digit',second:'2-digit',timeZoneName:'short'});
+    function state(text,color='#fbbf24'){feed.textContent=text;feed.style.color=color;}
+    if(!window.LightweightCharts){state('Chart library unavailable — refresh or check content blockers.','#f87171');}
+    else{
+      const host=document.getElementById('chart');
+      const chart=LightweightCharts.createChart(host,{width:host.clientWidth,height:210,
+        layout:{background:{type:'solid',color:'#151f32'},textColor:'#a9bdd4',fontSize:10},
+        grid:{vertLines:{color:'#213148'},horzLines:{color:'#213148'}},
+        rightPriceScale:{borderColor:'#33445c'},timeScale:{borderColor:'#33445c',timeVisible:true,secondsVisible:false,
+          tickMarkFormatter:t=>central.format(new Date(t*1000)).replace(/:\\d{2} (AM|PM)/,' $1')},
+        localization:{timeFormatter:t=>central.format(new Date(t*1000))},handleScroll:true,handleScale:true});
+      const series=chart.addCandlestickSeries({upColor:'#22c55e',downColor:'#f87171',borderVisible:false,
+        wickUpColor:'#22c55e',wickDownColor:'#f87171',priceFormat:{type:'price',precision:cfg.symbol==='XRP/USD'?5:2,minMove:cfg.symbol==='XRP/USD'?.00001:.01}});
+      const bars=new Map(cfg.seed.map(b=>[b.time,b]));
+      series.setData([...bars.values()].sort((a,b)=>a.time-b.time));chart.timeScale().fitContent();
+      if(cfg.target!==null)series.createPriceLine({price:cfg.target,color:'#fbbf24',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'US target'});
+      new ResizeObserver(()=>chart.applyOptions({width:host.clientWidth})).observe(host);
+      let ws=null,retry=null,stopped=false,backoff=1000,lastData=0;
+      function connect(){
+        if(stopped||document.hidden)return;
+        state('Connecting to Kraken '+cfg.symbol+'…');
+        ws=new WebSocket('wss://ws.kraken.com/v2');
+        ws.onopen=()=>{
+          backoff=1000;lastData=0;state('Connected · waiting for candle data');
+          ws.send(JSON.stringify({method:'subscribe',params:{channel:'ohlc',symbol:[cfg.symbol],interval:cfg.interval,snapshot:true}}));
+        };
+        ws.onmessage=event=>{
+          let msg;try{msg=JSON.parse(event.data);}catch{return;}
+          if(msg.method==='subscribe'&&msg.success===false){state('Kraken subscription unavailable','#f87171');return;}
+          if(msg.channel!=='ohlc'||!Array.isArray(msg.data))return;
+          let accepted=false;
+          for(const row of msg.data){
+            if(row.symbol!==cfg.symbol||Number(row.interval)!==cfg.interval)continue;
+            const t=Date.parse(row.interval_begin)/1000;
+            const bar={time:t,open:Number(row.open),high:Number(row.high),low:Number(row.low),close:Number(row.close)};
+            if(!Number.isFinite(t)||t%(cfg.interval*60)!==0||t>Date.now()/1000+120||
+              ![bar.open,bar.high,bar.low,bar.close].every(x=>Number.isFinite(x)&&x>0)||
+              bar.high<Math.max(bar.open,bar.close,bar.low)||bar.low>Math.min(bar.open,bar.close,bar.high))continue;
+            bars.set(t,bar);accepted=true;
+          }
+          if(!accepted)return;
+          const sorted=[...bars.values()].sort((a,b)=>a.time-b.time).slice(-300);
+          bars.clear();for(const b of sorted)bars.set(b.time,b);
+          series.setData(sorted);
+          const latest=sorted[sorted.length-1];lastData=Date.now();
+          price.textContent='$'+latest.close.toLocaleString('en-US',{maximumFractionDigits:cfg.symbol==='XRP/USD'?5:2});
+          if(Date.now()/1000-latest.time>cfg.interval*60+120)state('Connected · latest candle is stale','#f87171');
+          else state('STREAMING · received '+central.format(new Date(lastData)),'#67e8c0');
+        };
+        ws.onerror=()=>state('Stream connection error · retrying','#f87171');
+        ws.onclose=()=>{
+          if(stopped||document.hidden)return;
+          state('Disconnected · reconnecting','#f87171');
+          clearTimeout(retry);retry=setTimeout(connect,backoff);backoff=Math.min(backoff*2,30000);
+        };
+      }
+      const watchdog=setInterval(()=>{
+        if(ws&&ws.readyState===WebSocket.OPEN&&lastData&&Date.now()-lastData>45000)
+          state('Connected · no new candle update for '+Math.floor((Date.now()-lastData)/1000)+'s','#fbbf24');
+      },5000);
+      document.addEventListener('visibilitychange',()=>{
+        clearTimeout(retry);
+        if(document.hidden){if(ws)ws.close();state('Chart paused while tab is hidden');}
+        else if(!ws||ws.readyState===WebSocket.CLOSED)connect();
+      });
+      window.addEventListener('pagehide',()=>{stopped=true;clearTimeout(retry);clearInterval(watchdog);if(ws)ws.close();});
+      connect();
+    }
+    </script></body></html>'''.replace('__CONFIG__',cfg)

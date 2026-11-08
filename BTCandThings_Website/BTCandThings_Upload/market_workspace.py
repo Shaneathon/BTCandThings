@@ -74,7 +74,7 @@ def load_spot_candles(get_json, pair):
 
 def render_workspace(st, components, asset, duration, now, discover, full_market, get_json):
     """BTC-style layout with strictly asset/window-local data; no archive writes."""
-    from market_candles import load_candles, resample_complete, candle_svg
+    from market_candles import load_candles, resample_complete, streaming_candles_html
     from tracker_panels import research_signal, signal_card, countdown_html
     start, end = window_for(now, duration)
     item = ASSETS[asset]
@@ -128,7 +128,7 @@ def render_workspace(st, components, asset, duration, now, discover, full_market
         with st.container(key="workspace_candlestick_panel"):
             heading, selector = st.columns([2, 1], vertical_alignment="center")
             with heading:
-                st.markdown(f"**{asset} / USD · completed candles**")
+                st.markdown(f"**{asset} / USD · streaming candles**")
             with selector:
                 interval = st.radio("Candle interval", ("1m", "5m"), horizontal=True,
                                     label_visibility="collapsed", key=f"candles_{asset}_{duration}")
@@ -136,8 +136,8 @@ def render_workspace(st, components, asset, duration, now, discover, full_market
             if chart.empty:
                 st.info("Waiting for complete candles. Other panels remain available.")
             else:
-                components.html(candle_svg(chart, asset, interval, target), height=245, scrolling=False)
-            st.caption(feed_name)
+                components.html(streaming_candles_html(chart, asset, interval, target), height=260, scrolling=False)
+            st.caption(feed_name+" · Chart streams forming candles directly from Kraken; signals use completed candles.")
     if slug:
         st.markdown(f"[Open {asset} {duration} on Polymarket US](https://polymarket.us/event/{slug}) · {status}")
     if feed_error:
