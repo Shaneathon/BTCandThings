@@ -19,6 +19,11 @@ def observe(db,wallet,m,p,now,available):
 
 def phase(db,wallet,m,p,now,settings):
     remaining=time_of(m['window_end'])-now
+    if settings.get('entry_strategy')=='MARKET_BAND':
+        if now-time_of(m['window_start'])<settings['opening_wait_seconds']: raise ValueError('OPENING_WAIT_90_SECONDS')
+        cutoff=settings['close_cutoff_15m'] if m['duration_seconds']==900 else settings['close_cutoff_5m']
+        if remaining<=cutoff: raise ValueError('ENTRY_CUTOFF')
+        return dict(phase='MARKET_BAND',percentage_source='POLYMARKET_CURRENT_PX')
     if not settings['entry_seconds_remaining'][0]<=remaining<=m['duration_seconds']:
         raise ValueError('ENTRY_WINDOW')
     if remaining>settings['late_entry_seconds']: return dict(phase='NORMAL',minimum_edge=settings['minimum_edge'])

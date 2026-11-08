@@ -1,4 +1,4 @@
-"""Persistent model-confidence trailing exits; depth-limited, delayed paper sells."""
+"""Persistent observed-book exits: legacy model trails and fixed market thresholds."""
 from dataclasses import asdict
 from decimal import Decimal,ROUND_DOWN
 import json
@@ -50,7 +50,8 @@ def sell_book(book):
 
 
 def finish(engine,oid,wallet,key,encoded,books,now):
-    plan=OrderPlan(**json.loads(encoded)['plan'])
+    specification=json.loads(encoded)
+    plan=OrderPlan(**specification['plan'])
     if now<plan.eligible_at:
         row=engine.db.execute('SELECT payload FROM positions WHERE wallet=? AND market_slug=?',(wallet,key)).fetchone()
         if row and json.loads(row[0])['state']=='PAPER_OPEN': return
@@ -69,9 +70,9 @@ def finish(engine,oid,wallet,key,encoded,books,now):
             proceeds=amount(result['net_proceeds'])
             if proceeds<0: raise ValueError('NEGATIVE_SELL_PROCEEDS')
             trail=engine.db.execute('SELECT peak,current,triggered_at FROM probability_trails WHERE wallet=? AND entry_key=?',(wallet,key)).fetchone()
-            p.update(state='PAPER_CLOSED',close_reason='MODEL_PROBABILITY_TRAILING_EXIT',closed_at=now,payout=str(proceeds),
+            p.update(state='PAPER_CLOSED',close_reason=specification.get('exit_reason','MODEL_PROBABILITY_TRAILING_EXIT'),closed_at=now,payout=str(proceeds),
                 pnl=str(proceeds-amount(p['cost'])),exit_fees=result['fees'],exit_price=str(amount(result['gross_proceeds'])/amount(p['quantity'])),
-                exit_order_id=oid,exit_fills=result['fills'],exit_policy='FOK_OBSERVED_BID_TRAILING_PROBABILITY_V1',
+                exit_order_id=oid,exit_fills=result['fills'],exit_policy=specification.get('exit_policy','FOK_OBSERVED_BID_TRAILING_PROBABILITY_V1'),market_exit_signal=specification.get('market_exit_signal'),
                 signal_peak=trail[0] if trail else None,signal_at_exit=trail[1] if trail else None)
             cash=amount(engine.db.execute('SELECT cash FROM wallets WHERE name=?',(wallet,)).fetchone()[0])
             engine.db.execute('UPDATE wallets SET cash=? WHERE name=?',(str(cash+proceeds),wallet))
@@ -95,16 +96,28 @@ def manage(engine,data,get,now,fresh,clock):
             if now>=plan.expires_at: finish(engine,oid,wallet,key,encoded,{},now)
     if not fresh: return
     opened=[(wallet,key,json.loads(encoded)) for wallet,key,encoded in engine.db.execute('SELECT wallet,market_slug,payload FROM positions') if json.loads(encoded)['state']=='PAPER_OPEN']
-    for wallet,key,p in opened: update_trail(engine,wallet,key,p,data,now)
+    for wallet,key,p in opened:
+        if p.get('exit_rule')!='MARKET_FIXED_2PT_71': update_trail(engine,wallet,key,p,data,now)
     budget=dict(engine.db.execute('SELECT key,value FROM meta'))
     opened.sort(key=lambda row:budget.get('exit_quote:'+row[0]+':'+row[1],0))
     for wallet,key,p in opened:
         trail=engine.db.execute('SELECT peak,current,signal_at,triggered_at FROM probability_trails WHERE wallet=? AND entry_key=?',(wallet,key)).fetchone()
-        if not trail or trail[3] is None: continue
+        market_rule=p.get('exit_rule')=='MARKET_FIXED_2PT_71'
+        if not market_rule and (not trail or trail[3] is None): continue
         if engine.db.execute("SELECT 1 FROM exit_orders WHERE wallet=? AND entry_key=? AND state='PROPOSED'",(wallet,key)).fetchone(): continue
         if p['window_end']-now<4: continue
         try:
-            m=markets[p['market_slug']];books=get(m);book=books[p['side']];bids=book.get('liquidation_bids',[])
+            m=markets[p['market_slug']];books=get(m);book=books[p['side']]
+            with engine.db:
+                engine.db.execute("INSERT INTO meta VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",('exit_quote:'+wallet+':'+key,clock()))
+            exit_specification={}
+            if market_rule:
+                from trading_bot.market_band import update_exit
+                state=update_exit(engine,wallet,key,p,books,clock())
+                if state['triggered_at'] is None: continue
+                trail=(state['entry_probability'],state['current_probability'],state['observed_at'],state['triggered_at'])
+                exit_specification=dict(exit_reason=state['reason'],exit_policy='MARKET_FIXED_2PT_71',market_exit_signal=state)
+            bids=book.get('liquidation_bids',[])
             if not bids: raise ValueError('NO_EXIT_BIDS')
             created=clock();metadata=data.get('execution_evidence',{}).get('metadata',{}).get(m['market_slug'],{})
             tick=amount(metadata['orderPriceMinTickSize'])
@@ -115,9 +128,9 @@ def manage(engine,data,get,now,fresh,clock):
                 'TIME_IN_FORCE_FILL_OR_KILL',book['mapping_evidence'],QUADRATIC_TAKER_RULE,'.06',FEE_BASIS)
             plan.validate()
             with engine.db:
-                engine.db.execute('INSERT INTO exit_orders VALUES(?,?,?,?,?,NULL)',(plan.order_id,wallet,key,'PROPOSED',json.dumps(dict(plan=asdict(plan)))))
+                engine.db.execute('INSERT INTO exit_orders VALUES(?,?,?,?,?,NULL)',(plan.order_id,wallet,key,'PROPOSED',json.dumps(dict(plan=asdict(plan),**exit_specification))))
                 engine.db.execute("INSERT INTO meta VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",('exit_quote:'+wallet+':'+key,created))
-            engine.event(wallet,m['market_slug'],'PROPOSED_PROBABILITY_TRAILING_EXIT',created)
+            engine.event(wallet,m['market_slug'],'PROPOSED_MARKET_THRESHOLD_EXIT' if market_rule else 'PROPOSED_PROBABILITY_TRAILING_EXIT',created)
         except Exception as error:
             engine.event(wallet,p['market_slug'],'EXIT_'+(str(error) if isinstance(error,ValueError) else type(error).__name__),now)
 
@@ -125,6 +138,8 @@ def manage(engine,data,get,now,fresh,clock):
 def annotate(db,reports):
     for wallet,report in reports.items():
         report['open_exit_triggers']=db.execute("SELECT count(*) FROM probability_trails t JOIN positions p ON p.wallet=t.wallet AND p.market_slug=t.entry_key WHERE t.wallet=? AND t.triggered_at IS NOT NULL AND json_extract(p.payload,'$.state')='PAPER_OPEN'",(wallet,)).fetchone()[0]
+        report['open_exit_triggers']+=db.execute("SELECT count(*) FROM market_exit_state t JOIN positions p ON p.wallet=t.wallet AND p.market_slug=t.entry_key WHERE t.wallet=? AND json_extract(t.payload,'$.triggered_at') IS NOT NULL AND json_extract(p.payload,'$.state')='PAPER_OPEN'",(wallet,)).fetchone()[0]
+        report['market_exit_states']=[dict(json.loads(payload),entry_key=key) for key,payload in db.execute("SELECT entry_key,payload FROM market_exit_state WHERE wallet=? ORDER BY json_extract(payload,'$.observed_at') DESC LIMIT 10",(wallet,))]
         report['exit_order_states']=dict(db.execute('SELECT state,count(*) FROM exit_orders WHERE wallet=? GROUP BY state',(wallet,)))
         report['probability_trails']=[dict(entry_key=key,peak=peak,current=current,signal_at=stamp,triggered_at=trigger)
             for key,peak,current,stamp,trigger in db.execute('SELECT entry_key,peak,current,signal_at,triggered_at FROM probability_trails WHERE wallet=? ORDER BY signal_at DESC LIMIT 10',(wallet,))]

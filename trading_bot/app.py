@@ -77,18 +77,21 @@ def content():
     if data.get('operation_mode') == 'OBSERVED_BOOK_PAPER':
         from trading_bot.display_status import central,ago,table_times
         health=data.get('display_health',{})
-        labels={'EXIT_ORDER_PENDING':'Trailing exit awaiting delayed bid execution','EXIT_WAITING_FOR_BOOK':'Trailing exit triggered — waiting for executable bids','AUTOMATIC_ENTRY_PAUSE':'Automatic paper loss guard — new entries paused','ENGINE_STALE':'Engine heartbeat stale','INPUT_BLOCKED':'Input unavailable — entries blocked',
+        labels={'EXIT_ORDER_PENDING':'Exit awaiting delayed bid execution','EXIT_WAITING_FOR_BOOK':'Exit triggered — waiting for executable bids','AUTOMATIC_ENTRY_PAUSE':'Automatic paper loss guard — new entries paused','ENGINE_STALE':'Engine heartbeat stale','INPUT_BLOCKED':'Input unavailable — entries blocked',
                 'ENTRIES_PAUSED':'New entries paused','RISK_HALT':'Risk halt',
                 'RISK_BUDGET_EXHAUSTED':'Entry risk budget exhausted','ORDER_ALREADY_ATTEMPTED':'Order already attempted — waiting for next window','ORDER_PROCESSING_LATE':'Pending order overdue',
                 'ORDER_PENDING':'Order awaiting execution check','AWAITING_OFFICIAL_SETTLEMENT':'Waiting for official settlement',
                 'POSITION_OPEN':'Paper position open','NO_CURRENT_MARKET':'Waiting for current market',
                 'WAITING_FOR_ENTRY_WINDOW':'Waiting for entry window','ENTRY_WINDOW_CLOSED':'Waiting for next window',
                 'WAITING_FOR_FRESH_SIGNAL':'Waiting for fresh prediction','WAITING_FOR_PAIRED_SIGNAL':'Waiting for both control predictions',
-                'EVALUATING_BOOK_AND_EDGE':'Checking quotes and net edge','LATE_REVERSAL_CHECK':'Final two minutes — strong model reversal required','ENTRY_QUOTA_REACHED':'Three entries used/reserved — rolling market limit','ENTRY_RETRY_WAIT':'Waiting between entry attempts'}
+                'EVALUATING_BOOK_AND_EDGE':'Checking quotes and net edge','LATE_REVERSAL_CHECK':'Final two minutes — strong model reversal required','OPENING_WAIT':'Waiting for first 90 seconds to pass','ENTRY_QUOTA_REACHED':'Rolling market entry limit reached','ENTRY_RETRY_WAIT':'Waiting between entry attempts'}
         has_periods=all('performance_periods' in r for r in data.get('portfolios',{}).values())
-        period_options=('Current trailing-exit experiment','Earlier entries','All history') if has_periods else ('All history',)
+        band_mode=data.get('configuration',{}).get('entry_strategy')=='MARKET_BAND'
+        if band_mode: labels['EVALUATING_BOOK_AND_EDGE']='Checking market percentage and current lean'
+        current_title='Current market-band experiment' if band_mode else 'Current trailing-exit experiment'
+        period_options=(current_title,'Earlier entries','All history') if has_periods else ('All history',)
         period_choice=st.radio('Performance results',period_options,horizontal=True,key='pbot_performance_period')
-        period_key={'Current trailing-exit experiment':'current','Earlier entries':'earlier','All history':'all'}[period_choice]
+        period_key={current_title:'current','Earlier entries':'earlier','All history':'all'}[period_choice]
         st.caption('Performance view: '+period_choice+'. Trades are grouped by the policy used at entry, including partial fills. Wallet cash and activity times always include full history.')
         choices=list(data.get('portfolios',{}))
         if choices:
@@ -99,7 +102,8 @@ def content():
             st.markdown('### '+chosen)
             (st.error if state.get('severity')=='error' else st.warning if state.get('severity')=='warning' else st.info)(description)
             if state.get('window_end'):
-                st.caption('Current market closes '+central(state['window_end'])+' · approximately '+str(int(state['seconds_remaining']))+' seconds remaining. Entries are evaluated throughout the window; final two minutes require a strong model reversal. No new entries in the final 15 seconds.')
+                timing='Wait first 90 seconds; stop entries 3 minutes before 15m closes or 2 minutes before 5m closes.' if band_mode else 'Entries throughout the window; final two minutes require a strong reversal; final 15 seconds block entries.'
+                st.caption('Current market closes '+central(state['window_end'])+' · approximately '+str(int(state['seconds_remaining']))+' seconds remaining. '+timing)
             performance=report.get('performance_periods',{}).get(period_key,{})
             values=st.columns(4)
             values[0].metric('Wallet virtual cash · all history',f"${float(account['cash']):,.2f}")
@@ -125,9 +129,16 @@ def content():
                 st.caption('Proposed entry range: $'+limits['min_trade_cost']+'–$'+limits['max_trade_cost']+' including modeled fees, per wallet. Partial fills or price improvement may cost less than the minimum proposed amount.')
             else:
                 st.caption('Maximum entry cost: $'+str(limits.get('max_trade_cost','10'))+' including modeled fees, per wallet.')
-            st.caption('One open or pending position per wallet; maximum 3 filled entries per market stream across wallets in a rolling 15 minutes. Unfilled attempts do not count. Cash, liquidity and risk limits can reduce size or cause a skip.')
-            st.caption('Exit rule: trail the model probability of your held side winning by 5 percentage points from its peak. No fixed profit target. Exits require fresh bids, modeled sell fees and full visible size; immediate fills are not guaranteed.')
-            with st.expander('Probability trail and paper exit activity'):
+            st.caption('One open or pending position per wallet; maximum '+str(limits.get('max_entries_per_stream',3))+' filled entries per market stream across wallets in a rolling 15 minutes. Unfilled attempts do not count. Cash, liquidity and risk limits can reduce size or cause a skip.')
+            if band_mode:
+                st.caption('New entries: Polymarket current mark 54–64%, favored side matches fresh market-local lean. Exit at 2 points below actual entry mark or at 71%; thresholds are fixed, not trailing. Actual orders use bids/asks and modeled fees; fills are not guaranteed.')
+            else:
+                st.caption('Exit rule: trail the model probability of your held side winning by 5 percentage points from its peak. No fixed profit target. Exits require fresh bids, modeled sell fees and full visible size; immediate fills are not guaranteed.')
+            if band_mode:
+                with st.expander('Market-percentage exit activity'):
+                    st.dataframe([{'Entry':r['entry_key'],'Entry mark':f"{float(r['entry_probability'])*100:.1f}%",'Current mark':f"{float(r['current_probability'])*100:.1f}%",'Fixed stop':f"{float(r['stop_probability'])*100:.1f}%",'Target':'71%','Received (Central)':central(r['observed_at']),'Trigger':r.get('reason')} for r in report.get('market_exit_states',[])],hide_index=True,width='stretch')
+                    st.caption('Earlier open positions retain their previous exit rule until closed. Percentages are API current marks, not guaranteed sale prices.')
+            with st.expander('Earlier model-based exit activity' if band_mode else 'Probability trail and paper exit activity'):
                 st.dataframe([{'Entry':r['entry_key'],'Peak model probability':f"{float(r['peak'])*100:.1f}%",'Latest model probability':f"{float(r['current'])*100:.1f}%",'5-point trailing level':f"{(float(r['peak'])-.05)*100:.1f}%",'Signal (Central)':central(r['signal_at']),'Exit triggered (Central)':central(r['triggered_at'])} for r in report.get('probability_trails',[])],hide_index=True,width='stretch')
                 st.write(report.get('exit_order_states',{}))
             if data.get('entry_policy_changed_at'): st.caption('New entry limits applied '+central(data['entry_policy_changed_at'])+'. Older trades retain their original amounts.')
@@ -196,7 +207,7 @@ def content():
             report=data['portfolios'][chosen];account=report['account']
             st.markdown('#### Recent positions · '+period_choice)
             from trading_bot.performance_periods import period,label
-            st.dataframe(table_times([dict(p,entry_policy=label(p)) for p in account['positions'] if period_key=='all' or period(p)==period_key]),hide_index=True,width='stretch')
+            st.dataframe(table_times([dict(p,entry_policy=label(p)) for p in account['positions'] if period_key=='all' or period(p,data.get('configuration',{}).get('version'))==period_key]),hide_index=True,width='stretch')
             st.caption('Recent positions are a bounded preview. Full trade history retains both policies, labeled per trade.')
             st.markdown('#### Historical skip reasons and order decisions')
             st.caption('These timestamps show when each distinct market/reason was FIRST recorded. Old rows are not a current alarm; use the live status above.')

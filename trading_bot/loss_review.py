@@ -28,7 +28,7 @@ def inspect(ledger,source):
             checks=[]
             if not o: checks.append('MISSING_ORDER')
             if payout-cost!=pnl: checks.append('PNL_MISMATCH')
-            if p.get('close_reason')=='MODEL_PROBABILITY_TRAILING_EXIT':
+            if p.get('close_reason') in ('MODEL_PROBABILITY_TRAILING_EXIT','MARKET_ENTRY_MINUS_2_POINTS','MARKET_71_PERCENT_TARGET'):
                 if not p.get('exit_order_id') or Decimal(p.get('exit_fees','0'))<0: checks.append('INVALID_EARLY_EXIT_RECORD')
             elif m.get('settlement_status')!='VERIFIED': checks.append('OFFICIAL_RECORD_UNAVAILABLE_OR_UNVERIFIED')
             else:
@@ -36,10 +36,13 @@ def inspect(ledger,source):
                 if payout!=expected: checks.append('PAYOUT_WINNER_MISMATCH')
                 if p['contract_slug']!=m.get('contract_slug'): checks.append('CONTRACT_MISMATCH')
                 if Decimal(str(m['official_price_to_beat']))!=Decimal(p['price_to_beat']): checks.append('TARGET_MISMATCH')
-            if probability is not None and p['side']!=('UP' if probability>Decimal('.5') else 'DOWN'): checks.append('SIGNAL_DIRECTION_MISMATCH')
+            if p.get('exit_rule')=='MARKET_FIXED_2PT_71':
+                if not Decimal('.54')<=Decimal(p['entry_market_probability'])<=Decimal('.64'): checks.append('MARKET_ENTRY_BAND_MISMATCH')
+                if p.get('entry_lean',{}).get('direction')!=p['side']: checks.append('ENTRY_LEAN_MISMATCH')
+            elif probability is not None and p['side']!=('UP' if probability>Decimal('.5') else 'DOWN'): checks.append('SIGNAL_DIRECTION_MISMATCH')
             record=dict(wallet=wallet,market=slug,side=p['side'],entry_price=str(p['entry_price']),
-                cost=str(cost),fees=str(fee),net_pnl=str(pnl),chosen_signal_probability=str(chosen_probability) if chosen_probability is not None else None,
-                break_even_probability=str(cost/q),winning_claim=payout>cost if p.get('close_reason')=='MODEL_PROBABILITY_TRAILING_EXIT' else payout>0,close_reason=p.get('close_reason','OFFICIAL_SETTLEMENT'),official_winner=m.get('official_winner'),checks=checks,
+                entry_market_probability=p.get('entry_market_probability'),cost=str(cost),fees=str(fee),net_pnl=str(pnl),chosen_signal_probability=str(chosen_probability) if chosen_probability is not None else None,
+                break_even_probability=str(cost/q),winning_claim=payout>cost if p.get('close_reason') in ('MODEL_PROBABILITY_TRAILING_EXIT','MARKET_ENTRY_MINUS_2_POINTS','MARKET_71_PERCENT_TARGET') else payout>0,close_reason=p.get('close_reason','OFFICIAL_SETTLEMENT'),official_winner=m.get('official_winner'),checks=checks,
                 seconds_remaining_at_proposal=round(p['window_end']-plan['created_at'],1) if plan.get('created_at') else None)
             groups[wallet].append(record)
             if checks or pnl<0: examples.append(record)
@@ -55,7 +58,7 @@ def inspect(ledger,source):
             check_failures=sum(bool(r['checks']) for r in rows),
             directions={side:dict(positions=len(part),winning_claims=sum(r['winning_claim'] for r in part),
                 net_pnl=str(sum((Decimal(r['net_pnl']) for r in part),Decimal(0)))) for side in ('UP','DOWN') if (part:=[r for r in rows if r['side']==side])}))
-    return dict(policy='Current all-window / model-probability trailing entries only',wallets=summaries,
+    return dict(policy='Current market-band experiment entries only',wallets=summaries,
         integrity_findings=[r for r in examples if r['checks']],
         largest_net_losses=sorted(examples,key=lambda r:Decimal(r['net_pnl']))[:12],
         note='Read-only. Signal probabilities are model estimates, not established accuracy. Filled-trade selection differs from all tracker forecasts. Shared market windows are correlated. No live-profitability claim.')

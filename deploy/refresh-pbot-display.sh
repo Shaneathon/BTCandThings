@@ -5,7 +5,7 @@ umask 022
 [[ "${1:-}" == --apply && "$EUID" == 0 ]] || { echo 'Use --apply as root'; exit 2; }
 task_source_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ -f /var/lib/pbot/OBSERVED-ACTIVE && -f /etc/pbot.env ]]
-grep -Fq ' -m trading_bot.observed_paper ' /etc/systemd/system/pbot-paper.service
+grep -Eq ' -m trading_bot[.](observed_paper|band_runner) ' /etc/systemd/system/pbot-paper.service
 for name in pbot-status pbot-dashboard; do
   grep -Eq '^WorkingDirectory=/opt/pbot/releases/[A-Za-z0-9_-]+$' "/etc/systemd/system/$name.service"
 done
@@ -84,6 +84,6 @@ PY
 )
 systemctl is-active --quiet pbot-status pbot-dashboard
 task_done=1
-echo 'PBot now defaults to current $0.50–$5 entry-policy results. Earlier entries and all-history views remain available.'
+echo 'PBot now defaults to the current experiment results. Earlier entries and all-history views remain available.'
 echo 'Refresh https://pbot.shaneathon.com . All displayed activity times are Central (CST/CDT).'
 echo 'Actual cash and all history preserved. No engine/collector restart, hourly-review change, wallet reset, or live trading.'

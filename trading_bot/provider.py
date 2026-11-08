@@ -78,6 +78,18 @@ def directional_book(m,details,proof,response,request_started,received):
     common=dict(market_slug=m['market_slug'],contract_slug=m['contract_slug'],approved=True,
                 mapping_evidence=evidence,request_started_at=request_started,received_at=received,
                 exchange_last_transaction_at=summary['exchange_timestamp'])
+    # Official current mark confirmed in saved marketData.stats.currentPx.
+    mark=(raw.get('stats') or {}).get('currentPx') or raw.get('currentPx')
+    probability=None
+    if isinstance(mark,dict) and mark.get('currency')=='USD':
+        try:
+            parsed=amount(mark['value'])
+            bid=amount(summary['long_bids'][0]['price']);ask=amount(summary['long_offers'][0]['price'])
+            if 0<=parsed<=1 and bid<=parsed<=ask: probability=parsed
+        except (ValueError,TypeError,KeyError,ArithmeticError): pass
+    common.update(market_up_probability=str(probability) if probability is not None else None,
+                  market_percentage_source='marketData.stats.currentPx' if (raw.get('stats') or {}).get('currentPx') else 'marketData.currentPx',
+                  percentage_received_at=received)
     # A BUY_SHORT pays 1 minus the LONG bid; it consumes that bid's quantity.
     # This models binary complementary claims, not leveraged spot shorting.
     return {'UP':dict(**common,side='UP',intent='ORDER_INTENT_BUY_LONG',offers=levels('offers'),

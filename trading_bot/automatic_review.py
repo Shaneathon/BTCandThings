@@ -36,7 +36,8 @@ def review(path,now=None):
     with sqlite3.connect(Path(path).resolve().as_uri()+'?mode=rw',uri=True,timeout=15) as db:
         # Validate identity before schema writes; never open or manage a live account.
         config=json.loads(db.execute('SELECT payload FROM settings WHERE id=1').fetchone()[0])
-        if config!=SETTINGS: raise ValueError('Unexpected paper configuration')
+        from trading_bot.market_band import BAND_SETTINGS
+        if config not in (SETTINGS,BAND_SETTINGS): raise ValueError('Unexpected paper configuration')
         stamp,payload=db.execute('SELECT observed_at,payload FROM bot_snapshot WHERE id=1').fetchone()
         snapshot=json.loads(payload)
         if (snapshot.get('operation_mode')!='OBSERVED_BOOK_PAPER' or snapshot.get('account',{}).get('live_orders_enabled') is not False
@@ -46,7 +47,7 @@ def review(path,now=None):
         db.execute('BEGIN IMMEDIATE')
         prior=latest(db)
         if prior and now<prior['reviewed_at']: raise ValueError('Review clock rollback; no automatic actions')
-        if prior and prior.get('entry_policy_version')==SETTINGS['version'] and now-prior['reviewed_at']<1800:
+        if prior and prior.get('entry_policy_version')==config['version'] and now-prior['reviewed_at']<1800:
             return dict(state='SKIPPED_RECENT_REVIEW',reviewed_at=prior['reviewed_at'])
         policy_row=db.execute('SELECT max(changed_at) FROM configuration_history').fetchone()
         policy_start=policy_row[0] or 0
@@ -61,7 +62,7 @@ def review(path,now=None):
             for encoded, in db.execute('SELECT payload FROM positions WHERE wallet=?',(wallet,)):
                 p=json.loads(encoded)
                 if p.get('state')!='PAPER_CLOSED' or not start<=p['opened_at']<=p['closed_at']<=now: continue
-                if (p.get('entry_limits') or {}).get('version')!=SETTINGS['version']:
+                if (p.get('entry_limits') or {}).get('version')!=config['version']:
                     excluded+=1;continue
                 value=Decimal(p['pnl'])
                 if not value.is_finite(): raise ValueError('Invalid financial record')
@@ -77,7 +78,7 @@ def review(path,now=None):
             rows.append(dict(wallet=wallet,status=status,closed_trades=len(trades),wins=wins,net_pnl=str(net),cohort_start=start,
                 excluded_other_entry_policies=excluded,entry_pause=active,
                 previous_pause_expired=bool(control and control[1]<=now and (not prior or prior['reviewed_at']<control[1]))))
-        report=dict(state='OK',entry_policy_version=SETTINGS['version'],reviewed_at=now,policy=POLICY,wallets=rows,live_orders_enabled=False,
+        report=dict(state='OK',entry_policy_version=config['version'],reviewed_at=now,policy=POLICY,wallets=rows,live_orders_enabled=False,
                     note='A loss guard, not automatic strategy optimization. Paper profits do not establish live profitability.')
         db.execute('INSERT INTO automatic_reviews(reviewed_at,payload) VALUES(?,?)',(now,json.dumps(report,allow_nan=False)))
     return report

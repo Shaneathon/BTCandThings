@@ -33,8 +33,9 @@ def slots():
 
 
 class Engine:
-    def __init__(self,path):
-        expected=json.dumps(SETTINGS,sort_keys=True)
+    def __init__(self,path,settings=None):
+        self.settings=SETTINGS if settings is None else settings
+        expected=json.dumps(self.settings,sort_keys=True)
         from trading_bot.ledger_guard import check_existing
         check_existing(path,expected)
         self.db=sqlite3.connect(path,timeout=15)
@@ -54,6 +55,8 @@ class Engine:
         initialize(self.db)
         from trading_bot.entry_policy import initialize as entry_initialize
         entry_initialize(self.db)
+        from trading_bot.market_band import initialize as band_initialize
+        band_initialize(self.db)
         from trading_bot.paper_exits import initialize as exit_initialize
         exit_initialize(self.db)
         with self.db:
@@ -96,7 +99,7 @@ class Engine:
         with self.db: self.db.execute('UPDATE wallets SET high=?,halted=? WHERE name=?',(str(high),halted,wallet))
         pending=[json.loads(r[0]) for r in self.db.execute("SELECT payload FROM orders WHERE wallet=? AND state='PROPOSED'",(wallet,))]
         reserve=sum((amount(p['reserve']) for p in pending),Decimal(0))
-        capacity=min(Decimal(SETTINGS['max_trade_cost']),cash-reserve,Decimal(10)-exposure-reserve,
+        capacity=min(Decimal(self.settings['max_trade_cost']),cash-reserve,Decimal(10)-exposure-reserve,
                      Decimal(100)+daily-exposure-reserve,high*Decimal('.10')-(high-cash-exposure)-exposure-reserve)
         from trading_bot.automatic_review import pause
         if pause(self.db,wallet,now): capacity=Decimal(0)
@@ -110,16 +113,23 @@ class Engine:
             raise ValueError('STALE_OR_FUTURE_SIGNAL')
         if m.get('settlement_status')!='PENDING': raise ValueError('ENTRY_WINDOW')
         from trading_bot.entry_policy import phase
-        rule=phase(self.db,wallet,m,p,now,SETTINGS)
+        rule=phase(self.db,wallet,m,p,now,self.settings)
         if p.get('source_timestamp') and not start<=time_of(p['source_timestamp'])<=when: raise ValueError('INVALID_SOURCE_TIME')
         if p.get('source_timestamp') and now-time_of(p['source_timestamp'])>120: raise ValueError('STALE_FEATURES')
-        up=amount(p['predicted_up_probability'])
-        if not 0<=up<=1 or up==Decimal('.5'): raise ValueError('NO_DIRECTION')
-        side='UP' if up>Decimal('.5') else 'DOWN';probability=up if side=='UP' else 1-up
+        band=self.settings.get('entry_strategy')=='MARKET_BAND'
+        if band:
+            from trading_bot.market_band import entry_check
+            rule.update(entry_check(self.db,m,books,now,self.settings))
+            side=rule['side'];probability=None
+        else:
+            up=amount(p['predicted_up_probability'])
+            if not 0<=up<=1 or up==Decimal('.5'): raise ValueError('NO_DIRECTION')
+            side='UP' if up>Decimal('.5') else 'DOWN';probability=up if side=='UP' else 1-up
         book=books[side];best=amount(book['offers'][0]['price'])
         tick=amount(details['orderPriceMinTickSize']);provider_min=amount(details['minimumTradeQty'])
         if tick<=0 or provider_min<=0: raise ValueError('INVALID_TRADING_MINIMUMS')
         limit=(min(Decimal('.99'),best+Decimal('.01'))/tick).to_integral_value(rounding=ROUND_DOWN)*tick
+        if band: limit=min(limit,amount(self.settings['market_band_max']))
         if limit<best: raise ValueError('UNREACHABLE_LIMIT')
         # Reserve worst fee plus cent-rounding allowance for each visible level.
         capacity=self.risk(wallet,now)
@@ -128,22 +138,22 @@ class Engine:
         quantity=(capacity/(limit+Decimal('.020'))).to_integral_value(rounding=ROUND_DOWN)
         if quantity<max(Decimal(1),provider_min): raise ValueError('RISK_OR_MINIMUM_SIZE')
         proposed_cost=quantity*best+taker_fee('.06',quantity,best)
-        if proposed_cost<Decimal(SETTINGS['min_trade_cost']): raise ValueError('BELOW_MINIMUM_PROPOSED_TRADE_COST')
+        if proposed_cost<Decimal(self.settings['min_trade_cost']): raise ValueError('BELOW_MINIMUM_PROPOSED_TRADE_COST')
         estimated=taker_fee('.06',quantity,limit)
-        if probability-limit-estimated/quantity-Decimal('.02')<Decimal(rule['minimum_edge']): raise ValueError('NO_NET_EDGE')
+        if not band and probability-limit-estimated/quantity-Decimal('.02')<Decimal(rule['minimum_edge']): raise ValueError('NO_NET_EDGE')
         plan=OrderPlan(m['market_slug'],m['contract_slug'],p['model_version'],m['asset'],m['duration_seconds'],side,
               book['intent'],str(quantity),str(limit),str(tick),'1',now,when,now+2,min(now+15,end-1),end,
               'TIME_IN_FORCE_IMMEDIATE_OR_CANCEL',book['mapping_evidence'],QUADRATIC_TAKER_RULE,'.06',FEE_BASIS)
         plan.validate()
         reserve=quantity*(limit+Decimal('.020'))
         payload=dict(entry_rule=rule,plan=asdict(plan),market=m,reserve=str(reserve),signal=p,available_at=available_at,initial_book=book,
-                     estimated_round_trip_fee_allowance_per_share='.02',entry_limits=dict(version=SETTINGS['version'],minimum_proposed_cost=SETTINGS['min_trade_cost'],maximum_total_cost=SETTINGS['max_trade_cost'],target_cost=SETTINGS.get('target_trade_cost'),estimated_proposed_cost=str(proposed_cost)),
+                     estimated_round_trip_fee_allowance_per_share='.02',entry_limits=dict(version=self.settings['version'],minimum_proposed_cost=self.settings['min_trade_cost'],maximum_total_cost=self.settings['max_trade_cost'],target_cost=self.settings.get('target_trade_cost'),estimated_proposed_cost=str(proposed_cost)),
                      api_fee_coefficient=details.get('feeCoefficient'),provider_minimum_quantity=str(provider_min),
                      legacy_feature_time_unknown=not bool(p.get('source_timestamp')))
         with self.db:
             self.db.execute('BEGIN IMMEDIATE')
             from trading_bot.entry_policy import reserve_slot
-            entry_key=reserve_slot(self.db,wallet,m,now,SETTINGS)
+            entry_key=reserve_slot(self.db,wallet,m,now,self.settings)
             payload['entry_key']=entry_key
             self.db.execute('INSERT INTO orders VALUES(?,?,?,?,NULL)',(wallet,entry_key,'PROPOSED',json.dumps(payload)))
         self.event(wallet,m['market_slug'],'PROPOSED_OBSERVED_LIMIT',now)
@@ -164,7 +174,11 @@ class Engine:
                 result.update(state='REJECTED',reason='AUTOMATIC_ENTRY_PAUSE')
             try:
                 from trading_bot.entry_policy import phase
-                phase(self.db,wallet,record['market'],record['signal'],now,SETTINGS)
+                phase(self.db,wallet,record['market'],record['signal'],now,self.settings)
+                if self.settings.get('entry_strategy')=='MARKET_BAND' and amount(result['filled_quantity'])>0:
+                    from trading_bot.market_band import entry_check
+                    entry_context=entry_check(self.db,record['market'],books,now,self.settings)
+                    if entry_context['side']!=plan.side: raise ValueError('MARKET_SIDE_CHANGED')
             except ValueError as error:
                 result=simulate(plan,{},now);result.update(state='REJECTED',reason=str(error))
             # Conditional transition is the exactly-once guard after restarts.
@@ -174,7 +188,7 @@ class Engine:
             if amount(result['filled_quantity'])>0:
                 cost=amount(result['total_cost']);m=record['market']
                 cash=amount(self.db.execute('SELECT cash FROM wallets WHERE name=?',(wallet,)).fetchone()[0])
-                if cost>amount(record['reserve']) or cost>cash or cost>Decimal(SETTINGS['max_trade_cost']): raise ValueError('FILL_EXCEEDS_RESERVED_CASH')
+                if cost>amount(record['reserve']) or cost>cash or cost>Decimal(self.settings['max_trade_cost']): raise ValueError('FILL_EXCEEDS_RESERVED_CASH')
                 qty=amount(result['filled_quantity'])
                 alternate=record.get('api_fee_coefficient')
                 sensitivity=None
@@ -187,6 +201,8 @@ class Engine:
                               price_to_beat=str(m['official_price_to_beat']),order_id=plan.order_id,
                               fees_at_api_coefficient=sensitivity,api_fee_coefficient=alternate,fee_basis=FEE_BASIS,
                               simulated_only=True,price_basis='OBSERVED_POST_DELAY_BOOK',fills=result['fills'])
+                if self.settings.get('entry_strategy')=='MARKET_BAND':
+                    position.update(entry_market_probability=entry_context['market_probability'],entry_market_source=entry_context['market_source'],entry_lean=entry_context['lean'],exit_rule='MARKET_FIXED_2PT_71',exit_stop_drop=self.settings['market_stop_drop'],exit_target=self.settings['market_take_profit'])
                 self.db.execute('INSERT INTO positions VALUES(?,?,?)',(wallet,slug,json.dumps(position)))
                 self.db.execute('UPDATE wallets SET cash=? WHERE name=?',(str(cash-cost),wallet))
         self.event(wallet,slug,result['reason'],now)
@@ -202,7 +218,7 @@ class Engine:
             states=dict(self.db.execute('SELECT state,count(*) FROM orders WHERE wallet=? GROUP BY state',(name,)))
             events=[dict(market_slug=s,reason=r,observed_at=t) for s,r,t in self.db.execute('SELECT market_slug,reason,observed_at FROM events WHERE wallet=? ORDER BY observed_at DESC LIMIT 10',(name,))]
             from trading_bot.automatic_review import pause
-            reports[name]=dict(wallet_name=name,entry_timing=dict(earliest=900,latest=15,late_seconds=120),automatic_entry_pause=pause(self.db,name,now),account=dict(cash=cash,high_water=high,halted_reason=halted,
+            reports[name]=dict(wallet_name=name,entry_timing=dict(earliest=900,latest=15,late_seconds=120) if self.settings.get('entry_strategy')!='MARKET_BAND' else dict(earliest=900,latest=0,late_seconds=0,opening_wait=90,close_cutoff=180 if duration==900 else 120),automatic_entry_pause=pause(self.db,name,now),account=dict(cash=cash,high_water=high,halted_reason=halted,
                     open_exposure=str(sum((amount(p['cost']) for p in opened),Decimal(0))),
                     reserved_cash=str(sum((amount(p['reserve']) for p in pending),Decimal(0))),
                     realized_pnl=str(sum((Decimal(p['pnl']) for p in positions if p['state']=='PAPER_CLOSED'),Decimal(0))),
@@ -210,7 +226,7 @@ class Engine:
                     model_version=model,order_states=states,decisions=events)
         report=dict(observed_at=now,operation_mode='OBSERVED_BOOK_PAPER',input_status='FRESH' if input_fresh else 'STALE',
                     account=dict(mode='PAPER',venue='Polymarket US',live_orders_enabled=False),portfolios=reports,
-                    configuration=SETTINGS,fee_basis=FEE_BASIS,
+                    configuration=self.settings,fee_basis=FEE_BASIS,
                     limitations=['Observed REST books do not guarantee exchange acceptance or actual queue fills.',
                                  '25% visible-size participation, two-second minimum latency, 15-second IOC lifetime are model assumptions.',
                                  'One simulated execution per price level; real fill partition and fee rounding may differ.',
@@ -277,6 +293,10 @@ def cycle(engine,data,client,now,paused=False):
     markets=data.get('markets',[]);engine.settle(markets,now)
     evidence=data.get('execution_evidence',{});metadata=evidence.get('metadata',{});proofs=evidence.get('proofs',{})
     lookup={m['market_slug']:m for m in markets}
+    if fresh and engine.settings.get('entry_strategy')=='MARKET_BAND':
+        from trading_bot.market_band import observe_lean
+        for m in markets:
+            if time_of(m['window_start'])<=now<time_of(m['window_end']): observe_lean(engine.db,m,data,now)
     def get(m,after=0):
         if m['market_slug'] not in metadata: raise ValueError('MISSING_CURRENT_CONTRACT_EVIDENCE')
         return client.load(m,metadata[m['market_slug']],proofs.get(m['asset']+'_'+str(m['duration_seconds']//60)+'m',{}),after)
@@ -303,13 +323,16 @@ def cycle(engine,data,client,now,paused=False):
                 engine.event(wallet,asset+'_'+str(duration//60)+'m','NO_FRESH_PREDICTION',now)
                 continue
             p=max(matches,key=lambda p:p['recorded_at']);m=lookup[p['market_slug']]
-            if wallet in MODELS and not all(any(other.get('model_version')==control and other.get('market_slug')==m['market_slug']
+            if engine.settings.get('entry_strategy')!='MARKET_BAND' and wallet in MODELS and not all(any(other.get('model_version')==control and other.get('market_slug')==m['market_slug']
                     and 0<=now-time_of(other['recorded_at'])<=90 for other in data.get('predictions',[])) for control in MODELS.values()):
                 engine.event(wallet,m['market_slug'],'MISSING_PAIRED_CONTROL_SIGNAL',now)
                 continue
             from trading_bot.entry_policy import observe,phase
+            if engine.settings.get('entry_strategy')=='MARKET_BAND':
+                from trading_bot.market_band import observe_lean
+                observe_lean(engine.db,m,data,now)
             observe(engine.db,wallet,m,p,now,data['exported_at'])
-            try: phase(engine.db,wallet,m,p,now,SETTINGS)
+            try: phase(engine.db,wallet,m,p,now,engine.settings)
             except ValueError as error:
                 engine.event(wallet,m['market_slug'],str(error),now);continue
             previous=engine.db.execute('SELECT MAX(observed_at) FROM events WHERE wallet=?',(wallet,)).fetchone()[0] or 0

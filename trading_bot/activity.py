@@ -56,8 +56,12 @@ def inspect(ledger,input_path,now,hours=6,source=None):
                 paired={name:any(p.get('model_version')==version and p.get('market_slug')==m['market_slug'] and
                                 0<=now-time_of(p['recorded_at'])<=90 for p in data.get('predictions',[]))
                         for name,version in MODELS.items()}
+            cfg=snapshot.get('configuration',{})
+            if cfg.get('entry_strategy')=='MARKET_BAND':
+                eligible=m is not None and now-time_of(m['window_start'])>=cfg['opening_wait_seconds'] and remaining>(cfg['close_cutoff_15m'] if duration==900 else cfg['close_cutoff_5m'])
+            else: eligible=remaining is not None and cfg.get('entry_seconds_remaining',[30,90])[0]<=remaining<=min(cfg.get('entry_seconds_remaining',[30,90])[1],duration)
             current_state=('RISK_HALT' if halted else 'OPEN_POSITION_BLOCKS_NEW_ENTRIES' if opened else
-                           'NO_CURRENT_MARKET' if not m else 'WAITING_FOR_ENTRY_WINDOW' if not snapshot.get('configuration',{}).get('entry_seconds_remaining',[30,90])[0]<=remaining<=min(snapshot.get('configuration',{}).get('entry_seconds_remaining',[30,90])[1],duration) else
+                           'NO_CURRENT_MARKET' if not m else 'WAITING_FOR_ENTRY_WINDOW' if not eligible else
                            'NO_FRESH_SIGNAL' if signal_age is None or not 0<=signal_age<=90 else
                            'MISSING_PAIRED_CONTROL_SIGNAL' if paired and not all(paired.values()) else 'IN_ENTRY_WINDOW_CHECK_BOOK_AND_EDGE')
             fills=[o for o in recent if Decimal(o['result'].get('filled_quantity','0'))>0]

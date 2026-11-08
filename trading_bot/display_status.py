@@ -69,6 +69,9 @@ def wallet_state(report,packet,health,now,paused=False,orders=()):
                 window_end=end,seconds_remaining=round(remaining,1))
     earliest=report.get('entry_timing',{}).get('earliest',90);latest_allowed=report.get('entry_timing',{}).get('latest',30)
     if remaining>min(earliest,stream.get('duration_seconds',earliest)): result['state']='WAITING_FOR_ENTRY_WINDOW';return result
+    if report.get('entry_timing',{}).get('opening_wait') is not None:
+        if now-time_of(m['window_start'])<report['entry_timing']['opening_wait']: result['state']='OPENING_WAIT';return result
+        if remaining<=report['entry_timing']['close_cutoff']: result['state']='ENTRY_WINDOW_CLOSED';return result
     if remaining<latest_allowed: result['state']='ENTRY_WINDOW_CLOSED';return result
     if remaining<=report.get('entry_timing',{}).get('late_seconds',0): result['state']='LATE_REVERSAL_CHECK'
     signals=[p for p in packet.get('predictions',[]) if p.get('market_slug')==m['market_slug'] and p.get('model_version')==report.get('model_version')]
@@ -101,7 +104,7 @@ def enrich(path,result,now=None,input_path=Path('/var/lib/pbot-input/dual-sandbo
             positions=[json.loads(p[0]) for p in db.execute('SELECT payload FROM positions WHERE wallet=?',(name,))]
             orders=[(state,json.loads(payload)) for state,payload in db.execute('SELECT state,payload FROM orders WHERE wallet=?',(name,))]
             from trading_bot.performance_periods import breakdown
-            report['performance_periods']=breakdown(positions,streams=[(r['asset'],r['duration_seconds']) for r in report['account'].get('market_pnl',[])])
+            report['performance_periods']=breakdown(positions,streams=[(r['asset'],r['duration_seconds']) for r in report['account'].get('market_pnl',[])],current_version=result.get('configuration',{}).get('version'))
             latest=max((p['opened_at'] for p in positions),default=None)
             closed=max((p['closed_at'] for p in positions if p.get('state')=='PAPER_CLOSED'),default=None)
             proposed=max((p['plan']['created_at'] for _,p in orders),default=None)

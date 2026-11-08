@@ -205,8 +205,25 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
     next(r for r in app.radio if r.label=='Click a market or model').set_value('ETH_5m').run(timeout=20)
     assert not app.exception,[e.message for e in app.exception]
-    assert any('Trailing exit awaiting' in i.value for i in app.info)
+    assert any('Exit awaiting' in i.value for i in app.info)
     trail=next(f.value for f in app.dataframe if 'Peak model probability' in f.value.columns)
     assert trail.iloc[0]['Peak model probability']=='72.0%'
     assert trail.iloc[0]['5-point trailing level']=='67.0%'
     print('PASS probability trailing display: model peak/current/5-point level and pending bid-exit status')
+
+# New market-mark strategy shows fixed stops, not a probability trail.
+from trading_bot.market_band import BAND_SETTINGS
+click_data['configuration']=BAND_SETTINGS
+click_data['portfolios']['ETH_5m']['market_exit_states']=[dict(entry_key='eth-market-fixture',entry_probability='.55',current_probability='.60',stop_probability='.53',observed_at=current,reason=None)]
+st.cache_data.clear()
+with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status','PBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}),patch('trading_bot.status_client.read_status',return_value=click_data):
+    app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
+    next(r for r in app.radio if r.label=='Click a market or model').set_value('ETH_5m').run(timeout=20)
+    assert not app.exception,[e.message for e in app.exception]
+    assert next(r for r in app.radio if r.label=='Performance results').value=='Current market-band experiment'
+    marks=next(f.value for f in app.dataframe if 'Fixed stop' in f.value.columns)
+    assert marks.iloc[0]['Fixed stop']=='53.0%'
+    assert marks.iloc[0]['Current mark']=='60.0%'
+    assert any('maximum 5 filled entries' in c.value for c in app.caption)
+    assert any('Polymarket current mark 54–64%' in c.value for c in app.caption)
+    print('PASS market-band display: API mark, fixed entry-minus-two stop, 71% target, five-entry limit and separate current period')
