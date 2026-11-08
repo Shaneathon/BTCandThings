@@ -52,8 +52,16 @@ with sqlite3.connect('file:/var/lib/pbot/observed-v1.sqlite?mode=ro',uri=True) a
     source.backup(target)
     assert target.execute('PRAGMA quick_check').fetchone()[0]=='ok'
 PYBACKUP
+task_policy_already_current="$(cd "$task_release"; "$task_release/venv/bin/python" - <<'PYSETTINGS'
+import sqlite3,json
+from trading_bot.observed_paper import SETTINGS
+with sqlite3.connect('file:/var/lib/pbot/observed-v1.sqlite?mode=ro',uri=True) as db:
+    saved=json.loads(db.execute('SELECT payload FROM settings WHERE id=1').fetchone()[0])
+print(1 if saved==SETTINGS else 0)
+PYSETTINGS
+)"
 (cd "$task_release"; "$task_release/venv/bin/python" -m trading_bot.entry_limits --ledger /var/lib/pbot/observed-v1.sqlite)
-task_migrated=1
+if [[ "$task_policy_already_current" == 0 ]]; then task_migrated=1; fi
 python3 - "$task_release" <<'PY'
 from pathlib import Path
 import sys

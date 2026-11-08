@@ -12,6 +12,8 @@ def migrate(path,rollback=False):
     with sqlite3.connect(Path(path).resolve().as_uri()+'?mode=rw',uri=True,timeout=15) as db:
         db.execute('BEGIN IMMEDIATE')
         current=db.execute('SELECT payload FROM settings WHERE id=1').fetchone()[0]
+        if not rollback and json.loads(current)==SETTINGS:
+            return dict(policy=SETTINGS,policy_changed=False,unfilled_proposals_cancelled_without_fee=0,balances_and_positions_preserved=True)
         if rollback:
             prior=db.execute('SELECT previous,current FROM configuration_history ORDER BY id DESC LIMIT 1').fetchone()
             if json.loads(current)!=SETTINGS or not prior or json.loads(prior[1])!=SETTINGS:
@@ -20,7 +22,8 @@ def migrate(path,rollback=False):
             if json.loads(replacement) not in (LEGACY_SETTINGS,PREVIOUS_SETTINGS): raise ValueError('Unknown rollback policy')
         else:
             if json.loads(current) not in (LEGACY_SETTINGS,PREVIOUS_SETTINGS):
-                raise ValueError('Unexpected policy; do not reset or overwrite this ledger')
+                saved=json.loads(current)
+                raise ValueError('Unexpected policy; preserving ledger. Saved policy: '+json.dumps({key:saved.get(key) for key in ('version','min_trade_cost','max_trade_cost','target_trade_cost')},sort_keys=True))
             replacement=new
         db.execute('CREATE TABLE IF NOT EXISTS configuration_history(id INTEGER PRIMARY KEY,changed_at REAL,previous TEXT,current TEXT,reason TEXT)')
         cancelled=0
@@ -30,7 +33,7 @@ def migrate(path,rollback=False):
         db.execute('UPDATE settings SET payload=? WHERE id=1',(replacement,))
         db.execute('INSERT INTO configuration_history(changed_at,previous,current,reason) VALUES(?,?,?,?)',
                    (time.time(),current,replacement,'ROLLBACK_ENTRY_POLICY' if rollback else 'USER_REQUESTED_FIXED_150_PAPER_ENTRY_CAP'))
-    return dict(policy=json.loads(replacement),unfilled_proposals_cancelled_without_fee=cancelled,balances_and_positions_preserved=True)
+    return dict(policy=json.loads(replacement),policy_changed=True,unfilled_proposals_cancelled_without_fee=cancelled,balances_and_positions_preserved=True)
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--ledger',type=Path,required=True);p.add_argument('--rollback',action='store_true')

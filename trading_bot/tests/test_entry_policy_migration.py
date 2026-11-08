@@ -30,6 +30,19 @@ class MigrationTests(unittest.TestCase):
             self.assertEqual(engine.db.execute('SELECT * FROM positions').fetchall(),holdings)
             engine.close()
 
+    def test_already_current_is_a_noop_and_preserves_current_proposals_and_migration_history(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path=Path(temporary)/'paper.sqlite';engine=Engine(path)
+            with engine.db:
+                engine.db.execute("INSERT INTO orders VALUES('Champion','current-proposal','PROPOSED','{}',NULL)")
+            before=engine.db.execute('SELECT * FROM orders').fetchall()
+            result=migrate(path)
+            self.assertFalse(result['policy_changed'])
+            self.assertEqual(result['unfilled_proposals_cancelled_without_fee'],0)
+            self.assertEqual(engine.db.execute('SELECT * FROM orders').fetchall(),before)
+            self.assertEqual(engine.db.execute('SELECT count(*) FROM configuration_history').fetchone()[0],0)
+            engine.close()
+
     def test_unknown_policy_is_rejected_without_overwrite(self):
         with tempfile.TemporaryDirectory() as temporary:
             path=Path(temporary)/'paper.sqlite';engine=Engine(path)
