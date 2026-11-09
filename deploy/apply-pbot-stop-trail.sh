@@ -26,12 +26,15 @@ with sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True) as source, sqlite3
 PY
 echo "PBot-only backup: $backup"
 done_ok=0
+migrated=0
 rollback() {
   if [[ "$done_ok" == 0 ]]; then
     echo 'Deployment failed; restoring PBot unit and paper ledger backup.' >&2
     systemctl stop pbot-paper || true
+    if [[ "$migrated" == 1 ]]; then
+      (cd "$release"; "$release/venv/bin/python" -m trading_bot.entry_limits --profile market-band --ledger "$ledger" --rollback) || { echo 'Policy rollback failed; PBot left stopped for safety' >&2; return; }
+    fi
     cp "$backup/pbot-paper.service" "$unit"
-    cp "$backup/observed.sqlite" "$ledger"
     systemctl daemon-reload
     systemctl start pbot-paper || true
   fi
@@ -39,6 +42,7 @@ rollback() {
 trap rollback EXIT
 systemctl stop pbot-paper
 (cd "$release"; "$release/venv/bin/python" -m trading_bot.entry_limits --profile market-band --ledger "$ledger")
+migrated=1
 sed -i "s|^WorkingDirectory=.*|WorkingDirectory=$release|" "$unit"
 systemctl daemon-reload
 systemctl start pbot-paper
