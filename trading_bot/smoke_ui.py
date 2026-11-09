@@ -227,3 +227,14 @@ with patch.dict('os.environ',{'PBOT_STATUS_URL':'https://status.example/status',
     assert any('maximum 5 filled entries' in c.value for c in app.caption)
     assert any('Polymarket current mark 54–64%' in c.value for c in app.caption)
     print('PASS market-band display: API mark, fixed entry-minus-two stop, 71% target, five-entry limit and separate current period')
+
+# Focused production view keeps historical wallets out of every selector/overview.
+st.cache_data.clear()
+with patch.dict('os.environ',{'SHANEATHON_BTC15_ONLY':'1','PBOT_STATUS_URL':'https://status.example/status','PBOT_READ_TOKEN':'synthetic-token-not-a-secret-123456789'}),patch('trading_bot.status_client.read_status',return_value=click_data):
+    app=AppTest.from_file(str(root/'app.py')).run(timeout=20)
+    assert not app.exception,[e.message for e in app.exception]
+    selector=next(r for r in app.radio if r.label=='Click a market or model')
+    assert len(selector.options)==3,selector.options
+    overview=next(f.value for f in app.dataframe if 'wallet' in f.value.columns)
+    assert set(overview['wallet'])=={'Champion','Challenger B','BTC_15m'}
+    print('PASS BTC15-only dashboard: exactly three wallets and preserved selected-wallet history')

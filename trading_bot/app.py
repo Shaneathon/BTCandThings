@@ -31,7 +31,8 @@ h1{font-size:1.65rem!important}h2{font-size:1.3rem!important}h3{font-size:1.1rem
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p{font-size:.82rem}
 @media(max-width:640px){.hero .title{font-size:22px}.hero{padding:12px}[data-testid="stMetricValue"]{font-size:1.3rem}}
 </style>''')
-st.html('<div class="hero"><span class="badge">PAPER ONLY</span><div class="kicker">PBOT · INDEPENDENT TRADING TERMINAL</div><div class="title">Eight crypto markets. Independent wallets.</div><div class="subtitle">BTC · ETH · XRP · SOL — separate from the BTCandThings tracker</div></div>')
+btc15_only=os.environ.get('SHANEATHON_BTC15_ONLY')=='1'
+st.html(('<div class="hero"><span class="badge">PAPER ONLY</span><div class="kicker">PBOT · INDEPENDENT TRADING TERMINAL</div><div class="title">Eight crypto markets. Independent wallets.</div><div class="subtitle">BTC · ETH · XRP · SOL — separate from the BTCandThings tracker</div></div>').replace('Eight crypto markets. Independent wallets.','BTC 15-minute · Three paper wallets.' if btc15_only else 'Eight crypto markets. Independent wallets.').replace('BTC · ETH · XRP · SOL — separate from the BTCandThings tracker','Champion · Challenger B · BTC 15m Research' if btc15_only else 'BTC · ETH · XRP · SOL — separate from the BTCandThings tracker'))
 with st.sidebar:
     st.markdown('### PBot control room')
     st.caption('Target hostname: pbot.shaneathon.com')
@@ -68,7 +69,8 @@ def content():
         st.info('SETUP · Paper engine not connected yet. No trades or performance results are being invented.')
     else:
         try:
-            data=status(url,token)
+            from trading_bot.visible_scope import focused_snapshot
+            data=focused_snapshot(status(url,token),btc15_only)
             age=time.time()-data.get('observed_at',0)
             if not 0<=age<=30:
                 st.warning('Paper engine status is stale. Displayed positions may be out of date.')
@@ -144,7 +146,7 @@ def content():
                 st.write(report.get('exit_order_states',{}))
             if data.get('entry_policy_changed_at'): st.caption('New entry limits applied '+central(data['entry_policy_changed_at'])+'. Older trades retain their original amounts.')
             if st.checkbox('Show complete trade history',key='pbot_show_trade_history'):
-                scope=st.radio('Trade history scope',('Selected wallet','All wallets'),horizontal=True,key='pbot_history_scope')
+                scope=st.radio('Trade history scope',(('Selected wallet',) if btc15_only else ('Selected wallet','All wallets')),horizontal=True,key='pbot_history_scope')
                 target=chosen if scope=='Selected wallet' else '*'
                 anchor_key='pbot_history_anchor_'+target;page_key='pbot_history_page_'+target
                 if anchor_key not in st.session_state: st.session_state[anchor_key]=time.time()
@@ -320,7 +322,7 @@ def content():
         st.markdown('### Market coverage')
         rows=[]
         latest={(d.get('asset'),d.get('duration_seconds')):d for d in data.get('decisions',[])}
-        for asset,seconds in sorted(STREAMS):
+        for asset,seconds in sorted({('BTC',900)} if btc15_only else STREAMS):
             decision=latest.get((asset,seconds),{})
             score=decision.get('history',{})
             rows.append({'Asset':asset,'Market':f'{seconds//60}m',
