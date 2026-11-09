@@ -54,7 +54,7 @@ class BandTests(unittest.TestCase):
         self.assertEqual(entry_check(self.engine.db,self.m,self.quotes(NOW,'.4'),NOW,BAND_SETTINGS)['side'],'DOWN')
         with self.assertRaisesRegex(ValueError,'LEAN_NOT_ALIGNED'): entry_check(self.engine.db,self.m,self.quotes(NOW),NOW,BAND_SETTINGS)
     def test_45_up_crossing_requires_fresh_rising_mark_and_up_lean(self):
-        with self.assertRaisesRegex(ValueError,'OUTSIDE'):
+        with self.assertRaisesRegex(ValueError,'LEAN_NOT_ALIGNED'):
             entry_check(self.engine.db,self.m,self.quotes(NOW,'.44'),NOW,BAND_SETTINGS)
         rule=entry_check(self.engine.db,self.m,self.quotes(NOW+1,'.45'),NOW+1,BAND_SETTINGS)
         self.assertEqual(rule['side'],'UP')
