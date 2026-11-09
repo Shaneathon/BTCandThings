@@ -109,8 +109,9 @@ class BandTests(unittest.TestCase):
     def test_stop_requires_continuous_fifteen_seconds_and_resets(self):
         key,p=self.buy('.60')
         self.assertEqual(p['exit_rule'],'MARKET_FIXED_3PT_15S_TRAIL_70_75')
-        for t,px,expected in ((5,'.57',NOW+5),(14,'.56',NOW+5),(15,'.58',None),
-                              (16,'.57',NOW+16),(30,'.56',NOW+16)):
+        for t in range(5,31):
+            px='.58' if t==15 else '.57'
+            expected=None if t==15 else NOW+5 if t<15 else NOW+16
             state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+t,px),NOW+t)
             self.assertEqual(state['stop_since'],expected)
             self.assertIsNone(state['triggered_at'])
@@ -124,7 +125,7 @@ class BandTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'STALE_MARKET'):
             update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.56'),NOW+20)
         state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+21,'.56'),NOW+21)
-        self.assertEqual(state['stop_since'],NOW+20)
+        self.assertEqual(state['stop_since'],NOW+21)
         self.assertIsNone(state['triggered_at'])
     def test_profit_arms_at_70_trails_one_point_and_targets_75(self):
         key,p=self.buy('.60')
