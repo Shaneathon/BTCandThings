@@ -10,10 +10,10 @@ from trading_bot.observed_paper import SETTINGS,LEGACY_SETTINGS,PREVIOUS_SETTING
 def migrate(path,rollback=False,target_settings=None):
     target=SETTINGS if target_settings is None else target_settings
     if target_settings is not None:
-        from trading_bot.market_band import BAND_SETTINGS,OLD_BAND_SETTINGS
-        if target not in (SETTINGS,BAND_SETTINGS,OLD_BAND_SETTINGS): raise ValueError('Unreviewed target paper policy; preserving ledger')
-    from trading_bot.market_band import OLD_BAND_SETTINGS
-    accepted=(LEGACY_SETTINGS,RANGE_SETTINGS,PREVIOUS_SETTINGS,SETTINGS,OLD_BAND_SETTINGS)
+        from trading_bot.market_band import BAND_SETTINGS,OLD_BAND_SETTINGS,V6_BAND_SETTINGS
+        if target not in (SETTINGS,BAND_SETTINGS,OLD_BAND_SETTINGS,V6_BAND_SETTINGS): raise ValueError('Unreviewed target paper policy; preserving ledger')
+    from trading_bot.market_band import OLD_BAND_SETTINGS,V6_BAND_SETTINGS
+    accepted=(LEGACY_SETTINGS,RANGE_SETTINGS,PREVIOUS_SETTINGS,SETTINGS,OLD_BAND_SETTINGS,V6_BAND_SETTINGS)
     new=json.dumps(target,sort_keys=True)
     with sqlite3.connect(Path(path).resolve().as_uri()+'?mode=rw',uri=True,timeout=15) as db:
         db.execute('BEGIN IMMEDIATE')
