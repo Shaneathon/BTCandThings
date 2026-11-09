@@ -117,7 +117,7 @@ def update_exit(engine,wallet,key,p,books,now):
         if current<=amount(state['stop_probability']):
             if state.get('stop_since') is None: state['stop_since']=stamp
             if stamp-state['stop_since']>=float(state['stop_hold_seconds']):
-                state.update(triggered_at=now,reason='MARKET_ENTRY_MINUS_5_POINTS_30_SECONDS')
+                state.update(triggered_at=now,reason=('MARKET_ENTRY_MINUS_5_POINTS_30_SECONDS' if p.get('exit_rule')=='MARKET_FIXED_5PT_30S_TRAIL_70_75' else 'MARKET_ENTRY_MINUS_3_POINTS_15_SECONDS'))
         else:
             state['stop_since']=None
 
