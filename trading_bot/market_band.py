@@ -20,7 +20,9 @@ for _new in ('market_profit_arm','market_profit_trail','market_stop_hold_seconds
 def initialize(db):
     db.executescript('''CREATE TABLE IF NOT EXISTS current_market_lean (market_slug TEXT PRIMARY KEY,payload TEXT);
       CREATE TABLE IF NOT EXISTS market_exit_state (wallet TEXT,entry_key TEXT,payload TEXT,PRIMARY KEY(wallet,entry_key));
-      CREATE TABLE IF NOT EXISTS market_entry_marks (market_slug TEXT PRIMARY KEY, observed_at REAL, up_probability TEXT);''')
+      CREATE TABLE IF NOT EXISTS market_entry_marks (market_slug TEXT PRIMARY KEY, observed_at REAL, up_probability TEXT);
+      CREATE TABLE IF NOT EXISTS market_up_crossings (market_slug TEXT PRIMARY KEY, crossed_at REAL);
+      CREATE TABLE IF NOT EXISTS market_low_crossings (market_slug TEXT, side TEXT, crossed_at REAL, PRIMARY KEY(market_slug,side));''')
 
 
 def observe_lean(db,m,data,now):
@@ -65,16 +67,33 @@ def entry_check(db,m,books,now,settings):
         with db:
             db.execute('INSERT INTO market_entry_marks VALUES(?,?,?) ON CONFLICT(market_slug) DO UPDATE SET observed_at=excluded.observed_at,up_probability=excluded.up_probability',
                        (m['market_slug'],stamp,str(up)))
-    rising_45=(previous is not None and 0<stamp-previous[0]<=5
-               and amount(previous[1])<Decimal('.45')<=up and up<=amount(settings['market_band_max']))
-    if rising_45:
-        with db: db.execute('INSERT INTO market_up_crossings VALUES(?,?) ON CONFLICT(market_slug) DO UPDATE SET crossed_at=excluded.crossed_at',(m['market_slug'],stamp))
-    crossing=db.execute('SELECT crossed_at FROM market_up_crossings WHERE market_slug=?',(m['market_slug'],)).fetchone()
-    rising_45=(rising_45 or (crossing is not None and 0<=stamp-crossing[0]<=15 and Decimal('.45')<=up<=Decimal('.50')))
-    side='UP' if rising_45 or up>Decimal('.5') else 'DOWN'
+    # Two distinct directional 20% crossings: UP at up=.20 and DOWN
+    # at down=.20 (equivalently up=.80). Never infer momentum from a single mark.
+    consecutive=previous is not None and 0<stamp-previous[0]<=5
+    old=amount(previous[1]) if previous is not None else None
+    rising_45=consecutive and old<Decimal('.45')<=up
+    rising_up_20=consecutive and old<Decimal('.20')<=up
+    rising_down_20=consecutive and (1-old)<Decimal('.20')<=1-up
+    for direction,crossed in (('UP45',rising_45),('UP20',rising_up_20),('DOWN20',rising_down_20)):
+        if crossed:
+            with db:
+                db.execute('INSERT INTO market_low_crossings VALUES(?,?,?) ON CONFLICT(market_slug,side) DO UPDATE SET crossed_at=excluded.crossed_at',
+                           (m['market_slug'],direction,stamp))
+    recent=dict(db.execute('SELECT side,crossed_at FROM market_low_crossings WHERE market_slug=?',(m['market_slug'],)).fetchall())
+    up45=('UP45' in recent and 0<=stamp-recent['UP45']<=15 and Decimal('.45')<=up<=Decimal('.50'))
+    up20=('UP20' in recent and 0<=stamp-recent['UP20']<=15 and Decimal('.20')<=up<=Decimal('.25'))
+    down20=('DOWN20' in recent and 0<=stamp-recent['DOWN20']<=15 and Decimal('.20')<=1-up<=Decimal('.25'))
+    if up20:
+        side='UP'
+    elif down20:
+        side='DOWN'
+    elif up45:
+        side='UP'
+    else:
+        side='UP' if up>Decimal('.5') else 'DOWN'
     probability=up if side=='UP' else 1-up
     ordinary=amount(settings['market_band_min'])<=probability<=amount(settings['market_band_max'])
-    if not ordinary and not rising_45:
+    if not ordinary and not (up45 or up20 or down20):
         raise ValueError('MARKET_PERCENTAGE_OUTSIDE_ENTRY_BAND')
     selected=books[side]
     if amount(selected['offers'][0]['price'])-amount(selected['liquidation_bids'][0]['price'])>amount(settings['market_max_spread']): raise ValueError('MARKET_SPREAD_TOO_WIDE')
@@ -85,7 +104,7 @@ def entry_check(db,m,books,now,settings):
         raise ValueError('NO_FRESH_MARKET_LEAN')
     if lean.get('direction')!=side: raise ValueError('LEAN_NOT_ALIGNED_WITH_MARKET_FAVORITE')
     return dict(side=side,market_probability=str(probability),market_source=books[side]['market_percentage_source'],lean=lean,
-                rising_45_entry=rising_45)
+                rising_45_entry=up45,rising_20_entry=up20 or down20)
 
 
 def update_exit(engine,wallet,key,p,books,now):
