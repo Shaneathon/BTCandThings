@@ -106,35 +106,53 @@ class BandTests(unittest.TestCase):
         self.assertFalse(self.engine.db.execute('SELECT 1 FROM positions').fetchone())
         self.assertEqual(self.engine.db.execute("SELECT cash FROM wallets WHERE name='Champion'").fetchone()[0],'1000')
 
-    def test_stop_is_fixed_entry_minus_two_not_trailing_and_profit_is_71(self):
-        key,p=self.buy('.55')
-        for up in ('.70','.60','.54'):
-            state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,up),NOW+5)
+    def test_stop_requires_continuous_fifteen_seconds_and_resets(self):
+        key,p=self.buy('.60')
+        self.assertEqual(p['exit_rule'],'MARKET_FIXED_3PT_15S_TRAIL_70_75')
+        for t,px,expected in ((5,'.57',NOW+5),(14,'.56',NOW+5),(15,'.58',None),
+                              (16,'.57',NOW+16),(30,'.56',NOW+16)):
+            state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+t,px),NOW+t)
+            self.assertEqual(state['stop_since'],expected)
             self.assertIsNone(state['triggered_at'])
-            self.assertEqual(Decimal(state['stop_probability']),Decimal('.53'))
-        state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+6,'.53'),NOW+6)
+            self.assertEqual(state['stop_probability'],'0.57')
+        state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+31,'.56'),NOW+31)
+        self.assertEqual(state['reason'],'MARKET_ENTRY_MINUS_3_POINTS_15_SECONDS')
+        self.assertEqual(state['triggered_at'],NOW+31)
+    def test_stale_quotes_do_not_advance_timer(self):
+        key,p=self.buy('.60')
+        update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.57'),NOW+5)
+        with self.assertRaisesRegex(ValueError,'STALE_MARKET'):
+            update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.56'),NOW+20)
+        state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+21,'.56'),NOW+21)
+        self.assertEqual(state['stop_since'],NOW+20)
+        self.assertIsNone(state['triggered_at'])
+    def test_profit_arms_at_70_trails_one_point_and_targets_75(self):
+        key,p=self.buy('.60')
+        for t,px in ((5,'.69'),(6,'.70'),(7,'.72'),(8,'.71')):
+            state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+t,px),NOW+t)
+        self.assertEqual(state['reason'],'MARKET_PROFIT_TRAIL_1_POINT')
+        self.assertEqual(state['profit_peak'],'0.72')
+        self.assertEqual(state['triggered_at'],NOW+8)
+        self.assertEqual(state['take_probability'],'.75')
+    def test_75_target_when_profitable(self):
+        key,p=self.buy('.60')
+        state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.75'),NOW+5)
+        self.assertEqual(state['reason'],'MARKET_75_PERCENT_TARGET')
+    def test_prior_position_keeps_old_exit_rule(self):
+        key,p=self.buy('.60')
+        p.update(exit_rule='MARKET_FIXED_2PT_71',exit_stop_drop='.02',exit_target='.71')
+        state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.58'),NOW+5)
         self.assertEqual(state['reason'],'MARKET_ENTRY_MINUS_2_POINTS')
-        state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+7,'.71'),NOW+7)
-        self.assertEqual(state['reason'],'MARKET_ENTRY_MINUS_2_POINTS') # latched first trigger
-    def test_already_triggered_exit_does_not_wait_for_a_new_mark(self):
-        key,p=self.buy('.55')
-        update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.53'),NOW+5)
-        q=self.quotes(NOW+6,'.52');q['UP']['market_up_probability']=None
-        state=update_exit(self.engine,'Champion',key,p,q,NOW+6)
-        self.assertEqual(state['reason'],'MARKET_ENTRY_MINUS_2_POINTS')
-        self.assertEqual(state['triggered_at'],NOW+5)
-
     def test_down_exit_uses_complement_and_sell_uses_actual_bid_with_fees(self):
         self.lean('DOWN',NOW);key,p=self.buy('.40')
-        state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.29'),NOW+5)
-        self.assertEqual(state['reason'],'MARKET_71_PERCENT_TARGET')
+        state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.25'),NOW+5)
+        self.assertEqual(state['reason'],'MARKET_75_PERCENT_TARGET')
         data=dict(exported_at=NOW+5,markets=[self.m],predictions=[],execution_evidence=dict(metadata={self.m['market_slug']:self.details}))
-        manage(self.engine,data,lambda m,after=0:self.quotes(NOW+5,'.29'),NOW+5,True,lambda:NOW+5)
+        manage(self.engine,data,lambda m,after=0:self.quotes(NOW+5,'.25'),NOW+5,True,lambda:NOW+5)
         oid,wallet,key,encoded=self.engine.db.execute('SELECT order_id,wallet,entry_key,payload FROM exit_orders').fetchone()
-        finish(self.engine,oid,wallet,key,encoded,self.quotes(NOW+8,'.29'),NOW+8)
+        finish(self.engine,oid,wallet,key,encoded,self.quotes(NOW+8,'.25'),NOW+8)
         closed=json.loads(self.engine.db.execute('SELECT payload FROM positions').fetchone()[0])
-        self.assertEqual(closed['close_reason'],'MARKET_71_PERCENT_TARGET')
-        self.assertEqual(Decimal(closed['exit_price']),Decimal('.70'))
+        self.assertEqual(closed['close_reason'],'MARKET_75_PERCENT_TARGET')
         self.assertGreater(Decimal(closed['exit_fees']),0)
         self.assertEqual(Decimal(closed['payout'])-Decimal(closed['cost']),Decimal(closed['pnl']))
     def test_five_entry_rolling_cap_is_shared_and_source_collection_not_changed(self):
