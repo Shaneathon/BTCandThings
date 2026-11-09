@@ -84,7 +84,10 @@ class BandTests(unittest.TestCase):
         self.lean('UP',NOW)
         with self.assertRaisesRegex(ValueError,'OUTSIDE'):
             entry_check(self.engine.db,self.m,self.quotes(NOW-1,'.19'),NOW-1,BAND_SETTINGS)
-        key,p=self.buy('.20')
+        self.engine.propose('Champion',self.m,self.forecast,self.details,self.quotes(NOW,'.20'),NOW,NOW-1)
+        key,encoded=self.engine.db.execute("SELECT market_slug,payload FROM orders WHERE state='PROPOSED'").fetchone()
+        self.engine.complete('Champion',key,encoded,self.quotes(NOW+4,'.20'),NOW+4)
+        p=json.loads(self.engine.db.execute('SELECT payload FROM positions WHERE market_slug=?',(key,)).fetchone()[0])
         self.assertEqual(p['side'],'UP')
         self.assertEqual(p['exit_rule'],'MARKET_FIXED_5PT_30S_TRAIL_70_75')
         state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.15'),NOW+5)
