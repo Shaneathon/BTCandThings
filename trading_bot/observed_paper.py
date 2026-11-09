@@ -4,6 +4,7 @@ from dataclasses import asdict
 from datetime import datetime,timezone
 from decimal import Decimal,ROUND_DOWN
 import json
+import os
 from pathlib import Path
 import sqlite3
 import time
@@ -30,6 +31,10 @@ SETTINGS=dict(PREVIOUS_SETTINGS,version='OBSERVED_PAPER_V4_TRAILING_150',entry_s
 def slots():
     return {**{name:('BTC',900,model) for name,model in MODELS.items()},
             **{asset+'_'+str(duration//60)+'m':(asset,duration,RESEARCH_MODEL) for asset,duration in MARKET_STREAMS}}
+
+
+def entry_in_scope(m):
+    return os.environ.get("SHANEATHON_BTC15_ONLY") != "1" or (m.get("asset")=="BTC" and m.get("duration_seconds")==900)
 
 
 class Engine:
@@ -107,6 +112,7 @@ class Engine:
         return max(Decimal(0),capacity)
 
     def propose(self,wallet,m,p,details,books,now,available_at):
+        if not entry_in_scope(m): raise ValueError("MARKET_DISABLED_BY_BTC15_SCOPE")
         if wallet not in slots() or slots()[wallet][:2]!=(m.get('asset'),m.get('duration_seconds')): raise ValueError('WALLET_MARKET_MISMATCH')
         when=time_of(p['recorded_at']);end=time_of(m['window_end']);start=time_of(m['window_start'])
         if not 0<=now-available_at<=45 or not start<=when<=available_at<=now or not 0<=now-when<=90:
@@ -160,6 +166,7 @@ class Engine:
 
     def complete(self,wallet,slug,payload,books,now,blocked=False):
         record=json.loads(payload);plan=OrderPlan(**record['plan'])
+        blocked = blocked or not entry_in_scope(record['market'])
         if not blocked and now<plan.eligible_at: return
         snapshot=books.get(plan.side,{}) if not blocked else {}
         result=simulate(plan,snapshot,now)
@@ -306,7 +313,7 @@ def cycle(engine,data,client,now,paused=False):
         plan=OrderPlan(**json.loads(payload)['plan'])
         if now<plan.eligible_at: continue
         try:
-            books={} if paused or not fresh or now>=plan.expires_at else get(lookup[plan.market_slug],plan.eligible_at)
+            books={} if paused or not fresh or not entry_in_scope(json.loads(payload)['market']) or now>=plan.expires_at else get(lookup[plan.market_slug],plan.eligible_at)
             engine.complete(wallet,slug,payload,books,time.time() if client.__class__ is BookClient else now,blocked=paused or not fresh)
         except Exception as error:
             reason=str(error) if isinstance(error,ValueError) else type(error).__name__
@@ -317,6 +324,9 @@ def cycle(engine,data,client,now,paused=False):
     if fresh and not paused:
         candidates=[]
         for wallet,(asset,duration,model) in slots().items():
+            if not entry_in_scope(dict(asset=asset,duration_seconds=duration)):
+                engine.event(wallet,asset+'_'+str(duration//60)+'m','MARKET_DISABLED_BY_BTC15_SCOPE',now)
+                continue
             matches=[p for p in data.get('predictions',[]) if p.get('model_version')==model and p.get('market_slug') in lookup
                      and lookup[p['market_slug']].get('asset')==asset and lookup[p['market_slug']].get('duration_seconds')==duration]
             if not matches:

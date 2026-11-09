@@ -14,6 +14,10 @@ from market_candles import load_candles
 from tracker_panels import research_signal
 from collector import Store, get_json, unwrap, iso, epoch
 
+# Deployment scope is opt-in; historical records and settlement reconciliation remain intact.
+if os.environ.get('SHANEATHON_BTC15_ONLY') == '1':
+    ASSETS = {'BTC': ASSETS['BTC']}
+    LISTED_DURATIONS = {'BTC': ('15m',)}
 STREAMS = [(asset, duration) for asset in ASSETS for duration in LISTED_DURATIONS[asset]]
 GATEWAY = 'https://gateway.polymarket.us'
 MODEL = 'Multi-asset spot baseline research V1'

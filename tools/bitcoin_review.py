@@ -186,6 +186,21 @@ def main():
         with sqlite3.connect(args.research_db.resolve().as_uri()+'?mode=ro',uri=True) as db:
             local_markets=[json.loads(r[0]) for r in db.execute("SELECT payload FROM records WHERE kind='market'")]
             local_predictions=[json.loads(r[0]) for r in db.execute('SELECT payload FROM research_snapshots')]
+        # A common official-outcome cohort for all three tracker sources.
+        merged = {}
+        conflicts = set()
+        for market in markets + local_markets:
+            if market.get('settlement_status') != 'VERIFIED': continue
+            slug = market.get('market_slug')
+            prior = merged.get(slug)
+            if prior:
+                # Compare parsed timestamps so equivalent Z/+00:00 strings agree.
+                if (utc(prior.get('window_start')),utc(prior.get('window_end')),prior.get('official_winner')) != (utc(market.get('window_start')),utc(market.get('window_end')),market.get('official_winner')):
+                    conflicts.add(slug)
+            merged[slug] = market
+        combined = dict(sources, Research=local_predictions)
+        report['combined_btc15_tracker'] = review([m for slug,m in merged.items() if slug not in conflicts],combined)
+        report['combined_btc15_tracker']['conflicting_outcomes_excluded'] = sorted(conflicts)
         report['separate_btc_research'] = {
             str(duration): review(local_markets,{'Research baseline':local_predictions},duration)
             for duration in (300,900)}
@@ -224,6 +239,10 @@ def main():
         for horizon,entry in local['horizons'].items():
             for model,result in entry['models'].items():
                 print(' ',horizon,model,json.dumps({k:v for k,v in result['own_coverage'].items() if k!='calibration'}))
+    for horizon, entry in report.get('combined_btc15_tracker',{}).get('horizons',{}).items():
+        print('COMBINED BTC15 CHECKPOINT seconds before close:',horizon,'common markets:',entry['common_markets'])
+        for model, result in entry['models'].items():
+            print(model,json.dumps({name:{k:v for k,v in values.items() if k!='calibration'} for name,values in result.items()}))
     print('Full report saved privately:',str(args.out))
 
 

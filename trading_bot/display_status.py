@@ -55,6 +55,9 @@ def wallet_state(report,packet,health,now,paused=False,orders=()):
     if activity['open_windows']:
         overdue=any(end<=now for end in activity['open_windows'])
         return dict(state='AWAITING_OFFICIAL_SETTLEMENT' if overdue else 'POSITION_OPEN',severity='info')
+    from trading_bot.observed_paper import entry_in_scope
+    if not entry_in_scope(dict(asset=stream.get('asset'),duration_seconds=stream.get('duration_seconds'))):
+        return dict(state='MARKET_DISABLED_BY_BTC15_SCOPE',severity='info')
     if report.get('entry_budget_state')=='ROLLING_MARKET_ENTRY_LIMIT': return dict(state='ENTRY_QUOTA_REACHED',severity='info')
     if report.get('entry_budget_state')=='ENTRY_RETRY_SPACING': return dict(state='ENTRY_RETRY_WAIT',severity='info')
     if Decimal(activity.get('risk_capacity','1'))<=0: return dict(state='RISK_BUDGET_EXHAUSTED',severity='warning')

@@ -181,7 +181,11 @@ def age(value,now):
 def health(folder,service_check=None,publish=True):
     folder=Path(folder);folder.mkdir(mode=0o700,parents=True,exist_ok=True)
     now=time.time();issues=[];checks={}
+    btc15_only=Path('/var/lib/shaneathon-ops/BTC15-ONLY').is_file()
     for name in SERVICES:
+        if btc15_only and name.startswith(('coin-', 'cbot-', 'coinbase-recorder.')):
+            checks[name]='INTENTIONALLY_STOPPED_BTC15_ONLY'
+            continue
         if service_check:
             active=service_check(name)
         else:
@@ -199,7 +203,7 @@ def health(folder,service_check=None,publish=True):
         if not active: issues.append(dict(level='critical',message='Metals quote sampler is not active'))
     challenger_unit='cbot-fee-filter-paper.service'
     challenger_installed=Path('/etc/systemd/system/'+challenger_unit).is_file()
-    if challenger_installed:
+    if challenger_installed and not btc15_only:
         if service_check: active=service_check(challenger_unit)
         else:
             try: active=subprocess.run(['systemctl','is-active','--quiet',challenger_unit],timeout=5).returncode==0
@@ -210,10 +214,11 @@ def health(folder,service_check=None,publish=True):
                ('/var/lib/coin/research.sqlite','tracker_status',180,'Coinbase tracker'),
                ('/var/lib/pbot/observed-v1.sqlite' if Path('/var/lib/pbot/OBSERVED-ACTIVE').is_file() else '/var/lib/pbot/comparison.sqlite','bot_snapshot',60,'Polymarket paper experiments'),
                ('/var/lib/cbot/product-baseline.sqlite' if Path('/var/lib/cbot/PRODUCT-WALLETS-ACTIVE').is_file() else '/var/lib/cbot/observed-v1.sqlite' if Path('/var/lib/cbot/OBSERVED-ACTIVE').is_file() else '/var/lib/cbot/paper.sqlite','bot_snapshot',180,'Coinbase paper bot')]
-    if challenger_installed:
+    if challenger_installed and not btc15_only:
         databases.append(('/var/lib/cbot/product-fee-filter.sqlite' if Path('/var/lib/cbot/PRODUCT-WALLETS-ACTIVE').is_file() else '/var/lib/cbot/fee-filter-v1.sqlite','bot_snapshot',180,'Coinbase fee-filter experiment'))
     freshness={}
     for source,table,limit,label in databases:
+        if btc15_only and label.startswith('Coinbase'): continue
         try:
             with sqlite3.connect(Path(source).resolve().as_uri()+'?mode=ro',uri=True,timeout=3) as db:
                 row=db.execute('SELECT observed_at,payload FROM '+table+' LIMIT 1').fetchone()
@@ -240,12 +245,13 @@ def health(folder,service_check=None,publish=True):
                     if not state.get('collection_ready'): issues.append(dict(level='notice',message=stream+' prediction collection paused'))
         except (OSError,sqlite3.Error,TypeError,ValueError,IndexError):
             issues.append(dict(level='critical',message=label+' status could not be read'))
-    try:
-        recorder=json.loads(Path('/var/lib/coinbase-recorder/status.json').read_text())
-        if age(recorder['updated_at'],now)>90 or recorder.get('state')!='CAPTURING_RAW':
-            issues.append(dict(level='warning',message='Raw Coinbase capture is stale, disconnected or budget-paused'))
-        if recorder.get('real_trading') is True: issues.append(dict(level='critical',message='Recorder unexpectedly reports real trading'))
-    except (OSError,ValueError,KeyError): issues.append(dict(level='warning',message='Raw recorder status unavailable'))
+    if not btc15_only:
+        try:
+            recorder=json.loads(Path('/var/lib/coinbase-recorder/status.json').read_text())
+            if age(recorder['updated_at'],now)>90 or recorder.get('state')!='CAPTURING_RAW':
+                issues.append(dict(level='warning',message='Raw Coinbase capture is stale, disconnected or budget-paused'))
+            if recorder.get('real_trading') is True: issues.append(dict(level='critical',message='Recorder unexpectedly reports real trading'))
+        except (OSError,ValueError,KeyError): issues.append(dict(level='warning',message='Raw recorder status unavailable'))
     backups={}
     for filename,limit,label in [('backup-status.json',3*3600,'Local database snapshots'),('cloud-status.json',36*3600,'Cloud data export')]:
         try:

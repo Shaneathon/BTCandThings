@@ -82,6 +82,7 @@ def content():
                 'RISK_BUDGET_EXHAUSTED':'Entry risk budget exhausted','ORDER_ALREADY_ATTEMPTED':'Order already attempted — waiting for next window','ORDER_PROCESSING_LATE':'Pending order overdue',
                 'ORDER_PENDING':'Order awaiting execution check','AWAITING_OFFICIAL_SETTLEMENT':'Waiting for official settlement',
                 'POSITION_OPEN':'Paper position open','NO_CURRENT_MARKET':'Waiting for current market',
+                'MARKET_DISABLED_BY_BTC15_SCOPE':'Inactive — BTC 15m only; history retained',
                 'WAITING_FOR_ENTRY_WINDOW':'Waiting for entry window','ENTRY_WINDOW_CLOSED':'Waiting for next window',
                 'WAITING_FOR_FRESH_SIGNAL':'Waiting for fresh prediction','WAITING_FOR_PAIRED_SIGNAL':'Waiting for both control predictions',
                 'EVALUATING_BOOK_AND_EDGE':'Checking quotes and net edge','LATE_REVERSAL_CHECK':'Final two minutes — strong model reversal required','OPENING_WAIT':'Waiting for first 90 seconds to pass','ENTRY_QUOTA_REACHED':'Rolling market entry limit reached','ENTRY_RETRY_WAIT':'Waiting between entry attempts'}
