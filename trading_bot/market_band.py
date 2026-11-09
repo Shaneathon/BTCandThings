@@ -4,11 +4,16 @@ import json
 from trading_bot.core import amount,time_of
 from trading_bot.observed_paper import SETTINGS as TRAILING_SETTINGS
 
-BAND_SETTINGS=dict(TRAILING_SETTINGS,version='OBSERVED_PAPER_V5_MARKET_BAND',entry_strategy='MARKET_BAND',
+BAND_SETTINGS=dict(TRAILING_SETTINGS,version='OBSERVED_PAPER_V6_STOP_TIMER_PROFIT_TRAIL',entry_strategy='MARKET_BAND',
     opening_wait_seconds=90,close_cutoff_15m=180,close_cutoff_5m=120,market_band_min='.54',market_band_max='.64',market_max_spread='.02',
     market_stop_drop='.03',market_take_profit='.75',market_profit_arm='.70',market_profit_trail='.01',market_stop_hold_seconds=15,max_entries_per_stream=5,minimum_edge_required=False)
 for _obsolete in ('entry_seconds_remaining','late_entry_seconds','reversal_confidence','reversal_minimum_edge','trailing_probability_drop','minimum_edge'):
     BAND_SETTINGS.pop(_obsolete,None)
+
+
+OLD_BAND_SETTINGS=dict(BAND_SETTINGS,version='OBSERVED_PAPER_V5_MARKET_BAND',market_stop_drop='.02',market_take_profit='.71')
+for _new in ('market_profit_arm','market_profit_trail','market_stop_hold_seconds'):
+    OLD_BAND_SETTINGS.pop(_new,None)
 
 
 def initialize(db):
