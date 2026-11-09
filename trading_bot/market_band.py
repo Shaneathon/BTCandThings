@@ -84,10 +84,14 @@ def update_exit(engine,wallet,key,p,books,now):
         raise
     stamp=books[p['side']]['percentage_received_at']
     if stamp<state.get('observed_at',0): raise ValueError('MARKET_PERCENTAGE_CLOCK_ROLLBACK')
+    legacy=p.get('exit_rule')=='MARKET_FIXED_2PT_71'
     # Never allow an old snapshot to advance the stop timer.
     if stamp==state.get('observed_at'): return state
     state.update(current_probability=str(current),observed_at=stamp,source=books[p['side']]['market_percentage_source'])
-    if state['triggered_at'] is None:
+    if state['triggered_at'] is None and legacy:
+        if current<=amount(state['stop_probability']): state.update(triggered_at=now,reason='MARKET_ENTRY_MINUS_2_POINTS')
+        elif current>=amount(state['take_probability']): state.update(triggered_at=now,reason='MARKET_71_PERCENT_TARGET')
+    elif state['triggered_at'] is None:
         if current<=amount(state['stop_probability']):
             if state.get('stop_since') is None: state['stop_since']=stamp
             if stamp-state['stop_since']>=float(state['stop_hold_seconds']):
