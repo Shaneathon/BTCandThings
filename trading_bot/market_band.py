@@ -6,7 +6,7 @@ from trading_bot.observed_paper import SETTINGS as TRAILING_SETTINGS
 
 BAND_SETTINGS=dict(TRAILING_SETTINGS,version='OBSERVED_PAPER_V5_MARKET_BAND',entry_strategy='MARKET_BAND',
     opening_wait_seconds=90,close_cutoff_15m=180,close_cutoff_5m=120,market_band_min='.54',market_band_max='.64',market_max_spread='.02',
-    market_stop_drop='.02',market_take_profit='.71',max_entries_per_stream=5,minimum_edge_required=False)
+    market_stop_drop='.03',market_take_profit='.75',market_profit_arm='.70',market_profit_trail='.01',market_stop_hold_seconds=15,max_entries_per_stream=5,minimum_edge_required=False)
 for _obsolete in ('entry_seconds_remaining','late_entry_seconds','reversal_confidence','reversal_minimum_edge','trailing_probability_drop','minimum_edge'):
     BAND_SETTINGS.pop(_obsolete,None)
 
@@ -65,20 +65,59 @@ def entry_check(db,m,books,now,settings):
 
 
 def update_exit(engine,wallet,key,p,books,now):
+    """Fixed-entry stop with continuous hold; armed peak-based profitable exit."""
+    from trading_bot.execution_model import taker_fee
     entry=amount(p['entry_market_probability'])
     row=engine.db.execute('SELECT payload FROM market_exit_state WHERE wallet=? AND entry_key=?',(wallet,key)).fetchone()
-    try: current=mark(books,p['side'],now)
+    state=json.loads(row[0]) if row else dict(
+        entry_probability=str(entry),
+        stop_probability=str(entry-amount(p.get('exit_stop_drop','.03'))),
+        take_probability=p.get('exit_target','.75'),
+        profit_arm=p.get('exit_profit_arm','.70'),
+        profit_trail=p.get('exit_profit_trail','.01'),
+        stop_hold_seconds=p.get('exit_stop_hold_seconds',15),
+        stop_since=None,profit_peak=None,triggered_at=None,reason=None)
+    try:
+        current=mark(books,p['side'],now)
     except ValueError:
-        if row and json.loads(row[0]).get('triggered_at') is not None: return json.loads(row[0])
+        if state['triggered_at'] is not None: return state
         raise
-    state=json.loads(row[0]) if row else dict(entry_probability=str(entry),stop_probability=str(entry-amount(p.get('exit_stop_drop','.02'))),
-        take_probability=p.get('exit_target','.71'),triggered_at=None,reason=None)
     stamp=books[p['side']]['percentage_received_at']
     if stamp<state.get('observed_at',0): raise ValueError('MARKET_PERCENTAGE_CLOCK_ROLLBACK')
+    # Never allow an old snapshot to advance the stop timer.
+    if stamp==state.get('observed_at'): return state
     state.update(current_probability=str(current),observed_at=stamp,source=books[p['side']]['market_percentage_source'])
     if state['triggered_at'] is None:
-        if current<=amount(state['stop_probability']): state.update(triggered_at=now,reason='MARKET_ENTRY_MINUS_2_POINTS')
-        elif current>=amount(state['take_probability']): state.update(triggered_at=now,reason='MARKET_71_PERCENT_TARGET')
+        if current<=amount(state['stop_probability']):
+            if state.get('stop_since') is None: state['stop_since']=stamp
+            if stamp-state['stop_since']>=float(state['stop_hold_seconds']):
+                state.update(triggered_at=now,reason='MARKET_ENTRY_MINUS_3_POINTS_15_SECONDS')
+        else:
+            state['stop_since']=None
+
+        peak=amount(state['profit_peak']) if state.get('profit_peak') is not None else None
+        if current>=amount(state['profit_arm']):
+            peak=max(peak,current) if peak is not None else current
+            state['profit_peak']=str(peak)
+        if state['triggered_at'] is None and peak is not None:
+            # Profitability is based on executable bid proceeds after estimated fees,
+            # not on the displayed market percentage alone.
+            bids=books[p['side']].get('liquidation_bids',[])
+            quantity=amount(p['quantity'])
+            remaining=quantity;gross=Decimal(0);fees=Decimal(0)
+            for level in bids:
+                take=min(remaining,amount(level['quantity']))
+                if take<=0: continue
+                price=amount(level['price'])
+                gross+=take*price
+                fees+=taker_fee('.06',take,price)
+                remaining-=take
+                if remaining<=0: break
+            profitable=remaining==0 and gross-fees>amount(p['cost'])
+            if profitable and current>=amount(state['take_probability']):
+                state.update(triggered_at=now,reason='MARKET_75_PERCENT_TARGET')
+            elif profitable and current<=peak-amount(state['profit_trail']):
+                state.update(triggered_at=now,reason='MARKET_PROFIT_TRAIL_1_POINT')
     with engine.db:
         engine.db.execute('INSERT INTO market_exit_state VALUES(?,?,?) ON CONFLICT(wallet,entry_key) DO UPDATE SET payload=excluded.payload',
                           (wallet,key,json.dumps(state)))
