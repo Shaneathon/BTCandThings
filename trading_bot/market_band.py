@@ -67,6 +67,10 @@ def entry_check(db,m,books,now,settings):
                        (m['market_slug'],stamp,str(up)))
     rising_45=(previous is not None and 0<stamp-previous[0]<=5
                and amount(previous[1])<Decimal('.45')<=up and up<=amount(settings['market_band_max']))
+    if rising_45:
+        with db: db.execute('INSERT INTO market_up_crossings VALUES(?,?) ON CONFLICT(market_slug) DO UPDATE SET crossed_at=excluded.crossed_at',(m['market_slug'],stamp))
+    crossing=db.execute('SELECT crossed_at FROM market_up_crossings WHERE market_slug=?',(m['market_slug'],)).fetchone()
+    rising_45=(rising_45 or (crossing is not None and 0<=stamp-crossing[0]<=15 and Decimal('.45')<=up<=Decimal('.50')))
     side='UP' if rising_45 or up>Decimal('.5') else 'DOWN'
     probability=up if side=='UP' else 1-up
     ordinary=amount(settings['market_band_min'])<=probability<=amount(settings['market_band_max'])
