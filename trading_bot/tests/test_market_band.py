@@ -64,6 +64,33 @@ class BandTests(unittest.TestCase):
         self.lean('DOWN',NOW+4)
         with self.assertRaisesRegex(ValueError,'LEAN_NOT_ALIGNED'):
             entry_check(self.engine.db,self.m,self.quotes(NOW+5,'.46'),NOW+5,BAND_SETTINGS)
+    def test_20_percent_up_crossing_and_down_crossing(self):
+        with self.assertRaisesRegex(ValueError,'OUTSIDE'):
+            entry_check(self.engine.db,self.m,self.quotes(NOW,'.19'),NOW,BAND_SETTINGS)
+        rule=entry_check(self.engine.db,self.m,self.quotes(NOW+1,'.20'),NOW+1,BAND_SETTINGS)
+        self.assertEqual(rule['side'],'UP')
+        self.assertTrue(rule['rising_20_entry'])
+        self.assertEqual(rule['market_probability'],'0.20')
+        self.lean('DOWN',NOW+2)
+        with self.assertRaisesRegex(ValueError,'LEAN_NOT_ALIGNED'):
+            entry_check(self.engine.db,self.m,self.quotes(NOW+2,'.21'),NOW+2,BAND_SETTINGS)
+        with self.assertRaisesRegex(ValueError,'OUTSIDE'):
+            entry_check(self.engine.db,self.m,self.quotes(NOW+20,'.81'),NOW+20,BAND_SETTINGS)
+        rule=entry_check(self.engine.db,self.m,self.quotes(NOW+21,'.80'),NOW+21,BAND_SETTINGS)
+        self.assertEqual(rule['side'],'DOWN')
+        self.assertTrue(rule['rising_20_entry'])
+        self.assertEqual(rule['market_probability'],'0.20')
+    def test_20_percent_entry_stop_is_15_percent(self):
+        self.lean('UP',NOW)
+        with self.assertRaisesRegex(ValueError,'OUTSIDE'):
+            entry_check(self.engine.db,self.m,self.quotes(NOW-1,'.19'),NOW-1,BAND_SETTINGS)
+        key,p=self.buy('.20')
+        self.assertEqual(p['side'],'UP')
+        self.assertEqual(p['exit_rule'],'MARKET_FIXED_5PT_30S_TRAIL_70_75')
+        state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.15'),NOW+5)
+        self.assertEqual(state['stop_probability'],'0.15')
+        self.assertEqual(state['stop_since'],NOW+5)
+        self.assertIsNone(state['triggered_at'])
     def test_neutral_stale_missing_wrong_target_leans_never_enter(self):
         for direction,changes in [('NEUTRAL',{}),('UP',dict(recorded_at=iso(NOW-100))),('UP',dict(feature_snapshot=dict(asset='BTC',duration_seconds=900,target='1')))]:
             self.lean(direction,NOW,**changes)
