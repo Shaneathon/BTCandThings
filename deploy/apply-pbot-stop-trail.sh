@@ -11,7 +11,9 @@ old="$(sed -n 's/^WorkingDirectory=//p' "$unit")"
 [[ "$old" == /opt/pbot/releases/* && -x "$old/venv/bin/python" ]] || { echo 'Unexpected PBot release'; exit 3; }
 release="/opt/pbot/releases/stop-trail-$(date -u +%Y%m%dT%H%M%S)-$$"
 mkdir -p "$release"
-cp -a "$src/trading_bot" "$release/"
+for package in trading_bot coinbase_bot coinbase_tracker operations; do
+  [[ ! -d "$src/$package" ]] || cp -a "$src/$package" "$release/"
+done
 find "$release/trading_bot" -type d -name __pycache__ -prune -exec rm -rf {} +
 ln -s "$old/venv" "$release/venv"
 (cd "$release"; "$release/venv/bin/python" -m unittest discover -s trading_bot/tests -q; "$release/venv/bin/python" trading_bot/smoke_ui.py)
