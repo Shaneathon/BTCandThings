@@ -97,12 +97,12 @@ def manage(engine,data,get,now,fresh,clock):
     if not fresh: return
     opened=[(wallet,key,json.loads(encoded)) for wallet,key,encoded in engine.db.execute('SELECT wallet,market_slug,payload FROM positions') if json.loads(encoded)['state']=='PAPER_OPEN']
     for wallet,key,p in opened:
-        if p.get('exit_rule')!='MARKET_FIXED_2PT_71': update_trail(engine,wallet,key,p,data,now)
+        if p.get('exit_rule') not in ('MARKET_FIXED_2PT_71','MARKET_FIXED_3PT_15S_TRAIL_70_75'): update_trail(engine,wallet,key,p,data,now)
     budget=dict(engine.db.execute('SELECT key,value FROM meta'))
     opened.sort(key=lambda row:budget.get('exit_quote:'+row[0]+':'+row[1],0))
     for wallet,key,p in opened:
         trail=engine.db.execute('SELECT peak,current,signal_at,triggered_at FROM probability_trails WHERE wallet=? AND entry_key=?',(wallet,key)).fetchone()
-        market_rule=p.get('exit_rule')=='MARKET_FIXED_2PT_71'
+        market_rule=p.get('exit_rule') in ('MARKET_FIXED_2PT_71','MARKET_FIXED_3PT_15S_TRAIL_70_75')
         if not market_rule and (not trail or trail[3] is None): continue
         if engine.db.execute("SELECT 1 FROM exit_orders WHERE wallet=? AND entry_key=? AND state='PROPOSED'",(wallet,key)).fetchone(): continue
         if p['window_end']-now<4: continue
@@ -116,7 +116,7 @@ def manage(engine,data,get,now,fresh,clock):
                 state=update_exit(engine,wallet,key,p,books,clock())
                 if state['triggered_at'] is None: continue
                 trail=(state['entry_probability'],state['current_probability'],state['observed_at'],state['triggered_at'])
-                exit_specification=dict(exit_reason=state['reason'],exit_policy='MARKET_FIXED_2PT_71',market_exit_signal=state)
+                exit_specification=dict(exit_reason=state['reason'],exit_policy=p['exit_rule'],market_exit_signal=state)
             bids=book.get('liquidation_bids',[])
             if not bids: raise ValueError('NO_EXIT_BIDS')
             created=clock();metadata=data.get('execution_evidence',{}).get('metadata',{}).get(m['market_slug'],{})
