@@ -87,6 +87,8 @@ def update_exit(engine,wallet,key,p,books,now):
     legacy=p.get('exit_rule')=='MARKET_FIXED_2PT_71'
     # Never allow an old snapshot to advance the stop timer.
     if stamp==state.get('observed_at'): return state
+    if state.get('stop_since') is not None and stamp-state.get('observed_at',stamp)>5:
+        state['stop_since']=None
     state.update(current_probability=str(current),observed_at=stamp,source=books[p['side']]['market_percentage_source'])
     if state['triggered_at'] is None and legacy:
         if current<=amount(state['stop_probability']): state.update(triggered_at=now,reason='MARKET_ENTRY_MINUS_2_POINTS')
@@ -120,7 +122,7 @@ def update_exit(engine,wallet,key,p,books,now):
             profitable=remaining==0 and gross-fees>amount(p['cost'])
             if profitable and current>=amount(state['take_probability']):
                 state.update(triggered_at=now,reason='MARKET_75_PERCENT_TARGET')
-            elif profitable and current<=peak-amount(state['profit_trail']):
+            elif profitable and current>=amount(state['profit_arm']) and current<=peak-amount(state['profit_trail']):
                 state.update(triggered_at=now,reason='MARKET_PROFIT_TRAIL_1_POINT')
     with engine.db:
         engine.db.execute('INSERT INTO market_exit_state VALUES(?,?,?) ON CONFLICT(wallet,entry_key) DO UPDATE SET payload=excluded.payload',
