@@ -49,7 +49,8 @@ def proceeds(levels,qty):
   if remaining<=1e-7:return gross-fee
  return None
 def evaluate(p,rows,winner,rule):
- qty,cost,entry,opened=(num(p.get(k)) for k in ('quantity','cost','entry_market_probability','opened_at'))
+ qty,cost,entry=(num(p.get(k)) for k in ('quantity','cost','entry_market_probability'))
+ opened=ts(p.get('opened_at'))
  if None in (qty,cost,opened) or qty<=0:return ('missing_entry_data',None)
  if rule=='hold':return ('settlement',(qty if winner==p['side'] else 0)-cost)
  if entry is None:return ('missing_entry_probability',None)
