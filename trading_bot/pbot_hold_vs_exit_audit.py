@@ -11,8 +11,13 @@ def n(v):
   x=float(v);return x if math.isfinite(x) else None
  except (ValueError,TypeError):return None
 def t(v):
- try:return datetime.fromisoformat(str(v).replace("Z","+00:00")).timestamp()
- except (ValueError,TypeError):return None
+ if isinstance(v,(int,float)) and not isinstance(v,bool):
+  return float(v) if math.isfinite(float(v)) else None
+ try:
+  s=str(v)
+  if s.replace(".","",1).isdigit():return n(s)
+  return datetime.fromisoformat(s.replace("Z","+00:00")).timestamp()
+ except (ValueError,TypeError,OverflowError):return None
 def summary(rows):
  if not rows:return {"positions":0}
  return {"positions":len(rows),"actual_pnl":round(sum(r[0] for r in rows),4),
