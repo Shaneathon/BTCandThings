@@ -86,9 +86,10 @@ def main():
             prev=(t,prob)
         if entry is None:return None
         entered,_,quotes=rows[entry];ask=quotes[side][0]
-        # require followup close to settlement for any hold-to-settlement result.
+        # Incomplete observed quote paths cannot establish a stop/target did not occur.
+        # Keep settlement as a separate buy-and-hold counterfactual, never impute it as
+        # the strategy exit when the last quote precedes settlement.
         last=rows[-1][0]
-        if end-last>60:return ("unresolved",None)
         since=None;previous_t=entered
         for t,mark,q in rows[entry+1:]:
             if t-previous_t>15:since=None
@@ -102,6 +103,7 @@ def main():
                 if t-since>=hold and q[side][3]>=1:
                     return ("stop",bid-fee(bid)-ask-fee(ask))
             else:since=None
+        if end-last>60:return ("unresolved",None)
         return ("settlement",float(winner==side)-ask-fee(ask))
     scenarios=[]
     for side in ("UP","DOWN"):
@@ -120,11 +122,11 @@ def main():
                             stop=counts["stop"],target=counts["target"],settlement=counts["settlement"],
                             net_per_one_contract=round(sum(pnls),5),avg_net_per_one_contract=round(statistics.mean(pnls),5) if pnls else None)
                     scenarios.append(row)
-    scenarios.sort(key=lambda r:(-(r["train"]["avg_net_per_one_contract"] if r["train"]["complete"]>=20 else -999),-r["train"]["complete"]))
-    print(json.dumps(dict(read_only=True,not_deployed=True,method="One contract per market; observed crossing, ask entry, bid exits, approximate 0.06*p*(1-p) taker fee per fill; unresolved if no quote within final 60 seconds; no lean or slippage modeling; not execution-equivalent.",
+    scenarios.sort(key=lambda r:(-r["train"]["complete"],r["train"]["unresolved"],r["side"],r["entry"]))
+    print(json.dumps(dict(read_only=True,not_deployed=True,method="One contract per market; observed crossing, ask entry, bid exits, approximate 0.06*p*(1-p) taker fee per fill; observed stop/target exits count even if later quotes end early; otherwise unresolved if no quote within final 60 seconds; no lean or slippage modeling; not execution-equivalent.",
         evidence=dict(verified_markets=len(outcomes),conflicts=len(conflicts),rejected=dict(rejected)),
         books=dict(matched_markets=len(markets),eligible_markets=len(eligible),training_markets=len(train),held_out_markets=len(test),issues=dict(issues)),
-        warning="Archive quote coverage is partial; incomplete paths, 15s gaps, missing lean and depth, simplified fees and possible selection bias mean these results are exploratory only. Never deploy based on these rankings.",
-        scenarios=len(scenarios),top_train_candidates=scenarios[:12],all_scenarios=scenarios),indent=2))
+        warning="Incomplete quote paths are unresolved, not losses or wins. Observed exits may be biased toward early stops/targets; no strategy ranking is reliable until continuous coverage, lean, fill size and fees are validated. Never deploy based on these rankings.",
+        scenarios=len(scenarios),most_observed_scenarios=scenarios[:12],all_scenarios=scenarios),indent=2))
     research.close();ledger.close()
 if __name__=="__main__":main()
