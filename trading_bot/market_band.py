@@ -4,21 +4,25 @@ import json
 from trading_bot.core import amount,time_of
 from trading_bot.observed_paper import SETTINGS as TRAILING_SETTINGS
 
-BAND_SETTINGS=dict(TRAILING_SETTINGS,version='OBSERVED_PAPER_V6_STOP_TIMER_PROFIT_TRAIL',entry_strategy='MARKET_BAND',
+BAND_SETTINGS=dict(TRAILING_SETTINGS,version='OBSERVED_PAPER_V7_FIVE_POINT_30S_45_UP',entry_strategy='MARKET_BAND',
     opening_wait_seconds=90,close_cutoff_15m=180,close_cutoff_5m=120,market_band_min='.54',market_band_max='.64',market_max_spread='.02',
-    market_stop_drop='.03',market_take_profit='.75',market_profit_arm='.70',market_profit_trail='.01',market_stop_hold_seconds=15,max_entries_per_stream=5,minimum_edge_required=False)
+    market_stop_drop='.05',market_take_profit='.75',market_profit_arm='.70',market_profit_trail='.01',market_stop_hold_seconds=30,max_entries_per_stream=5,minimum_edge_required=False)
 for _obsolete in ('entry_seconds_remaining','late_entry_seconds','reversal_confidence','reversal_minimum_edge','trailing_probability_drop','minimum_edge'):
     BAND_SETTINGS.pop(_obsolete,None)
 
 
-OLD_BAND_SETTINGS=dict(BAND_SETTINGS,version='OBSERVED_PAPER_V5_MARKET_BAND',market_stop_drop='.02',market_take_profit='.71')
+V6_BAND_SETTINGS=dict(BAND_SETTINGS,version='OBSERVED_PAPER_V6_STOP_TIMER_PROFIT_TRAIL',market_stop_drop='.03',market_stop_hold_seconds=15)
+OLD_BAND_SETTINGS=dict(V6_BAND_SETTINGS,version='OBSERVED_PAPER_V5_MARKET_BAND',market_stop_drop='.02',market_take_profit='.71')
 for _new in ('market_profit_arm','market_profit_trail','market_stop_hold_seconds'):
     OLD_BAND_SETTINGS.pop(_new,None)
 
 
 def initialize(db):
     db.executescript('''CREATE TABLE IF NOT EXISTS current_market_lean (market_slug TEXT PRIMARY KEY,payload TEXT);
-      CREATE TABLE IF NOT EXISTS market_exit_state (wallet TEXT,entry_key TEXT,payload TEXT,PRIMARY KEY(wallet,entry_key));''')
+      CREATE TABLE IF NOT EXISTS market_exit_state (wallet TEXT,entry_key TEXT,payload TEXT,PRIMARY KEY(wallet,entry_key));
+      CREATE TABLE IF NOT EXISTS market_entry_marks (market_slug TEXT PRIMARY KEY, observed_at REAL, up_probability TEXT);
+      CREATE TABLE IF NOT EXISTS market_up_crossings (market_slug TEXT PRIMARY KEY, crossed_at REAL);
+      CREATE TABLE IF NOT EXISTS market_low_crossings (market_slug TEXT, side TEXT, crossed_at REAL, PRIMARY KEY(market_slug,side));''')
 
 
 def observe_lean(db,m,data,now):
@@ -54,10 +58,43 @@ def mark(books,side,now):
 
 
 def entry_check(db,m,books,now,settings):
-    up=mark(books,'UP',now);side='UP' if up>Decimal('.5') else 'DOWN'
+    up=mark(books,'UP',now)
+    stamp=books['UP']['percentage_received_at']
+    previous=db.execute('SELECT observed_at,up_probability FROM market_entry_marks WHERE market_slug=?',(m['market_slug'],)).fetchone()
+    # Persist observed marks even if an entry is rejected, so crossing 45% can
+    # be proven from actual fresh sequential marks rather than a model guess.
+    if previous is None or stamp>previous[0]:
+        with db:
+            db.execute('INSERT INTO market_entry_marks VALUES(?,?,?) ON CONFLICT(market_slug) DO UPDATE SET observed_at=excluded.observed_at,up_probability=excluded.up_probability',
+                       (m['market_slug'],stamp,str(up)))
+    # Two distinct directional 20% crossings: UP at up=.20 and DOWN
+    # at down=.20 (equivalently up=.80). Never infer momentum from a single mark.
+    consecutive=previous is not None and 0<stamp-previous[0]<=5
+    old=amount(previous[1]) if previous is not None else None
+    rising_45=consecutive and old<Decimal('.45')<=up
+    rising_up_20=consecutive and old<Decimal('.20')<=up
+    rising_down_20=consecutive and (1-old)<Decimal('.20')<=1-up
+    for direction,crossed in (('UP45',rising_45),('UP20',rising_up_20),('DOWN20',rising_down_20)):
+        if crossed:
+            with db:
+                db.execute('INSERT INTO market_low_crossings VALUES(?,?,?) ON CONFLICT(market_slug,side) DO UPDATE SET crossed_at=excluded.crossed_at',
+                           (m['market_slug'],direction,stamp))
+    recent=dict(db.execute('SELECT side,crossed_at FROM market_low_crossings WHERE market_slug=?',(m['market_slug'],)).fetchall())
+    up45=('UP45' in recent and 0<=stamp-recent['UP45']<=15 and Decimal('.45')<=up<=Decimal('.50'))
+    up20=('UP20' in recent and 0<=stamp-recent['UP20']<=15 and Decimal('.20')<=up<=Decimal('.25'))
+    down20=('DOWN20' in recent and 0<=stamp-recent['DOWN20']<=15 and Decimal('.20')<=1-up<=Decimal('.25'))
+    if up20:
+        side='UP'
+    elif down20:
+        side='DOWN'
+    elif up45:
+        side='UP'
+    else:
+        side='UP' if up>Decimal('.5') else 'DOWN'
     probability=up if side=='UP' else 1-up
-    if not amount(settings['market_band_min'])<=probability<=amount(settings['market_band_max']):
-        raise ValueError('MARKET_PERCENTAGE_OUTSIDE_54_64')
+    ordinary=amount(settings['market_band_min'])<=probability<=amount(settings['market_band_max'])
+    if not ordinary and not (up45 or up20 or down20):
+        raise ValueError('MARKET_PERCENTAGE_OUTSIDE_ENTRY_BAND')
     selected=books[side]
     if amount(selected['offers'][0]['price'])-amount(selected['liquidation_bids'][0]['price'])>amount(settings['market_max_spread']): raise ValueError('MARKET_SPREAD_TOO_WIDE')
     row=db.execute('SELECT payload FROM current_market_lean WHERE market_slug=?',(m['market_slug'],)).fetchone()
@@ -66,7 +103,8 @@ def entry_check(db,m,books,now,settings):
             or not 0<=now-lean.get('recorded_at',0)<=90 or not 0<=now-lean.get('source_at',0)<=120):
         raise ValueError('NO_FRESH_MARKET_LEAN')
     if lean.get('direction')!=side: raise ValueError('LEAN_NOT_ALIGNED_WITH_MARKET_FAVORITE')
-    return dict(side=side,market_probability=str(probability),market_source=books[side]['market_percentage_source'],lean=lean)
+    return dict(side=side,market_probability=str(probability),market_source=books[side]['market_percentage_source'],lean=lean,
+                rising_45_entry=up45,rising_20_entry=up20 or down20)
 
 
 def update_exit(engine,wallet,key,p,books,now):
@@ -76,11 +114,11 @@ def update_exit(engine,wallet,key,p,books,now):
     row=engine.db.execute('SELECT payload FROM market_exit_state WHERE wallet=? AND entry_key=?',(wallet,key)).fetchone()
     state=json.loads(row[0]) if row else dict(
         entry_probability=str(entry),
-        stop_probability=str(entry-amount(p.get('exit_stop_drop','.03'))),
+        stop_probability=str(entry-amount(p.get('exit_stop_drop','.05'))),
         take_probability=p.get('exit_target','.75'),
         profit_arm=p.get('exit_profit_arm','.70'),
         profit_trail=p.get('exit_profit_trail','.01'),
-        stop_hold_seconds=p.get('exit_stop_hold_seconds',15),
+        stop_hold_seconds=p.get('exit_stop_hold_seconds',30),
         stop_since=None,profit_peak=None,triggered_at=None,reason=None)
     try:
         current=mark(books,p['side'],now)
@@ -102,7 +140,7 @@ def update_exit(engine,wallet,key,p,books,now):
         if current<=amount(state['stop_probability']):
             if state.get('stop_since') is None: state['stop_since']=stamp
             if stamp-state['stop_since']>=float(state['stop_hold_seconds']):
-                state.update(triggered_at=now,reason='MARKET_ENTRY_MINUS_3_POINTS_15_SECONDS')
+                state.update(triggered_at=now,reason=('MARKET_ENTRY_MINUS_5_POINTS_30_SECONDS' if p.get('exit_rule')=='MARKET_FIXED_5PT_30S_TRAIL_70_75' else 'MARKET_ENTRY_MINUS_3_POINTS_15_SECONDS'))
         else:
             state['stop_since']=None
 

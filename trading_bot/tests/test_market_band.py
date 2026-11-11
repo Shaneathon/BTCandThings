@@ -53,6 +53,47 @@ class BandTests(unittest.TestCase):
         self.lean('DOWN',NOW)
         self.assertEqual(entry_check(self.engine.db,self.m,self.quotes(NOW,'.4'),NOW,BAND_SETTINGS)['side'],'DOWN')
         with self.assertRaisesRegex(ValueError,'LEAN_NOT_ALIGNED'): entry_check(self.engine.db,self.m,self.quotes(NOW),NOW,BAND_SETTINGS)
+    def test_45_up_crossing_requires_fresh_rising_mark_and_up_lean(self):
+        with self.assertRaisesRegex(ValueError,'LEAN_NOT_ALIGNED'):
+            entry_check(self.engine.db,self.m,self.quotes(NOW,'.44'),NOW,BAND_SETTINGS)
+        rule=entry_check(self.engine.db,self.m,self.quotes(NOW+1,'.45'),NOW+1,BAND_SETTINGS)
+        self.assertEqual(rule['side'],'UP')
+        self.assertTrue(rule['rising_45_entry'])
+        rule=entry_check(self.engine.db,self.m,self.quotes(NOW+4,'.46'),NOW+4,BAND_SETTINGS)
+        self.assertEqual(rule['side'],'UP')
+        self.lean('DOWN',NOW+4)
+        with self.assertRaisesRegex(ValueError,'LEAN_NOT_ALIGNED'):
+            entry_check(self.engine.db,self.m,self.quotes(NOW+5,'.46'),NOW+5,BAND_SETTINGS)
+    def test_20_percent_up_crossing_and_down_crossing(self):
+        with self.assertRaisesRegex(ValueError,'OUTSIDE'):
+            entry_check(self.engine.db,self.m,self.quotes(NOW,'.19'),NOW,BAND_SETTINGS)
+        rule=entry_check(self.engine.db,self.m,self.quotes(NOW+1,'.20'),NOW+1,BAND_SETTINGS)
+        self.assertEqual(rule['side'],'UP')
+        self.assertTrue(rule['rising_20_entry'])
+        self.assertEqual(rule['market_probability'],'0.20')
+        self.lean('DOWN',NOW+2)
+        with self.assertRaisesRegex(ValueError,'LEAN_NOT_ALIGNED'):
+            entry_check(self.engine.db,self.m,self.quotes(NOW+2,'.21'),NOW+2,BAND_SETTINGS)
+        with self.assertRaisesRegex(ValueError,'OUTSIDE'):
+            entry_check(self.engine.db,self.m,self.quotes(NOW+20,'.81'),NOW+20,BAND_SETTINGS)
+        rule=entry_check(self.engine.db,self.m,self.quotes(NOW+21,'.80'),NOW+21,BAND_SETTINGS)
+        self.assertEqual(rule['side'],'DOWN')
+        self.assertTrue(rule['rising_20_entry'])
+        self.assertEqual(rule['market_probability'],'0.20')
+    def test_20_percent_entry_stop_is_15_percent(self):
+        self.lean('UP',NOW)
+        with self.assertRaisesRegex(ValueError,'OUTSIDE'):
+            entry_check(self.engine.db,self.m,self.quotes(NOW-1,'.19'),NOW-1,BAND_SETTINGS)
+        self.engine.propose('Champion',self.m,self.forecast,self.details,self.quotes(NOW,'.20'),NOW,NOW-1)
+        key,encoded=self.engine.db.execute("SELECT market_slug,payload FROM orders WHERE state='PROPOSED'").fetchone()
+        self.engine.complete('Champion',key,encoded,self.quotes(NOW+4,'.20'),NOW+4)
+        p=json.loads(self.engine.db.execute('SELECT payload FROM positions WHERE market_slug=?',(key,)).fetchone()[0])
+        self.assertEqual(p['side'],'UP')
+        self.assertEqual(p['exit_rule'],'MARKET_FIXED_5PT_30S_TRAIL_70_75')
+        state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.15'),NOW+5)
+        self.assertEqual(state['stop_probability'],'0.15')
+        self.assertEqual(state['stop_since'],NOW+5)
+        self.assertIsNone(state['triggered_at'])
     def test_neutral_stale_missing_wrong_target_leans_never_enter(self):
         for direction,changes in [('NEUTRAL',{}),('UP',dict(recorded_at=iso(NOW-100))),('UP',dict(feature_snapshot=dict(asset='BTC',duration_seconds=900,target='1')))]:
             self.lean(direction,NOW,**changes)
@@ -108,23 +149,23 @@ class BandTests(unittest.TestCase):
 
     def test_stop_requires_continuous_fifteen_seconds_and_resets(self):
         key,p=self.buy('.60')
-        self.assertEqual(p['exit_rule'],'MARKET_FIXED_3PT_15S_TRAIL_70_75')
-        for t in range(5,31):
-            px='.58' if t==15 else '.57'
+        self.assertEqual(p['exit_rule'],'MARKET_FIXED_5PT_30S_TRAIL_70_75')
+        for t in range(5,46):
+            px='.58' if t==15 else '.55'
             expected=None if t==15 else NOW+5 if t<15 else NOW+16
             state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+t,px),NOW+t)
             self.assertEqual(state['stop_since'],expected)
             self.assertIsNone(state['triggered_at'])
-            self.assertEqual(state['stop_probability'],'0.57')
-        state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+31,'.56'),NOW+31)
-        self.assertEqual(state['reason'],'MARKET_ENTRY_MINUS_3_POINTS_15_SECONDS')
-        self.assertEqual(state['triggered_at'],NOW+31)
+            self.assertEqual(state['stop_probability'],'0.55')
+        state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+46,'.55'),NOW+46)
+        self.assertEqual(state['reason'],'MARKET_ENTRY_MINUS_5_POINTS_30_SECONDS')
+        self.assertEqual(state['triggered_at'],NOW+46)
     def test_stale_quotes_do_not_advance_timer(self):
         key,p=self.buy('.60')
-        update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.57'),NOW+5)
+        update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.55'),NOW+5)
         with self.assertRaisesRegex(ValueError,'STALE_MARKET'):
-            update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.56'),NOW+20)
-        state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+21,'.56'),NOW+21)
+            update_exit(self.engine,'Champion',key,p,self.quotes(NOW+5,'.54'),NOW+20)
+        state=update_exit(self.engine,'Champion',key,p,self.quotes(NOW+21,'.54'),NOW+21)
         self.assertEqual(state['stop_since'],NOW+21)
         self.assertIsNone(state['triggered_at'])
     def test_profit_arms_at_70_trails_one_point_and_targets_75(self):

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PBot-only V6 paper strategy rollout; no CBot services or files touched.
+# PBot-only V7 paper strategy rollout; no CBot services or files touched.
 set -euo pipefail
 [[ "${1:-}" == "--apply" && "$EUID" == 0 ]] || { echo 'Run as root with --apply'; exit 2; }
 src="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -56,9 +56,9 @@ from trading_bot.market_band import BAND_SETTINGS
 with sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True) as db:
     assert json.loads(db.execute('SELECT payload FROM settings WHERE id=1').fetchone()[0])==BAND_SETTINGS
     assert db.execute('PRAGMA quick_check').fetchone()[0]=='ok'
-print('PASS: PBot V6 policy and ledger integrity')
+print('PASS: PBot V7 policy and ledger integrity')
 PY
 )
 done_ok=1
 trap - EXIT
-echo "PASS: PBot paper service V6 running. CBot unchanged. Ledger backup: $backup"
+echo "PASS: PBot paper service V7 running. CBot unchanged. Ledger backup: $backup"

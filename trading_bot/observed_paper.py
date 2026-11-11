@@ -209,7 +209,7 @@ class Engine:
                               fees_at_api_coefficient=sensitivity,api_fee_coefficient=alternate,fee_basis=FEE_BASIS,
                               simulated_only=True,price_basis='OBSERVED_POST_DELAY_BOOK',fills=result['fills'])
                 if self.settings.get('entry_strategy')=='MARKET_BAND':
-                    position.update(entry_market_probability=entry_context['market_probability'],entry_market_source=entry_context['market_source'],entry_lean=entry_context['lean'],exit_rule='MARKET_FIXED_3PT_15S_TRAIL_70_75',exit_stop_drop=self.settings['market_stop_drop'],exit_target=self.settings['market_take_profit'],exit_profit_arm=self.settings['market_profit_arm'],exit_profit_trail=self.settings['market_profit_trail'],exit_stop_hold_seconds=self.settings['market_stop_hold_seconds'])
+                    position.update(entry_market_probability=entry_context['market_probability'],entry_market_source=entry_context['market_source'],entry_lean=entry_context['lean'],exit_rule='MARKET_FIXED_5PT_30S_TRAIL_70_75',exit_stop_drop=self.settings['market_stop_drop'],exit_target=self.settings['market_take_profit'],exit_profit_arm=self.settings['market_profit_arm'],exit_profit_trail=self.settings['market_profit_trail'],exit_stop_hold_seconds=self.settings['market_stop_hold_seconds'])
                 self.db.execute('INSERT INTO positions VALUES(?,?,?)',(wallet,slug,json.dumps(position)))
                 self.db.execute('UPDATE wallets SET cash=? WHERE name=?',(str(cash-cost),wallet))
         self.event(wallet,slug,result['reason'],now)
